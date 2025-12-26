@@ -7,6 +7,7 @@ import logging
 import requests
 import urllib3
 import shutil
+import re
 from urllib.parse import urlparse
 from nicegui import ui, run, app, Client
 from fastapi import Response, Request
@@ -27,11 +28,10 @@ logging.getLogger("nicegui").setLevel(logging.INFO)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ================= 配置区域 =================
-CONFIG_FILE = 'servers.json'
-SUBS_FILE = 'subscriptions.json'
-NODES_CACHE_FILE = 'nodes_cache.json'
+CONFIG_FILE = 'data/servers.json'
+SUBS_FILE = 'data/subscriptions.json'
+NODES_CACHE_FILE = 'data/nodes_cache.json'
 
-# --- [修复] 优先读取环境变量，没有则默认为 admin ---
 ADMIN_USER = os.getenv('XUI_USERNAME', 'admin')
 ADMIN_PASS = os.getenv('XUI_PASSWORD', 'admin')
 
@@ -50,8 +50,10 @@ SERVER_UI_MAP = {}
 content_container = None
 
 def init_data():
+    if not os.path.exists('data'): os.makedirs('data')
     global SERVERS_CACHE, SUBS_CACHE, NODES_DATA
     logger.info(f"正在初始化数据... (当前登录账号: {ADMIN_USER})")
+    
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f: SERVERS_CACHE = json.load(f)
@@ -96,7 +98,6 @@ async def save_nodes_cache():
 init_data()
 managers = {}
 
-# 安全通知 (防崩)
 def safe_notify(message, type='info'):
     try: ui.notify(message, type=type)
     except: logger.info(f"[Notify] {message}")
@@ -273,12 +274,8 @@ def get_all_groups():
         if g: groups.add(g)
     return sorted(list(groups))
 
-# [修复] 增强版复制功能，兼容 HTTP
 async def safe_copy_to_clipboard(text):
-    # 处理特殊字符防止 JS 报错
-    safe_text = json.dumps(text).replace('"', '\\"') # 简单转义
-    
-    # 注入增强版 JS：先尝试 API，失败则回退到 execCommand
+    safe_text = json.dumps(text).replace('"', '\\"') 
     js_code = f"""
     (async () => {{
         const text = {json.dumps(text)};
@@ -286,7 +283,6 @@ async def safe_copy_to_clipboard(text):
             await navigator.clipboard.writeText(text);
             return true;
         }} catch (err) {{
-            // 回退方案
             const textArea = document.createElement("textarea");
             textArea.value = text;
             textArea.style.position = "fixed";
@@ -306,12 +302,9 @@ async def safe_copy_to_clipboard(text):
     """
     try:
         result = await ui.run_javascript(js_code)
-        if result:
-            safe_notify('已复制到剪贴板', 'positive')
-        else:
-            safe_notify('复制失败，请使用下载按钮 (浏览器安全限制)', 'negative')
-    except:
-        safe_notify('复制功能不可用，建议使用下载按钮', 'negative')
+        if result: safe_notify('已复制到剪贴板', 'positive')
+        else: safe_notify('复制失败，请使用下载按钮', 'negative')
+    except: safe_notify('复制功能不可用，建议使用下载按钮', 'negative')
 
 async def open_add_server_dialog():
     with ui.dialog() as d, ui.card().classes('w-2/3 max-w-5xl h-auto flex flex-col gap-4'):
@@ -391,7 +384,7 @@ def open_create_group_dialog():
         ui.button('保存', on_click=save_new_group).props('color=primary')
     d.open()
 
-# 导入导出数据弹窗
+# [核心功能修复] 增强上传兼容性，防止旧版 NiceGUI 崩溃
 async def open_data_mgmt_dialog():
     with ui.dialog() as d, ui.card().classes('w-2/3 max-w-5xl h-auto flex flex-col gap-4'):
         with ui.tabs().classes('w-full') as tabs:
@@ -419,24 +412,39 @@ async def open_data_mgmt_dialog():
             # 导入面板
             with ui.tab_panel(tab_import).classes('flex flex-col gap-6 p-4'):
                 
-                # 方式一：完整备份恢复
                 with ui.column().classes('w-full gap-4'):
                     ui.label('方式一：完整备份恢复 (.json)').classes('font-bold text-gray-700 text-lg')
                     
+                    # 定义文本框
+                    import_text = ui.textarea(placeholder='或直接在此粘贴 JSON 内容').classes('w-full h-24 font-mono text-xs')
+
                     async def handle_json_upload(e):
-                        content = e.content.read().decode('utf-8')
-                        import_text.set_value(content)
-                        safe_notify("文件已读取，请点击下方恢复按钮", "positive")
+                        try:
+                            # [关键修复] 尝试检测 'content' 属性，如果不存在则提示升级
+                            if not hasattr(e, 'content'):
+                                safe_notify("系统 NiceGUI 版本过旧，无法读取文件！请更新 requirements.txt 并重建容器。", "negative")
+                                return
+                            
+                            content = e.content.read().decode('utf-8')
+                            if not content:
+                                safe_notify("文件内容为空", "warning")
+                                return
+                            import_text.set_value(content)
+                            safe_notify(f"成功读取 {len(content)} 字节，请点击恢复按钮", "positive")
+                        except Exception as err:
+                            safe_notify(f"文件读取失败: {err}", "negative")
 
                     ui.upload(on_upload=handle_json_upload, auto_upload=True, label='拖拽或点击上传 JSON 备份文件').classes('w-full')
                     
-                    import_text = ui.textarea(placeholder='或直接在此粘贴 JSON 内容').classes('w-full h-24 font-mono text-xs')
                     import_cache_chk = ui.checkbox('同时恢复节点缓存 (无需重新同步)', value=True).classes('text-sm text-gray-600 mt-2')
                     
                     async def process_json_import():
                         try:
                             raw = import_text.value.strip()
-                            if not raw: return
+                            if not raw: 
+                                safe_notify("请先上传文件或粘贴 JSON 内容", 'warning')
+                                return
+                            
                             data = json.loads(raw)
                             new_servers = []
                             new_cache = {}
@@ -454,13 +462,12 @@ async def open_data_mgmt_dialog():
                             if count > 0 or (import_cache_chk.value and new_cache):
                                 await save_servers(); render_sidebar_content.refresh(); safe_notify(f"操作完成，恢复 {count} 个服务器", 'positive'); d.close()
                             else: safe_notify("未发现新数据", 'warning')
-                        except Exception as e: safe_notify(f"错误: {e}", 'negative')
+                        except Exception as e: safe_notify(f"JSON 格式错误: {e}", 'negative')
 
                     ui.button('执行恢复', icon='restore', on_click=process_json_import).classes('w-full bg-green-600 text-white')
                 
                 ui.separator().classes('my-4')
                 
-                # 方式二：批量 URL 添加
                 with ui.column().classes('w-full gap-4'):
                     ui.label('方式二：批量 URL 添加 (.txt)').classes('font-bold text-gray-700 text-lg')
                     
@@ -472,9 +479,22 @@ async def open_data_mgmt_dialog():
                             url_area = ui.textarea(placeholder='http://1.1.1.1:54321\nhttps://example.com:2053').classes('w-full h-48 font-mono text-sm')
                             
                             async def handle_txt_upload(e):
-                                content = e.content.read().decode('utf-8')
-                                url_area.set_value(content)
-                                safe_notify("TXT 文件已读取", "positive")
+                                try:
+                                    if not hasattr(e, 'content'):
+                                        safe_notify("依赖版本过旧，无法读取！", "negative"); return
+                                    content = e.content.read().decode('utf-8')
+                                    if not content: safe_notify("文件内容为空", "warning"); return
+                                    
+                                    # 智能检测 JSON
+                                    try:
+                                        json.loads(content)
+                                        safe_notify("检测到 JSON 文件，请使用上方【方式一】恢复！", "warning"); return
+                                    except: pass
+                                    
+                                    url_area.set_value(content)
+                                    safe_notify("TXT 文件已读取", "positive")
+                                except Exception as err:
+                                    safe_notify(f"读取失败: {err}", "negative")
                                 
                             ui.upload(on_upload=handle_txt_upload, auto_upload=True, label='上传 TXT 文件').classes('w-full')
 
@@ -483,12 +503,16 @@ async def open_data_mgmt_dialog():
                                 def_pass = ui.input('统一密码', value='admin').classes('flex-grow')
                             
                             async def run_url_import():
-                                raw_urls = url_area.value.strip().split('\n')
-                                if not raw_urls: return
+                                raw_text = url_area.value.strip()
+                                if not raw_text: safe_notify("内容不能为空", "warning"); return
+                                
+                                raw_urls = re.findall(r'https?://[^\s,;"\'<>]+', raw_text)
+                                if not raw_urls: raw_urls = re.findall(r'(?:[0-9]{1,3}\.){3}[0-9]{1,3}:\d+', raw_text)
+                                
+                                if not raw_urls: safe_notify("未识别到有效的 URL", "warning"); return
+
                                 count = 0; existing = {s['url'] for s in SERVERS_CACHE}
                                 for u in raw_urls:
-                                    u = u.strip()
-                                    if not u: continue
                                     if '://' not in u: u = f'http://{u}'
                                     if u not in existing:
                                         try: name = urlparse(u).hostname or u
@@ -496,7 +520,7 @@ async def open_data_mgmt_dialog():
                                         SERVERS_CACHE.append({'name': name, 'group': '默认分组', 'url': u, 'user': def_user.value, 'pass': def_pass.value, 'prefix': ''})
                                         existing.add(u); count += 1
                                 if count > 0: await save_servers(); render_sidebar_content.refresh(); safe_notify(f"成功添加 {count} 个服务器", 'positive'); sub_d.close(); d.close()
-                                else: safe_notify("未添加任何服务器", 'warning')
+                                else: safe_notify("未添加任何服务器 (可能已存在)", 'warning')
                             ui.button('确认添加', on_click=run_url_import).classes('w-full bg-blue-600 text-white')
                         sub_d.open()
                     ui.button('打开批量添加窗口', icon='playlist_add', on_click=open_url_import_sub_dialog).classes('w-full outline-blue-600 text-blue-600')
