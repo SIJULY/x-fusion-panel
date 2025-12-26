@@ -58,7 +58,7 @@ data/nodes_cache.json: 节点缓存数据
 
 ⚠️ 注意：请定期备份 data 目录以防数据丢失。
 
-
+<img width="1908" height="1546" alt="image" src="https://github.com/user-attachments/assets/8ef99f70-bbd4-4565-ae87-836b2c999204" />
 
 
 
