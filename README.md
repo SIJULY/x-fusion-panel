@@ -32,16 +32,16 @@ bash <(curl -Ls https://raw.githubusercontent.com/SIJULY/xui_manager/main/instal
 
 ## 🛠️ 管理命令
 
-* ** 查看日志：
+* 查看日志：
 
 ```bash
 docker logs -f xui-manager
 ```
-* ** 重启服务：
+* 重启服务：
 ```bash
 docker restart xui-manager
 ```
-* ** 更新程序：
+* 更新程序：
 ```bash
 docker pull python:3.10-slim && docker restart xui-manager
 ```
