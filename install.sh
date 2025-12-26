@@ -125,13 +125,14 @@ services:
     ports:
       - "${BIND_IP}:${PORT}:8080"
     volumes:
-      - ./data/servers.json:/app/servers.json
-      - ./data/subscriptions.json:/app/subscriptions.json
-      - ./data/nodes_cache.json:/app/nodes_cache.json
+      - ./data/servers.json:/app/data/servers.json
+      - ./data/subscriptions.json:/app/data/subscriptions.json
+      - ./data/nodes_cache.json:/app/data/nodes_cache.json
     environment:
       - TZ=Asia/Shanghai
-      - ADMIN_USER=${USER}
-      - ADMIN_PASS=${PASS}
+      # --- 必须修改这里，变量名要和 main.py 里的 os.getenv 保持一致 ---
+      - XUI_USERNAME=${USER}
+      - XUI_PASSWORD=${PASS}
 EOF
 }
 
