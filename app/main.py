@@ -8,7 +8,7 @@ import requests
 import urllib3
 import shutil
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 from nicegui import ui, run, app, Client
 from fastapi import Response, Request
 from fastapi.responses import RedirectResponse
@@ -98,8 +98,8 @@ async def save_nodes_cache():
 init_data()
 managers = {}
 
-def safe_notify(message, type='info'):
-    try: ui.notify(message, type=type)
+def safe_notify(message, type='info', timeout=3000):
+    try: ui.notify(message, type=type, timeout=timeout)
     except: logger.info(f"[Notify] {message}")
 
 # ================= 核心逻辑 =================
@@ -208,6 +208,10 @@ async def fetch_inbounds_safe(server_conf, force_refresh=False):
         return []
 
 def safe_base64(s): return base64.b64encode(s.encode('utf-8')).decode('utf-8')
+def decode_base64_safe(s): 
+    try: return base64.b64decode(s).decode('utf-8')
+    except: return ""
+
 def generate_node_link(node, server_host):
     try:
         p = node['protocol']; remark = node['remark']; port = node['port']
@@ -235,16 +239,16 @@ def generate_node_link(node, server_host):
     except: return ""
     return ""
 
+# ================= 订阅处理 =================
 @app.get('/sub/{token}')
 async def sub_handler(token: str, request: Request):
     sub = next((s for s in SUBS_CACHE if s['token'] == token), None)
     if not sub: return Response("Invalid Token", 404)
     links = []
-    tasks = [fetch_inbounds_safe(srv, force_refresh=False) for srv in SERVERS_CACHE]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for i, srv in enumerate(SERVERS_CACHE):
-        inbounds = results[i]
-        if not inbounds or isinstance(inbounds, Exception): continue
+    # 订阅模式不强制刷新，使用缓存
+    for srv in SERVERS_CACHE:
+        inbounds = NODES_DATA.get(srv['url'], [])
+        if not inbounds: continue
         raw_url = srv['url']
         try:
             if '://' not in raw_url: raw_url = f'http://{raw_url}'
@@ -255,6 +259,33 @@ async def sub_handler(token: str, request: Request):
             if f"{srv['url']}|{n['id']}" in sub_nodes_set:
                 l = generate_node_link(n, host)
                 if l: links.append(l)
+    return Response(safe_base64("\n".join(links)), media_type="text/plain; charset=utf-8")
+
+# [新增功能] 分组订阅接口
+@app.get('/sub/group/{group_b64}')
+async def group_sub_handler(group_b64: str, request: Request):
+    group_name = decode_base64_safe(group_b64)
+    if not group_name: return Response("Invalid Group Name", 400)
+    
+    links = []
+    # 筛选属于该组的服务器
+    target_servers = [s for s in SERVERS_CACHE if s.get('group', '默认分组') == group_name]
+    
+    for srv in target_servers:
+        inbounds = NODES_DATA.get(srv['url'], [])
+        if not inbounds: continue
+        
+        raw_url = srv['url']
+        try:
+            if '://' not in raw_url: raw_url = f'http://{raw_url}'
+            parsed = urlparse(raw_url); host = parsed.hostname or raw_url.split('://')[-1].split(':')[0]
+        except: host = raw_url
+        
+        for n in inbounds:
+            if n.get('enable'): # 只添加启用的节点
+                l = generate_node_link(n, host)
+                if l: links.append(l)
+                
     return Response(safe_base64("\n".join(links)), media_type="text/plain; charset=utf-8")
 
 # ================= UI 辅助 =================
@@ -306,28 +337,38 @@ async def safe_copy_to_clipboard(text):
         else: safe_notify('复制失败，请使用下载按钮', 'negative')
     except: safe_notify('复制功能不可用，建议使用下载按钮', 'negative')
 
+# [新增功能] 获取分组订阅链接
+async def copy_group_link(group_name):
+    try:
+        origin = await ui.run_javascript('return window.location.origin', timeout=3.0)
+        if not origin: origin = ""
+        encoded_name = safe_base64(group_name)
+        link = f"{origin}/sub/group/{encoded_name}"
+        await safe_copy_to_clipboard(link)
+        safe_notify(f"已复制 [{group_name}] 专属订阅链接", "positive")
+    except Exception as e:
+        safe_notify(f"生成链接失败: {e}", "negative")
+
 async def open_add_server_dialog():
-    with ui.dialog() as d, ui.card().classes('w-2/3 max-w-5xl h-auto flex flex-col gap-4'):
+    with ui.dialog() as d, ui.card().classes('w-full max-w-sm flex flex-col gap-4 p-6'):
         ui.label('添加服务器').classes('text-lg font-bold')
-        with ui.column().classes('w-full gap-2'):
-            n = ui.input('名称').classes('w-full'); g = ui.select(options=get_all_groups(), label='分组', value='默认分组').classes('w-full')
-            u = ui.input('URL').classes('w-full'); us = ui.input('账号').classes('w-full')
-            p = ui.input('密码', password=True).classes('w-full'); pre = ui.input('API前缀', placeholder='/xui').classes('w-full')
+        n = ui.input('名称').classes('w-full'); g = ui.select(options=get_all_groups(), label='分组', value='默认分组').classes('w-full')
+        u = ui.input('URL').classes('w-full'); us = ui.input('账号').classes('w-full')
+        p = ui.input('密码', password=True).classes('w-full'); pre = ui.input('API前缀', placeholder='/xui').classes('w-full')
         async def save():
             SERVERS_CACHE.append({'name':n.value,'group':g.value,'url':u.value,'user':us.value,'pass':p.value,'prefix':pre.value})
             await save_servers(); d.close(); render_sidebar_content.refresh(); await refresh_content('SINGLE', SERVERS_CACHE[-1], force_refresh=True)
-        ui.button('保存', on_click=save).classes('w-full mt-4 color-green')
+        ui.button('保存', on_click=save).classes('w-full bg-green-600 text-white')
     d.open()
 
 async def open_edit_server_dialog(idx):
     data = SERVERS_CACHE[idx]
-    with ui.dialog() as d, ui.card().classes('w-2/3 max-w-5xl h-auto flex flex-col gap-4'):
+    with ui.dialog() as d, ui.card().classes('w-full max-w-sm flex flex-col gap-4 p-6'):
         ui.label('编辑配置').classes('text-lg font-bold')
-        with ui.column().classes('w-full gap-2'):
-            n = ui.input('名称', value=data['name']).classes('w-full')
-            g = ui.select(options=get_all_groups(), label='分组', value=data.get('group', '默认分组')).classes('w-full')
-            u = ui.input('URL', value=data['url']).classes('w-full'); us = ui.input('账号', value=data['user']).classes('w-full')
-            p = ui.input('密码', value=data['pass'], password=True).classes('w-full'); pre = ui.input('API前缀', value=data.get('prefix','')).classes('w-full')
+        n = ui.input('名称', value=data['name']).classes('w-full')
+        g = ui.select(options=get_all_groups(), label='分组', value=data.get('group', '默认分组')).classes('w-full')
+        u = ui.input('URL', value=data['url']).classes('w-full'); us = ui.input('账号', value=data['user']).classes('w-full')
+        p = ui.input('密码', value=data['pass'], password=True).classes('w-full'); pre = ui.input('API前缀', value=data.get('prefix','')).classes('w-full')
         async def save():
             SERVERS_CACHE[idx] = {'name':n.value,'group':g.value,'url':u.value,'user':us.value,'pass':p.value,'prefix':pre.value}
             await save_servers(); d.close(); render_sidebar_content.refresh(); await refresh_content('SINGLE', SERVERS_CACHE[idx], force_refresh=True)
@@ -337,193 +378,136 @@ async def open_edit_server_dialog(idx):
             await save_servers()
             render_sidebar_content.refresh()
             if deleted_url in SERVER_UI_MAP:
-                try:
-                    SERVER_UI_MAP[deleted_url].delete()
-                    del SERVER_UI_MAP[deleted_url]
-                    safe_notify("已删除服务器", "info")
+                try: SERVER_UI_MAP[deleted_url].delete(); del SERVER_UI_MAP[deleted_url]
                 except: await refresh_content('ALL')
             else: await refresh_content('ALL')
             d.close()
-        with ui.row().classes('w-full justify-end mt-4'):
-            ui.button('删除', on_click=delete, color='red').props('flat'); ui.button('保存', on_click=save)
+        with ui.column().classes('w-full gap-2 mt-2'):
+            ui.button('保存', on_click=save).classes('w-full bg-primary text-white')
+            ui.button('删除', on_click=delete).classes('w-full bg-red-100 text-red-600')
     d.open()
 
 def open_group_mgmt_dialog(group_name):
-    with ui.dialog() as d, ui.card().classes('w-2/3 max-w-5xl h-[70vh] flex flex-col p-0 gap-0'):
-        with ui.row().classes('w-full p-4 border-b bg-gray-50 justify-between items-center'):
-            ui.label(f'管理分组: {group_name}').classes('text-lg font-bold')
-            new_name = ui.input('重命名组', value=group_name).props('dense').classes('w-48')
+    with ui.dialog() as d, ui.card().classes('w-[95vw] max-w-[400px] flex flex-col p-4 gap-4 items-stretch'):
+        with ui.element('div').classes('flex justify-between items-center w-full'):
+            ui.label(f'管理: {group_name}').classes('text-lg font-bold')
+            ui.button(icon='close', on_click=d.close).props('flat round dense color=grey')
+        new_name = ui.input('重命名组', value=group_name).classes('w-full')
+        ui.label('包含的服务器:').classes('text-sm text-gray-500 mt-2')
         sel_urls = {s['url'] for s in SERVERS_CACHE if s.get('group')==group_name}
-        with ui.column().classes('w-full flex-grow overflow-y-auto p-0 gap-0'):
-            for i, s in enumerate(SERVERS_CACHE):
+        with ui.column().classes('w-full flex-grow overflow-y-auto border rounded p-2 gap-2 h-[50vh]'):
+            for s in SERVERS_CACHE:
                 def toggle(e, u=s.get('url')): 
                     if e.value: sel_urls.add(u)
                     else: sel_urls.discard(u)
-                with ui.row().classes(f'w-full items-center px-4 py-2 hover:bg-blue-50 border-b border-gray-100 no-wrap'):
-                    ui.checkbox(s.get('name', '未命名'), value=(s.get('url') in sel_urls), on_change=toggle).classes('w-full text-sm truncate')
-        with ui.row().classes('w-full p-4 border-t bg-gray-50 justify-end'):
-            async def save():
-                for s in SERVERS_CACHE:
-                    if s['url'] in sel_urls: s['group'] = new_name.value
-                    elif s.get('group') == group_name: s['group'] = '默认分组'
-                await save_servers(); d.close(); render_sidebar_content.refresh(); await refresh_content('GROUP', new_name.value)
-            ui.button('保存', on_click=save).classes('bg-primary text-white')
+                ui.checkbox(s.get('name', '未命名'), value=(s.get('url') in sel_urls), on_change=toggle).classes('w-full text-sm')
+        async def save():
+            for s in SERVERS_CACHE:
+                if s['url'] in sel_urls: s['group'] = new_name.value
+                elif s.get('group') == group_name: s['group'] = '默认分组'
+            await save_servers(); d.close(); render_sidebar_content.refresh(); await refresh_content('GROUP', new_name.value)
+        ui.button('保存修改', on_click=save).classes('w-full bg-primary text-white h-10')
     d.open()
 
 def open_create_group_dialog():
-    with ui.dialog() as d, ui.card().classes('w-2/3 max-w-5xl h-auto flex flex-col gap-4'):
+    with ui.dialog() as d, ui.card().classes('w-full max-w-sm flex flex-col gap-4 p-6'):
         ui.label('新建分组').classes('text-lg font-bold mb-4')
-        with ui.column().classes('w-full gap-2'):
-            name_input = ui.input('分组名称').classes('w-full mb-4')
-            server_select = ui.select({s['url']: s.get('name', '未命名') for s in SERVERS_CACHE}, label='选择服务器', multiple=True).classes('w-full mb-6').props('use-chips')
+        name_input = ui.input('分组名称').classes('w-full')
+        server_select = ui.select({s['url']: s.get('name', '未命名') for s in SERVERS_CACHE}, label='选择服务器', multiple=True).classes('w-full').props('use-chips')
         async def save_new_group():
             if not name_input.value: return
             for s in SERVERS_CACHE:
                 if s['url'] in (server_select.value or []): s['group'] = name_input.value
             await save_servers(); d.close(); render_sidebar_content.refresh(); await refresh_content('GROUP', name_input.value)
-        ui.button('保存', on_click=save_new_group).props('color=primary')
+        ui.button('保存', on_click=save_new_group).classes('w-full bg-blue-600 text-white mt-4')
     d.open()
 
-# [核心功能修复] 增强上传兼容性，防止旧版 NiceGUI 崩溃
+# [修复] 回滚到你满意的稳定版本（无文件上传、纯文本粘贴、布局修复）
 async def open_data_mgmt_dialog():
-    with ui.dialog() as d, ui.card().classes('w-2/3 max-w-5xl h-auto flex flex-col gap-4'):
-        with ui.tabs().classes('w-full') as tabs:
-            tab_export = ui.tab('导出备份')
-            tab_import = ui.tab('导入恢复')
+    with ui.dialog() as d, ui.card().classes('w-full max-w-2xl h-auto flex flex-col gap-4 p-0'):
+        with ui.tabs().classes('w-full bg-gray-50') as tabs:
+            tab_export = ui.tab('导出')
+            tab_import = ui.tab('导入')
         
-        with ui.tab_panels(tabs, value=tab_export).classes('w-full flex-grow'):
+        with ui.tab_panels(tabs, value=tab_export).classes('w-full p-4'):
             # 导出面板
-            with ui.tab_panel(tab_export).classes('flex flex-col gap-6 p-4'):
-                ui.label('包含服务器配置和节点缓存数据').classes('text-xs text-gray-400')
-                
+            with ui.tab_panel(tab_export).classes('flex flex-col gap-4'):
                 full_backup = {
                     "version": "2.0",
                     "servers": SERVERS_CACHE,
                     "cache": NODES_DATA
                 }
                 json_str = json.dumps(full_backup, indent=2, ensure_ascii=False)
-                
-                ui.textarea('全量备份数据', value=json_str).props('readonly').classes('w-full h-64 font-mono text-xs')
-                
-                with ui.row().classes('w-full gap-4'):
-                    ui.button('复制文本', icon='content_copy', on_click=lambda: safe_copy_to_clipboard(json_str)).classes('flex-grow bg-blue-600 text-white')
-                    ui.button('下载 .json 文件', icon='download', on_click=lambda: ui.download(json_str.encode('utf-8'), 'xui_backup.json')).classes('flex-grow bg-green-600 text-white')
+                ui.textarea('备份内容', value=json_str).props('readonly').classes('w-full h-48 font-mono text-xs')
+                ui.button('复制到剪贴板', icon='content_copy', on_click=lambda: safe_copy_to_clipboard(json_str)).classes('w-full bg-blue-600 text-white')
+                ui.button('下载 .json', icon='download', on_click=lambda: ui.download(json_str.encode('utf-8'), 'xui_backup.json')).classes('w-full bg-green-600 text-white')
 
-            # 导入面板
-            with ui.tab_panel(tab_import).classes('flex flex-col gap-6 p-4'):
+            # 导入面板：无文件上传组件，纯文本
+            with ui.tab_panel(tab_import).classes('flex flex-col gap-4'):
+                ui.label('方式一：粘贴 JSON 内容').classes('font-bold')
+                import_text = ui.textarea(placeholder='在此粘贴备份 JSON...').classes('w-full h-32 font-mono text-xs')
                 
-                with ui.column().classes('w-full gap-4'):
-                    ui.label('方式一：完整备份恢复 (.json)').classes('font-bold text-gray-700 text-lg')
-                    
-                    # 定义文本框
-                    import_text = ui.textarea(placeholder='或直接在此粘贴 JSON 内容').classes('w-full h-24 font-mono text-xs')
+                import_cache_chk = ui.checkbox('恢复节点缓存', value=True).classes('text-sm')
+                
+                async def process_json_import():
+                    try:
+                        raw = import_text.value.strip()
+                        if not raw: 
+                            safe_notify("内容不能为空", 'warning')
+                            return
+                        data = json.loads(raw)
+                        new_servers = data.get('servers', []) if isinstance(data, dict) else data
+                        new_cache = data.get('cache', {}) if isinstance(data, dict) else {}
+                        
+                        count = 0; existing = {s['url'] for s in SERVERS_CACHE}
+                        for item in new_servers:
+                            if item['url'] not in existing:
+                                SERVERS_CACHE.append(item); existing.add(item['url']); count += 1
+                        
+                        if import_cache_chk.value and new_cache:
+                            NODES_DATA.update(new_cache); await save_nodes_cache()
+                        
+                        await save_servers(); render_sidebar_content.refresh(); safe_notify(f"已恢复 {count} 个服务器", 'positive'); d.close()
+                    except Exception as e: safe_notify(f"JSON 格式错误: {e}", 'negative')
 
-                    async def handle_json_upload(e):
-                        try:
-                            # [关键修复] 尝试检测 'content' 属性，如果不存在则提示升级
-                            if not hasattr(e, 'content'):
-                                safe_notify("系统 NiceGUI 版本过旧，无法读取文件！请更新 requirements.txt 并重建容器。", "negative")
-                                return
+                ui.button('恢复数据', icon='restore', on_click=process_json_import).classes('w-full bg-green-600 text-white')
+                
+                ui.separator().classes('my-2')
+                
+                # 方式二逻辑
+                async def open_url_import_sub_dialog():
+                    with ui.dialog() as sub_d, ui.card().classes('w-full max-w-md flex flex-col gap-4 p-6'):
+                        ui.label('批量添加 URL').classes('text-lg font-bold')
+                        url_area = ui.textarea(placeholder='http://1.1.1.1:54321\nhttps://example.com').classes('w-full h-32 font-mono text-sm')
+                        
+                        def_user = ui.input('默认账号', value='admin').classes('w-full')
+                        def_pass = ui.input('默认密码', value='admin').classes('w-full')
+                        
+                        async def run_url_import():
+                            raw_text = url_area.value.strip()
+                            if not raw_text: safe_notify("请输入内容", "warning"); return
                             
-                            content = e.content.read().decode('utf-8')
-                            if not content:
-                                safe_notify("文件内容为空", "warning")
-                                return
-                            import_text.set_value(content)
-                            safe_notify(f"成功读取 {len(content)} 字节，请点击恢复按钮", "positive")
-                        except Exception as err:
-                            safe_notify(f"文件读取失败: {err}", "negative")
+                            raw_urls = re.findall(r'https?://[^\s,;"\'<>]+', raw_text)
+                            if not raw_urls: raw_urls = re.findall(r'(?:[0-9]{1,3}\.){3}[0-9]{1,3}:\d+', raw_text)
+                            
+                            if not raw_urls: safe_notify("未找到 URL", "warning"); return
 
-                    ui.upload(on_upload=handle_json_upload, auto_upload=True, label='拖拽或点击上传 JSON 备份文件').classes('w-full')
-                    
-                    import_cache_chk = ui.checkbox('同时恢复节点缓存 (无需重新同步)', value=True).classes('text-sm text-gray-600 mt-2')
-                    
-                    async def process_json_import():
-                        try:
-                            raw = import_text.value.strip()
-                            if not raw: 
-                                safe_notify("请先上传文件或粘贴 JSON 内容", 'warning')
-                                return
-                            
-                            data = json.loads(raw)
-                            new_servers = []
-                            new_cache = {}
-                            if isinstance(data, list): new_servers = data
-                            elif isinstance(data, dict): new_servers = data.get('servers', []); new_cache = data.get('cache', {})
-                            
                             count = 0; existing = {s['url'] for s in SERVERS_CACHE}
-                            for item in new_servers:
-                                if 'url' in item and item['url'] not in existing:
-                                    SERVERS_CACHE.append(item); existing.add(item['url']); count += 1
+                            for u in raw_urls:
+                                if '://' not in u: u = f'http://{u}'
+                                if u not in existing:
+                                    try: name = urlparse(u).hostname or u
+                                    except: name = u
+                                    SERVERS_CACHE.append({'name': name, 'group': '默认分组', 'url': u, 'user': def_user.value, 'pass': def_pass.value, 'prefix': ''})
+                                    existing.add(u); count += 1
+                            if count > 0: await save_servers(); render_sidebar_content.refresh(); safe_notify(f"添加了 {count} 个服务器", 'positive'); sub_d.close(); d.close()
+                            else: safe_notify("没有添加新服务器", 'warning')
                             
-                            if import_cache_chk.value and new_cache:
-                                NODES_DATA.update(new_cache); await save_nodes_cache(); safe_notify("缓存已恢复", 'positive')
-                            
-                            if count > 0 or (import_cache_chk.value and new_cache):
-                                await save_servers(); render_sidebar_content.refresh(); safe_notify(f"操作完成，恢复 {count} 个服务器", 'positive'); d.close()
-                            else: safe_notify("未发现新数据", 'warning')
-                        except Exception as e: safe_notify(f"JSON 格式错误: {e}", 'negative')
+                        ui.button('确认添加', on_click=run_url_import).classes('w-full bg-blue-600 text-white')
+                    sub_d.open()
 
-                    ui.button('执行恢复', icon='restore', on_click=process_json_import).classes('w-full bg-green-600 text-white')
-                
-                ui.separator().classes('my-4')
-                
-                with ui.column().classes('w-full gap-4'):
-                    ui.label('方式二：批量 URL 添加 (.txt)').classes('font-bold text-gray-700 text-lg')
-                    
-                    async def open_url_import_sub_dialog():
-                        with ui.dialog() as sub_d, ui.card().classes('w-2/3 max-w-2xl p-6 flex flex-col gap-4'):
-                            ui.label('批量添加服务器').classes('text-lg font-bold')
-                            ui.label('请粘贴面板地址，或上传包含地址的 TXT 文件 (每行一个)').classes('text-xs text-gray-400')
-                            
-                            url_area = ui.textarea(placeholder='http://1.1.1.1:54321\nhttps://example.com:2053').classes('w-full h-48 font-mono text-sm')
-                            
-                            async def handle_txt_upload(e):
-                                try:
-                                    if not hasattr(e, 'content'):
-                                        safe_notify("依赖版本过旧，无法读取！", "negative"); return
-                                    content = e.content.read().decode('utf-8')
-                                    if not content: safe_notify("文件内容为空", "warning"); return
-                                    
-                                    # 智能检测 JSON
-                                    try:
-                                        json.loads(content)
-                                        safe_notify("检测到 JSON 文件，请使用上方【方式一】恢复！", "warning"); return
-                                    except: pass
-                                    
-                                    url_area.set_value(content)
-                                    safe_notify("TXT 文件已读取", "positive")
-                                except Exception as err:
-                                    safe_notify(f"读取失败: {err}", "negative")
-                                
-                            ui.upload(on_upload=handle_txt_upload, auto_upload=True, label='上传 TXT 文件').classes('w-full')
-
-                            with ui.row().classes('w-full gap-4'):
-                                def_user = ui.input('统一账号', value='admin').classes('flex-grow')
-                                def_pass = ui.input('统一密码', value='admin').classes('flex-grow')
-                            
-                            async def run_url_import():
-                                raw_text = url_area.value.strip()
-                                if not raw_text: safe_notify("内容不能为空", "warning"); return
-                                
-                                raw_urls = re.findall(r'https?://[^\s,;"\'<>]+', raw_text)
-                                if not raw_urls: raw_urls = re.findall(r'(?:[0-9]{1,3}\.){3}[0-9]{1,3}:\d+', raw_text)
-                                
-                                if not raw_urls: safe_notify("未识别到有效的 URL", "warning"); return
-
-                                count = 0; existing = {s['url'] for s in SERVERS_CACHE}
-                                for u in raw_urls:
-                                    if '://' not in u: u = f'http://{u}'
-                                    if u not in existing:
-                                        try: name = urlparse(u).hostname or u
-                                        except: name = u
-                                        SERVERS_CACHE.append({'name': name, 'group': '默认分组', 'url': u, 'user': def_user.value, 'pass': def_pass.value, 'prefix': ''})
-                                        existing.add(u); count += 1
-                                if count > 0: await save_servers(); render_sidebar_content.refresh(); safe_notify(f"成功添加 {count} 个服务器", 'positive'); sub_d.close(); d.close()
-                                else: safe_notify("未添加任何服务器 (可能已存在)", 'warning')
-                            ui.button('确认添加', on_click=run_url_import).classes('w-full bg-blue-600 text-white')
-                        sub_d.open()
-                    ui.button('打开批量添加窗口', icon='playlist_add', on_click=open_url_import_sub_dialog).classes('w-full outline-blue-600 text-blue-600')
+                # 启用按钮
+                ui.button('方式二：批量 URL 导入', on_click=open_url_import_sub_dialog).props('outline').classes('w-full text-blue-600')
     d.open()
 
 class InboundEditor:
@@ -534,7 +518,7 @@ class InboundEditor:
         if isinstance(self.d.get('settings'), str): self.d['settings']=json.loads(self.d['settings'])
         if isinstance(self.d.get('streamSettings'), str): self.d['streamSettings']=json.loads(self.d['streamSettings'])
     def ui(self, d):
-        with ui.card().classes('w-2/3 max-w-5xl p-6 flex flex-col gap-4'):
+        with ui.card().classes('w-full max-w-4xl p-6 flex flex-col gap-4'):
             ui.label('编辑节点').classes('text-xl font-bold mb-4')
             with ui.row().classes('w-full gap-4'):
                 self.rem=ui.input('备注', value=self.d.get('remark')).classes('flex-grow'); self.ena=ui.switch('启用', value=self.d.get('enable',True)).classes('mt-2')
@@ -575,51 +559,30 @@ class SubEditor:
         self.sel = set(self.d['nodes'])
 
     def ui(self, dlg):
-        with ui.card().classes('w-2/3 max-w-5xl h-[80vh] flex flex-col p-6'):
-            with ui.row().classes('w-full justify-between items-center mb-2'): 
-                ui.label('订阅编辑器').classes('text-xl font-bold')
-                ui.button(icon='close', on_click=dlg.close).props('flat round dense')
-            
-            ui.input('订阅名称', value=self.d['name']).classes('w-full text-lg').on_value_change(lambda e: self.d.update({'name':e.value}))
-            
-            cont = ui.column().classes('w-full flex-grow overflow-y-auto border rounded-md p-2 bg-gray-50 mt-4')
-            
+        with ui.card().classes('w-[95vw] max-w-[400px] flex flex-col p-4 gap-4 items-stretch'):
+            with ui.element('div').classes('flex justify-between items-center w-full'):
+                ui.label('订阅编辑器').classes('text-lg font-bold')
+                ui.button(icon='close', on_click=dlg.close).props('flat round dense color=grey')
+            ui.input('订阅名称', value=self.d['name']).classes('w-full').on_value_change(lambda e: self.d.update({'name':e.value}))
+            ui.label('选择节点:').classes('text-sm text-gray-500 mt-2')
+            cont = ui.column().classes('w-full flex-grow overflow-y-auto border rounded p-2 bg-gray-50 h-[50vh]')
             async def load():
                 with cont: ui.spinner('dots', size='2rem').classes('self-center mt-4')
                 tasks = [fetch_inbounds_safe(s, force_refresh=False) for s in SERVERS_CACHE]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 cont.clear()
-                
                 with cont:
+                    if not SERVERS_CACHE: ui.label('暂无服务器').classes('text-center text-gray-400')
                     for i, srv in enumerate(SERVERS_CACHE):
                         res = results[i]
                         if not res or isinstance(res, Exception): res = NODES_DATA.get(srv['url'], [])
-                        
-                        node_ids = []
-                        if res:
-                            node_ids = [f"{srv['url']}|{n['id']}" for n in res]
-                        
-                        def toggle_all(e, ids=node_ids):
-                            if e.value: self.sel.update(ids)
-                            else: self.sel.difference_update(ids)
-                            safe_notify(f"已{'全选' if e.value else '取消'} {srv['name']} 节点", "info")
-
-                        with ui.expansion('', icon='dns').classes('w-full bg-white mb-1 shadow-sm rounded border').props('default-opened header-class="font-bold text-slate-700"') as exp:
-                            with exp.add_slot('header'):
-                                with ui.row().classes('w-full items-center justify-between no-wrap'):
-                                    ui.checkbox(srv['name'], on_change=toggle_all).props('dense').classes('font-bold text-sm truncate flex-grow mr-2')
-                                    ui.label(f"{len(res)}").classes('text-xs text-gray-400')
-
-                            with ui.column().classes('w-full p-2 pl-4 gap-2'):
-                                if not res: ui.label('无可用节点').classes('text-gray-400 text-sm')
-                                else:
-                                    with ui.column().classes('w-full gap-2'):
-                                        for n in res:
-                                            k = f"{srv['url']}|{n['id']}"
-                                            ui.checkbox(n['remark'], value=(k in self.sel), on_change=lambda e, k=k: self.sel.add(k) if e.value else self.sel.discard(k)).props('dense').classes('text-sm w-full truncate')
-            
+                        ui.label(srv['name']).classes('font-bold text-gray-700 mt-2 text-sm px-1')
+                        if not res: ui.label('无节点').classes('text-xs text-gray-400 ml-2')
+                        else:
+                            for n in res:
+                                k = f"{srv['url']}|{n['id']}"
+                                ui.checkbox(n['remark'], value=(k in self.sel), on_change=lambda e, k=k: self.sel.add(k) if e.value else self.sel.discard(k)).classes('w-full text-sm ml-2')
             asyncio.create_task(load())
-            
             async def save():
                 self.d['nodes'] = list(self.sel)
                 if self.data: 
@@ -627,7 +590,7 @@ class SubEditor:
                         if s['token'] == self.data['token']: SUBS_CACHE[i] = self.d
                 else: SUBS_CACHE.append(self.d)
                 await save_subs(); await load_subs_view(); dlg.close()
-            with ui.row().classes('w-full justify-end mt-4 gap-4'): ui.button('保存', on_click=save).props('color=primary')
+            ui.button('保存订阅', on_click=save).classes('w-full bg-primary text-white h-10 mt-auto')
 
 def open_sub_editor(d):
     with ui.dialog() as dlg: SubEditor(d).ui(dlg); dlg.open()
@@ -669,8 +632,12 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
         await asyncio.sleep(0.1)
         targets = []
         title = ""
+        is_group_view = False
+        
         if scope == 'ALL': targets = SERVERS_CACHE; title = f"🌍 所有节点 ({len(targets)})"
-        elif scope == 'GROUP': targets = [s for s in SERVERS_CACHE if s.get('group', '默认分组') == data]; title = f"📁 分组: {data} ({len(targets)})"
+        elif scope == 'GROUP': 
+            targets = [s for s in SERVERS_CACHE if s.get('group', '默认分组') == data]; title = f"📁 分组: {data} ({len(targets)})"
+            is_group_view = True
         elif scope == 'SINGLE': targets = [data]; title = f"🖥️ {data['name']}"
 
         with client:
@@ -678,23 +645,33 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
             SERVER_UI_MAP.clear()
             
             with content_container:
-                with ui.row().classes('items-center w-full mb-4 border-b pb-2'):
-                    ui.label(title).classes('text-2xl font-bold'); ui.space()
+                # 顶部标题栏
+                with ui.row().classes('items-center w-full mb-4 border-b pb-2 justify-between'):
+                    with ui.row().classes('items-center gap-4'):
+                        ui.label(title).classes('text-2xl font-bold')
+                        # [新增] 分组视图显示“复制订阅”按钮
+                        if is_group_view:
+                            ui.button('复制订阅', icon='link', on_click=lambda g=data: copy_group_link(g)).props('outline dense size=sm').classes('text-blue-600')
+
                     ui.button('同步最新数据', icon='sync', on_click=lambda: refresh_content(scope, data, force_refresh=True)).props('outline color=primary')
+                
                 if scope == 'SINGLE': await render_single_server_view(data, force_refresh)
                 else: await render_aggregated_view(targets, force_refresh)
     asyncio.create_task(_render())
 
+# [优化] 修复对齐的列定义
+# 使用固定的 grid 模板，确保表头和内容完全一致
+# 备注(2fr) 和 服务器(150px) 左对齐，其他居中
+TABLE_COLS_CSS = 'grid-template-columns: 150px 2fr 100px 80px 80px 80px 150px; align-items: center;'
+
 async def render_single_server_view(server_conf, force_refresh=False):
     mgr = get_manager(server_conf); list_container = ui.column().classes('w-full')
-    
     with ui.row().classes('w-full justify-end mb-2'):
         ui.button('新建节点', icon='add', color='green', on_click=lambda: open_inbound_dialog(mgr, None, lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('dense')
 
     try:
         res = await fetch_inbounds_safe(server_conf, force_refresh=force_refresh)
         list_container.clear()
-        
         raw_host = server_conf['url']
         try:
             if '://' not in raw_host: raw_host = f'http://{raw_host}'
@@ -702,25 +679,25 @@ async def render_single_server_view(server_conf, force_refresh=False):
         except: pass
 
         with list_container:
-            cols = 'grid-template-columns: 2fr 100px 100px 100px 100px 150px; align-items: center;'
-            with ui.element('div').classes('grid w-full gap-4 font-bold text-gray-500 border-b pb-2 px-2').style(cols):
-                for h in ['备注名称', '所在组', '协议', '端口', '状态', '操作']: ui.label(h).classes('w-full text-center')
+            # 重新设计的单服表头，与聚合视图保持结构一致，但隐藏服务器列
+            SINGLE_COLS = 'grid-template-columns: 2fr 100px 100px 100px 100px 150px; align-items: center;'
+            with ui.element('div').classes('grid w-full gap-4 font-bold text-gray-500 border-b pb-2 px-2').style(SINGLE_COLS):
+                ui.label('备注名称').classes('text-left pl-2')
+                for h in ['所在组', '协议', '端口', '状态', '操作']: ui.label(h).classes('text-center')
             
             if not res: ui.label('暂无节点或连接失败').classes('text-gray-400 mt-4 text-center w-full'); return
             if not force_refresh: ui.label('本地缓存模式').classes('text-xs text-gray-300 w-full text-right px-2')
             
             for n in res:
-                with ui.element('div').classes('grid w-full gap-4 py-3 border-b hover:bg-blue-50 transition px-2').style(cols):
-                    ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-4')
+                with ui.element('div').classes('grid w-full gap-4 py-3 border-b hover:bg-blue-50 transition px-2').style(SINGLE_COLS):
+                    ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-2')
                     ui.label(server_conf.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate')
                     ui.label(n.get('protocol', 'unknown')).classes('uppercase text-xs font-bold w-full text-center')
                     ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
                     with ui.element('div').classes('flex justify-center w-full'): ui.icon('circle', color='green' if n.get('enable') else 'red').props('size=xs')
-                    
                     with ui.row().classes('gap-2 justify-center w-full'):
                         link = generate_node_link(n, raw_host)
                         if link: ui.button(icon='content_copy', on_click=lambda l=link: safe_copy_to_clipboard(l)).props('flat dense size=sm').tooltip('复制链接')
-                        
                         ui.button(icon='edit', on_click=lambda i=n: open_inbound_dialog(mgr, i, lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm')
                         ui.button(icon='delete', on_click=lambda i=n: delete_inbound(mgr, i['id'], lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm color=red')
     except: pass
@@ -730,21 +707,20 @@ async def render_aggregated_view(server_list, force_refresh=False):
     try:
         tasks = [fetch_inbounds_safe(s, force_refresh=force_refresh) for s in server_list]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
         list_container.clear()
         
         with list_container:
-            cols = 'grid-template-columns: 150px 2fr 100px 80px 80px 80px 150px; align-items: center;'
-            with ui.element('div').classes('grid w-full gap-4 font-bold text-gray-500 border-b pb-2 px-2 bg-gray-50').style(cols):
-                for h in ['服务器', '备注名称', '所在组', '协议', '端口', '状态', '操作']: ui.label(h).classes('w-full text-center')
+            # [修复对齐] 表头：左对齐的列手动 pl-2，居中的列 text-center
+            with ui.element('div').classes('grid w-full gap-4 font-bold text-gray-500 border-b pb-2 px-2 bg-gray-50').style(TABLE_COLS_CSS):
+                ui.label('服务器').classes('text-left pl-2')
+                ui.label('备注名称').classes('text-left pl-2')
+                for h in ['所在组', '协议', '端口', '状态', '操作']: ui.label(h).classes('text-center')
             
             for i, res in enumerate(results):
                 if i % 2 == 0: await asyncio.sleep(0.01)
-                
                 srv = server_list[i]
                 if res is None or isinstance(res, Exception): res = NODES_DATA.get(srv['url'], [])
                 mgr = get_manager(srv)
-                
                 raw_host = srv['url']
                 try:
                     if '://' not in raw_host: raw_host = f'http://{raw_host}'
@@ -753,34 +729,31 @@ async def render_aggregated_view(server_list, force_refresh=False):
 
                 row_wrapper = ui.element('div').classes('w-full')
                 SERVER_UI_MAP[srv['url']] = row_wrapper
-                
                 with row_wrapper:
                     if not res:
-                        with ui.element('div').classes('grid w-full gap-4 py-3 border-b bg-red-50 px-2 items-center').style(cols):
-                            ui.label(srv['name']).classes('text-xs text-gray-500 truncate w-full text-center'); ui.label('❌ 连接失败').classes('text-red-500 font-bold w-full text-center col-span-2'); ui.label(srv.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate'); ui.label('-').classes('w-full text-center'); ui.label('-').classes('w-full text-center')
+                        with ui.element('div').classes('grid w-full gap-4 py-3 border-b bg-red-50 px-2 items-center').style(TABLE_COLS_CSS):
+                            ui.label(srv['name']).classes('text-xs text-gray-500 truncate w-full text-left pl-2')
+                            ui.label('❌ 连接失败').classes('text-red-500 font-bold w-full text-left pl-2'); ui.label(srv.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate'); ui.label('-').classes('w-full text-center'); ui.label('-').classes('w-full text-center')
                             with ui.element('div').classes('flex justify-center w-full'): ui.icon('error', color='red').props('size=xs')
                             with ui.row().classes('gap-2 justify-center w-full'): ui.button(icon='settings', on_click=lambda s=srv: refresh_content('SINGLE', s)).props('flat dense size=sm color=grey')
                         continue
 
                     for n in res:
                         try:
-                            with ui.element('div').classes('grid w-full gap-4 py-3 border-b hover:bg-blue-50 transition px-2').style(cols):
-                                ui.label(srv['name']).classes('text-xs text-gray-500 truncate w-full text-center')
-                                ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-4')
+                            with ui.element('div').classes('grid w-full gap-4 py-3 border-b hover:bg-blue-50 transition px-2').style(TABLE_COLS_CSS):
+                                ui.label(srv['name']).classes('text-xs text-gray-500 truncate w-full text-left pl-2')
+                                ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-2')
                                 ui.label(srv.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate')
                                 ui.label(n.get('protocol', 'unk')).classes('uppercase text-xs font-bold w-full text-center')
                                 ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
                                 with ui.element('div').classes('flex justify-center w-full'): ui.icon('circle', color='green' if n.get('enable') else 'red').props('size=xs')
-                                
                                 with ui.row().classes('gap-2 justify-center w-full'):
                                     link = generate_node_link(n, raw_host)
                                     if link: ui.button(icon='content_copy', on_click=lambda l=link: safe_copy_to_clipboard(l)).props('flat dense size=sm').tooltip('复制链接')
-                                    
                                     ui.button(icon='edit', on_click=lambda m=mgr, i=n, s=srv: open_inbound_dialog(m, i, lambda: refresh_content('SINGLE', s, force_refresh=True))).props('flat dense size=sm')
                                     ui.button(icon='delete', on_click=lambda m=mgr, i=n, s=srv: delete_inbound(m, i['id'], lambda: refresh_content('SINGLE', s, force_refresh=True))).props('flat dense size=sm color=red')
                         except: continue
     except: pass
-
 async def load_dashboard_stats():
     async def _render():
         await asyncio.sleep(0.1)
@@ -788,6 +761,7 @@ async def load_dashboard_stats():
         online_servers = 0; total_nodes = 0; total_traffic_bytes = 0; server_traffic_map = {}; 
         protocol_count = {} 
         
+        # 数据统计逻辑
         for s in SERVERS_CACHE:
             res = NODES_DATA.get(s['url'], [])
             name = s.get('name', '未命名')
@@ -802,36 +776,89 @@ async def load_dashboard_stats():
         
         traffic_display = f"{total_traffic_bytes / (1024**3):.2f} GB"
         content_container.clear()
+        
         with content_container:
-            ui.label('系统概览').classes('text-2xl font-bold mb-4')
-            with ui.row().classes('w-full gap-4 mb-6'):
-                def stat_card(title, value, sub_text, icon, color_cls):
-                    with ui.card().classes('flex-1 p-4 shadow-sm border border-gray-100 hover:shadow-md transition'):
-                        with ui.row().classes('items-center justify-between w-full'):
+            ui.label('系统概览').classes('text-3xl font-bold mb-6 text-slate-800 tracking-tight')
+            
+            # 顶部统计卡片
+            with ui.row().classes('w-full gap-6 mb-8'):
+                def stat_card(title, value, sub_text, icon, gradient):
+                    with ui.card().classes(f'flex-1 p-6 shadow-lg border-none text-white {gradient} rounded-xl transform hover:scale-105 transition duration-300 relative overflow-hidden'):
+                        ui.element('div').classes('absolute -right-6 -top-6 w-24 h-24 bg-white opacity-10 rounded-full')
+                        with ui.row().classes('items-center justify-between w-full relative z-10'):
                             with ui.column().classes('gap-1'):
-                                ui.label(title).classes('text-gray-500 text-xs font-bold uppercase tracking-wider'); ui.label(str(value)).classes('text-2xl font-bold text-slate-800'); ui.label(sub_text).classes(f'{color_cls} text-xs font-bold')
-                            with ui.element('div').classes(f'p-3 rounded-full {color_cls} bg-opacity-10'): ui.icon(icon).classes(f'{color_cls} text-xl')
-                stat_card('服务器状态', f"{online_servers} / {total_servers}", '在线 / 总数', 'dns', 'text-blue-600')
-                stat_card('节点总数', total_nodes, '个有效节点', 'hub', 'text-purple-600')
-                stat_card('累计流量消耗', traffic_display, '上传 + 下载', 'bolt', 'text-green-600')
-                stat_card('订阅配置', len(SUBS_CACHE), '个订阅链接', 'rss_feed', 'text-orange-600')
+                                ui.label(title).classes('opacity-80 text-xs font-bold uppercase tracking-wider')
+                                ui.label(str(value)).classes('text-3xl font-extrabold tracking-tight')
+                                ui.label(sub_text).classes('opacity-70 text-xs font-medium')
+                            ui.icon(icon).classes('text-4xl opacity-80')
+
+                stat_card('在线服务器', f"{online_servers}/{total_servers}", 'Online / Total', 'dns', 'bg-gradient-to-br from-blue-500 to-indigo-600')
+                stat_card('节点总数', total_nodes, 'Active Nodes', 'hub', 'bg-gradient-to-br from-purple-500 to-pink-600')
+                stat_card('总流量消耗', traffic_display, 'Upload + Download', 'bolt', 'bg-gradient-to-br from-emerald-500 to-teal-600')
+                stat_card('订阅配置', len(SUBS_CACHE), 'Subscriptions', 'rss_feed', 'bg-gradient-to-br from-orange-400 to-red-500')
+            
+            # 图表区域
             with ui.row().classes('w-full gap-6 mb-6'):
-                with ui.card().classes('w-2/3 p-6 shadow-sm border border-gray-100'):
-                    ui.label('服务器流量排行 (GB)').classes('text-lg font-bold text-slate-800 mb-4')
+                
+                # [修改重点] 竖向柱状图配置
+                with ui.card().classes('w-2/3 p-6 shadow-md border-none rounded-xl bg-white'):
+                    ui.label('📊 服务器流量排行 (GB)').classes('text-lg font-bold text-slate-700 mb-4')
                     sorted_traffic = sorted(server_traffic_map.items(), key=lambda x: x[1], reverse=True)[:15] 
                     names = [x[0] for x in sorted_traffic]; values = [round(x[1]/(1024**3), 2) for x in sorted_traffic]
-                    ui.echart({'tooltip': {'trigger': 'axis'}, 'grid': {'left': '3%', 'right': '4%', 'bottom': '3%', 'containLabel': True}, 'xAxis': {'type': 'value'}, 'yAxis': {'type': 'category', 'data': names}, 'series': [{'type': 'bar', 'data': values, 'itemStyle': {'color': '#6366f1', 'borderRadius': [0, 4, 4, 0]}, 'barWidth': 20}]}).classes('w-full h-64')
+                    
+                    ui.echart({
+                        'color': ['#6366f1'],
+                        'tooltip': {'trigger': 'axis', 'axisPointer': {'type': 'shadow'}},
+                        'grid': {'left': '3%', 'right': '4%', 'bottom': '3%', 'containLabel': True},
+                        # x轴放名称
+                        'xAxis': {
+                            'type': 'category', 
+                            'data': names,
+                            'axisTick': {'alignWithLabel': True},
+                            'axisLabel': {'interval': 0, 'rotate': 30, 'color': '#64748b'} # 旋转标签防止重叠
+                        },
+                        # y轴放数值
+                        'yAxis': {
+                            'type': 'value',
+                            'splitLine': {'lineStyle': {'type': 'dashed', 'color': '#f1f5f9'}}
+                        },
+                        'series': [{
+                            'type': 'bar', 
+                            'data': values,
+                            'barWidth': '40%', 
+                            'itemStyle': {
+                                'borderRadius': [4, 4, 0, 0], # 顶部圆角
+                                'color': {
+                                    'type': 'linear',
+                                    'x': 0, 'y': 0, 'x2': 0, 'y2': 1, # 从上到下的渐变
+                                    'colorStops': [{'offset': 0, 'color': '#818cf8'}, {'offset': 1, 'color': '#4f46e5'}]
+                                }
+                            }
+                        }]
+                    }).classes('w-full h-80')
                 
-                with ui.card().classes('flex-grow p-6 shadow-sm border border-gray-100'):
-                    ui.label('节点协议分布').classes('text-lg font-bold text-slate-800 mb-4')
+                # 饼图保持不变
+                with ui.card().classes('flex-grow p-6 shadow-md border-none rounded-xl bg-white'):
+                    ui.label('🍩 协议分布').classes('text-lg font-bold text-slate-700 mb-4')
                     pie_data = [{'name': k, 'value': v} for k, v in protocol_count.items()]
-                    ui.echart({'tooltip': {'trigger': 'item'}, 'legend': {'bottom': '0%'}, 'series': [{'name': '协议', 'type': 'pie', 'radius': ['40%', '70%'], 'avoidLabelOverlap': False, 'itemStyle': {'borderRadius': 10, 'borderColor': '#fff', 'borderWidth': 2}, 'label': {'show': False, 'position': 'center'}, 'emphasis': {'label': {'show': True, 'fontSize': '20', 'fontWeight': 'bold'}}, 'labelLine': {'show': False}, 'data': pie_data}]}).classes('w-full h-64')
+                    ui.echart({
+                        'color': ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+                        'tooltip': {'trigger': 'item'},
+                        'legend': {'bottom': '0%'},
+                        'series': [{
+                            'name': '协议', 'type': 'pie', 'radius': ['50%', '70%'], 'avoidLabelOverlap': False,
+                            'itemStyle': {'borderRadius': 10, 'borderColor': '#fff', 'borderWidth': 2},
+                            'label': {'show': False, 'position': 'center'},
+                            'emphasis': {'label': {'show': True, 'fontSize': '20', 'fontWeight': 'bold'}},
+                            'labelLine': {'show': False}, 'data': pie_data
+                        }]
+                    }).classes('w-full h-80')
     asyncio.create_task(_render())
 
 @ui.refreshable
 def render_sidebar_content():
     with ui.column().classes('w-full p-4 border-b bg-gray-50 flex-shrink-0'):
-        ui.label('X-UI 面板').classes('text-xl font-bold mb-4 text-slate-800')
+        ui.label('X-UI Manager Pro').classes('text-xl font-bold mb-4 text-slate-800')
         ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes('w-full text-slate-700')
         ui.button('订阅管理', icon='rss_feed', on_click=load_subs_view).props('flat align=left').classes('w-full text-slate-700')
 
@@ -861,7 +888,6 @@ def render_sidebar_content():
                             ui.label(srv['name']).classes('text-sm flex-grow truncate').on('click', lambda s=srv: refresh_content('SINGLE', s))
                             ui.button(icon='edit', on_click=lambda idx=SERVERS_CACHE.index(srv): open_edit_server_dialog(idx)).props('flat dense round size=xs color=grey')
     
-    # 底部数据管理按钮
     with ui.column().classes('w-full p-2 border-t mt-auto'):
         ui.button('数据备份 / 恢复', icon='save', on_click=open_data_mgmt_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm')
 
