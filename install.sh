@@ -96,17 +96,14 @@ deploy_base() {
     mkdir -p ${INSTALL_DIR}/data
     cd ${INSTALL_DIR}
 
-    # 注意：如果您正在开发调试，请注释掉下面拉取 main.py 的行，否则会覆盖您修改后的文件
-    print_info "正在拉取基础环境文件..."
+    print_info "正在拉取最新代码..."
+    # 下载 Dockerfile 和 requirements.txt (这两个通常变动不大，可以保留)
     curl -sS -O ${REPO_URL}/Dockerfile
     curl -sS -O ${REPO_URL}/requirements.txt
-    
-    # 仅当不存在时才下载 main.py，防止覆盖您的本地修改（如果是全新安装则会下载）
-    if [ ! -f "app/main.py" ]; then
-        curl -sS -o app/main.py ${REPO_URL}/app/main.py
-    fi
 
-    # 初始化数据文件
+    # ⚠️⚠️⚠️ 注释掉下面这一行，防止它覆盖你已经上传好的 main.py ⚠️⚠️⚠️
+    # curl -sS -o app/main.py ${REPO_URL}/app/main.py  <-- 加井号注释掉
+
     if [ ! -f "data/servers.json" ]; then echo "[]" > data/servers.json; fi
     if [ ! -f "data/subscriptions.json" ]; then echo "[]" > data/subscriptions.json; fi
 }
