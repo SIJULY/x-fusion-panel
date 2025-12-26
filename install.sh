@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # ==============================================================================
-# X-UI Manager Pro 一键安装/管理脚本 (全自动 GitHub 拉取版)
+# X-UI Manager Pro 一键安装/管理脚本 (修复下载缺失问题)
+# GitHub: https://github.com/SIJULY/xui_manager
 # ==============================================================================
 
 # --- 全局变量 ---
@@ -83,17 +84,17 @@ deploy_base() {
     cd ${INSTALL_DIR}
 
     print_info "正在拉取最新代码..."
-    # 下载基础文件
+    # 下载 Dockerfile 和 requirements.txt
     curl -sS -O ${REPO_URL}/Dockerfile
     curl -sS -O ${REPO_URL}/requirements.txt
 
-    # [关键修改] 这里的注释已取消，会自动从 GitHub 下载 main.py
+    # [关键修复] 必须确保这行代码存在且未被注释！
     print_info "正在下载主程序..."
     curl -sS -o app/main.py ${REPO_URL}/app/main.py
 
-    # 检查下载是否成功
+    # 检查文件是否真的下载成功
     if [ ! -f "app/main.py" ]; then
-        print_error "主程序下载失败，请检查 GitHub 仓库地址或网络连接。"
+        print_error "主程序下载失败！请检查 GitHub 仓库中是否包含 app/main.py 文件。"
     fi
 
     if [ ! -f "data/servers.json" ]; then echo "[]" > data/servers.json; fi
@@ -164,8 +165,6 @@ EOF
 
 install_panel() {
     wait_for_apt_lock
-    
-    # 部署并拉取代码
     deploy_base
 
     echo "------------------------------------------------"
@@ -221,7 +220,7 @@ update_panel() {
     print_info "正在更新代码..."
     cd ${INSTALL_DIR}
     docker compose down
-    # 强制重新下载最新代码
+    # 更新代码
     curl -sS -o app/main.py ${REPO_URL}/app/main.py
     print_info "正在重建容器..."
     docker compose up -d --build
