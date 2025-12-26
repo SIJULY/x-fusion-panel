@@ -31,17 +31,48 @@ check_root() {
     fi
 }
 
+# 智能等待 APT 锁（带超时询问功能）
 wait_for_apt_lock() {
     echo -e "${BLUE}[信息] 正在检查系统 APT 锁状态...${PLAIN}"
+    
+    local wait_time=0
+    local timeout=60  # 设置超时时间为 60 秒
+    
     while fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
           fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
           fuser /var/lib/apt/lists/lock >/dev/null 2>&1 ; do
-        echo -e "${YELLOW}[警告] 系统后台正在运行更新进程 (apt/dpkg)，脚本暂停 10 秒等待锁释放...${PLAIN}"
+        
+        echo -e "${YELLOW}[警告] 系统后台正在运行更新进程 (apt/dpkg)，已等待 ${wait_time} 秒...${PLAIN}"
         sleep 10
+        ((wait_time+=10))
+        
+        # 如果等待超过超时时间，询问用户
+        if [ "$wait_time" -ge "$timeout" ]; then
+            echo -e "${RED}[错误] APT 锁已被占用超过 ${timeout} 秒。${PLAIN}"
+            echo -e "${YELLOW}这可能是后台更新正在进行，也可能是之前的进程卡死了。${PLAIN}"
+            read -p "是否尝试强制结束占用进程并删除锁文件？(y/n) [推荐先选 n 继续等待]: " force_unlock
+            
+            if [ "$force_unlock" == "y" ]; then
+                echo -e "${RED}[警告] 正在执行强制解锁...${PLAIN}"
+                # 1. 杀进程
+                killall apt apt-get dpkg 2>/dev/null
+                # 2. 删锁
+                rm -f /var/lib/apt/lists/lock
+                rm -f /var/cache/apt/archives/lock
+                rm -f /var/lib/dpkg/lock*
+                # 3. 修复数据库
+                dpkg --configure -a
+                echo -e "${GREEN}[成功] 已执行强制清理，尝试继续安装...${PLAIN}"
+                break
+            else
+                echo -e "${BLUE}[信息] 选择继续等待...${PLAIN}"
+                wait_time=0 # 重置计时器
+            fi
+        fi
     done
+    
     echo -e "${GREEN}[成功] APT 锁已释放，继续执行任务。${PLAIN}"
 }
-
 check_docker() {
     if ! command -v docker &> /dev/null; then
         print_info "未检测到 Docker，正在安装..."
