@@ -3,3 +3,6 @@ requests
 urllib3
 fastapi
 uvicorn
+pyotp
+qrcode
+pillow
