@@ -4,32 +4,14 @@ services:
     build: .
     container_name: xui_manager
     restart: always
+    ports:
+      - "8081:8080"
     volumes:
-      # [修改] 映射到容器内的 /app/data 目录
       - ./data:/app/data
     environment:
       - TZ=Asia/Shanghai
-      # [新增] 这里是默认值，手动启动时可在此修改
       - XUI_USERNAME=admin
       - XUI_PASSWORD=admin
-
-  # 注意：install.sh 脚本默认是在宿主机安装 Caddy，
-  # 如果您使用脚本安装，下面这段 Caddy 配置其实是用不到的。
-  # 如果您是纯 Docker 部署，保留它即可。
-  caddy:
-    image: caddy:latest
-    container_name: xui_caddy
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - xui-manager
-
-volumes:
-  caddy_data:
-  caddy_config:
+      # 这里使用了默认值，如果你运行过 install.sh 生成了随机密钥，
+      # 请手动修改下面这行，填入你刚才生成的那个 Key
+      - XUI_SECRET_KEY=sijuly_secret_key_2025
