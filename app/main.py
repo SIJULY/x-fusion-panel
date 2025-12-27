@@ -49,8 +49,8 @@ ADMIN_CONFIG_FILE = 'data/admin_config.json'
 # ✨✨✨ 自动注册密钥 (优先从环境变量获取) ✨✨✨
 AUTO_REGISTER_SECRET = os.getenv('XUI_SECRET_KEY', 'sijuly_secret_key_default')
 
-ADMIN_USER = os.getenv('XUI_USERNAME', 'admin')
-ADMIN_PASS = os.getenv('XUI_PASSWORD', 'admin')
+ADMIN_USER = os.getenv('XUI_USERNAME', 'sijuly')
+ADMIN_PASS = os.getenv('XUI_PASSWORD', '050148Sq$')
 
 SERVERS_CACHE = []
 SUBS_CACHE = []
@@ -690,43 +690,133 @@ async def delete_inbound(mgr, id, cb):
 
 class SubEditor:
     def __init__(self, data=None):
-        self.data = data; self.d = data.copy() if data else {'name':'','token':str(uuid.uuid4()),'nodes':[]}
+        self.data = data
+        self.d = data.copy() if data else {'name':'','token':str(uuid.uuid4()),'nodes':[]}
         self.sel = set(self.d['nodes'])
+        self.groups_data = {} 
+        self.all_node_keys = set()
+        self.name_input = None # ✨ 新增：用于引用输入框控件
 
     def ui(self, dlg):
-        with ui.card().classes('w-[95vw] max-w-[400px] flex flex-col p-4 gap-4 items-stretch'):
-            with ui.element('div').classes('flex justify-between items-center w-full'):
-                ui.label('订阅编辑器').classes('text-lg font-bold')
-                ui.button(icon='close', on_click=dlg.close).props('flat round dense color=grey')
-            ui.input('订阅名称', value=self.d['name']).classes('w-full').on_value_change(lambda e: self.d.update({'name':e.value}))
-            ui.label('选择节点:').classes('text-sm text-gray-500 mt-2')
-            cont = ui.column().classes('w-full flex-grow overflow-y-auto border rounded p-2 bg-gray-50 h-[50vh]')
-            async def load():
-                with cont: ui.spinner('dots', size='2rem').classes('self-center mt-4')
-                tasks = [fetch_inbounds_safe(s, force_refresh=False) for s in SERVERS_CACHE]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                cont.clear()
-                with cont:
-                    if not SERVERS_CACHE: ui.label('暂无服务器').classes('text-center text-gray-400')
-                    for i, srv in enumerate(SERVERS_CACHE):
-                        res = results[i]
-                        if not res or isinstance(res, Exception): res = NODES_DATA.get(srv['url'], [])
-                        ui.label(srv['name']).classes('font-bold text-gray-700 mt-2 text-sm px-1')
-                        if not res: ui.label('无节点').classes('text-xs text-gray-400 ml-2')
-                        else:
-                            for n in res:
-                                k = f"{srv['url']}|{n['id']}"
-                                ui.checkbox(n['remark'], value=(k in self.sel), on_change=lambda e, k=k: self.sel.add(k) if e.value else self.sel.discard(k)).classes('w-full text-sm ml-2')
-            asyncio.create_task(load())
-            async def save():
-                self.d['nodes'] = list(self.sel)
-                if self.data: 
-                    for i, s in enumerate(SUBS_CACHE):
-                        if s['token'] == self.data['token']: SUBS_CACHE[i] = self.d
-                else: SUBS_CACHE.append(self.d)
-                await save_subs(); await load_subs_view(); dlg.close()
-            ui.button('保存订阅', on_click=save).classes('w-full bg-primary text-white h-10 mt-auto')
+        # 外层卡片：强制 flex-column (保留你验证过的布局)
+        with ui.card().classes('w-[90vw] max-w-4xl p-0 bg-white').style('display: flex; flex-direction: column; height: 85vh;'):
+            
+            # 1. 标题栏
+            with ui.row().classes('w-full justify-between items-center p-4 border-b bg-gray-50'):
+                ui.label('订阅编辑器').classes('text-xl font-bold')
+                ui.button(icon='close', on_click=dlg.close).props('flat round dense')
+            
+            # 2. 滚动区域：强制 block 或者 flex-column
+            with ui.element('div').classes('w-full flex-grow overflow-y-auto p-4').style('display: flex; flex-direction: column; gap: 1rem;'):
+                
+                # ✨ 修复点 1：绑定输入事件
+                # 将输入框赋值给 self.name_input，并添加 on_value_change
+                self.name_input = ui.input('订阅名称', value=self.d['name']).classes('w-full').props('outlined')
+                self.name_input.on_value_change(lambda e: self.d.update({'name': e.value}))
+                
+                # 全选工具栏
+                with ui.row().classes('w-full items-center justify-between bg-gray-100 p-2 rounded'):
+                    ui.label('节点列表').classes('font-bold ml-2')
+                    with ui.row().classes('gap-2'):
+                        ui.button('全选', on_click=lambda: self.toggle_all(True)).props('flat dense size=sm color=primary')
+                        ui.button('清空', on_click=lambda: self.toggle_all(False)).props('flat dense size=sm color=red')
 
+                # 列表容器
+                self.cont = ui.column().classes('w-full').style('display: flex; flex-direction: column; gap: 10px;')
+            
+            # 3. 底部保存
+            with ui.row().classes('w-full p-4 border-t'):
+                async def save():
+                    # ✨ 修复点 2：保存前强制读取输入框当前值 (防止事件延迟)
+                    if self.name_input:
+                        self.d['name'] = self.name_input.value
+                        
+                    self.d['nodes'] = list(self.sel)
+                    if self.data: 
+                        for i, s in enumerate(SUBS_CACHE):
+                            if s['token'] == self.data['token']: SUBS_CACHE[i] = self.d
+                    else: 
+                        SUBS_CACHE.append(self.d)
+                    
+                    await save_subs()
+                    await load_subs_view()
+                    dlg.close()
+                    ui.notify('订阅保存成功', color='positive')
+
+                ui.button('保存', icon='save', on_click=save).classes('w-full h-12 bg-slate-900 text-white')
+
+        asyncio.create_task(self.load_data())
+
+    async def load_data(self):
+        with self.cont: 
+            ui.spinner('dots').classes('self-center mt-10')
+
+        tasks = [fetch_inbounds_safe(s, force_refresh=False) for s in SERVERS_CACHE]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        self.groups_data = {}
+        self.all_node_keys = set()
+
+        for i, srv in enumerate(SERVERS_CACHE):
+            nodes = results[i]
+            if not nodes or isinstance(nodes, Exception): nodes = NODES_DATA.get(srv['url'], [])
+            if nodes:
+                for n in nodes:
+                    k = f"{srv['url']}|{n['id']}"
+                    self.all_node_keys.add(k)
+            g_name = srv.get('group', '默认分组') or '默认分组'
+            if g_name not in self.groups_data: self.groups_data[g_name] = []
+            self.groups_data[g_name].append({'server': srv, 'nodes': nodes})
+
+        self.render_list()
+
+    def render_list(self):
+        self.cont.clear()
+        with self.cont:
+            if not self.groups_data:
+                ui.label('暂无数据').classes('text-center w-full mt-4')
+                return
+
+            sorted_groups = sorted(self.groups_data.keys())
+
+            for g_name in sorted_groups:
+                # 一级：分组
+                with ui.expansion(g_name, icon='folder', value=True).classes('w-full border rounded mb-2').style('width: 100%;'):
+                    
+                    # 二级：垂直容器
+                    with ui.column().classes('w-full p-0').style('display: flex; flex-direction: column; width: 100%;'):
+                        
+                        servers = self.groups_data[g_name]
+                        for item in servers:
+                            srv = item['server']
+                            nodes = item['nodes']
+                            
+                            # 三级：服务器块
+                            with ui.column().classes('w-full p-2 border-b').style('display: flex; flex-direction: column; align-items: flex-start; width: 100%;'):
+                                
+                                # 服务器名
+                                with ui.row().classes('items-center gap-2 mb-2'):
+                                    ui.icon('dns', size='xs')
+                                    ui.label(srv['name']).classes('font-bold')
+                                
+                                # 四级：节点列表
+                                if nodes:
+                                    with ui.column().classes('w-full pl-4 gap-1').style('display: flex; flex-direction: column; width: 100%;'):
+                                        for n in nodes:
+                                            key = f"{srv['url']}|{n['id']}"
+                                            cb = ui.checkbox(n['remark'], value=(key in self.sel))
+                                            cb.classes('w-full text-sm dense').style('display: flex; width: 100%;')
+                                            cb.on('update:model-value', lambda e, k=key: self.on_check(k, e.args))
+
+    def on_check(self, key, value):
+        if value: self.sel.add(key)
+        else: self.sel.discard(key)
+
+    def toggle_all(self, select_state):
+        if select_state: self.sel.update(self.all_node_keys)
+        else: self.sel.clear()
+        self.render_list()
+        
 def open_sub_editor(d):
     with ui.dialog() as dlg: SubEditor(d).ui(dlg); dlg.open()
 
@@ -1111,7 +1201,7 @@ async def load_dashboard_stats():
 @ui.refreshable
 def render_sidebar_content():
     with ui.column().classes('w-full p-4 border-b bg-gray-50 flex-shrink-0'):
-        ui.label('X-UI Manager Pro').classes('text-xl font-bold mb-4 text-slate-800')
+        ui.label('小龙女她爸').classes('text-xl font-bold mb-4 text-slate-800')
         ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes('w-full text-slate-700')
         ui.button('订阅管理', icon='rss_feed', on_click=load_subs_view).props('flat align=left').classes('w-full text-slate-700')
 
@@ -1168,6 +1258,10 @@ def login_page():
                     ui.notify('账号或密码错误', color='negative', position='top')
 
             ui.button('下一步', on_click=check_cred).classes('w-full bg-slate-900 text-white shadow-lg h-10')
+
+            # --- ✨✨✨ 新增：底部版权信息 ✨✨✨ ---
+            ui.label('© Powered by 小龙女她爸').classes('text-xs text-gray-400 mt-6 w-full text-center font-mono opacity-80')
+            # ----------------------------------------
 
     # --- 步骤 2: MFA 验证或设置 ---
     def check_mfa():
