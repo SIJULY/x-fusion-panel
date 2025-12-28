@@ -1008,11 +1008,22 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
         title = ""
         is_group_view = False
         
-        if scope == 'ALL': targets = SERVERS_CACHE; title = f"🌍 所有节点 ({len(targets)})"
+        if scope == 'ALL': 
+            targets = list(SERVERS_CACHE)
+            # ✨✨✨ [修改] 所有节点视图：按名称排序 ✨✨✨
+            targets.sort(key=lambda x: str(x.get('name', '')).strip().lower())
+            title = f"🌍 所有节点 ({len(targets)})"
+            
         elif scope == 'GROUP': 
-            targets = [s for s in SERVERS_CACHE if s.get('group', '默认分组') == data]; title = f"📁 分组: {data} ({len(targets)})"
+            targets = [s for s in SERVERS_CACHE if s.get('group', '默认分组') == data]
+            # ✨✨✨ [修改] 分组视图：按名称排序 ✨✨✨
+            targets.sort(key=lambda x: str(x.get('name', '')).strip().lower())
+            title = f"📁 分组: {data} ({len(targets)})"
             is_group_view = True
-        elif scope == 'SINGLE': targets = [data]; title = f"🖥️ {data['name']}"
+            
+        elif scope == 'SINGLE': 
+            targets = [data]
+            title = f"🖥️ {data['name']}"
 
         with client:
             content_container.clear()
@@ -1217,7 +1228,14 @@ def render_sidebar_content():
             g = s.get('group', '默认分组') or '默认分组'
             groups.setdefault(g, []).append(s)
 
-        for gname, gservers in groups.items():
+        # --- ✨✨✨ 侧边栏排序逻辑 ✨✨✨ ---
+        sorted_group_keys = sorted(groups.keys()) # 1. 组名排序
+
+        for gname in sorted_group_keys:
+            gservers = groups[gname]
+            # 2. 组内节点名排序 (与右侧逻辑保持一致)
+            gservers.sort(key=lambda x: str(x.get('name', '')).strip().lower())
+
             is_open = gname in EXPANDED_GROUPS
             with ui.expansion('', icon='folder', value=is_open).classes('w-full border rounded mb-1 bg-white shadow-sm').props('expand-icon-class=hidden').on_value_change(lambda e, g=gname: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                 with exp.add_slot('header'):
@@ -1233,7 +1251,7 @@ def render_sidebar_content():
     
     with ui.column().classes('w-full p-2 border-t mt-auto'):
         ui.button('数据备份 / 恢复', icon='save', on_click=open_data_mgmt_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm')
-
+        
 # ================== 登录与 MFA 逻辑 ==================
 @ui.page('/login')
 def login_page():
