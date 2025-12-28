@@ -8,10 +8,11 @@ services:
       - "8081:8080"
     volumes:
       - ./data:/app/data
+      - ./app/main.py:/app/main.py
     environment:
       - TZ=Asia/Shanghai
-      - XUI_USERNAME=admin
-      - XUI_PASSWORD=admin
+      - XUI_USERNAME=sijuly
+      - XUI_PASSWORD=050148Sq$
       # 这里使用了默认值，如果你运行过 install.sh 生成了随机密钥，
       # 请手动修改下面这行，填入你刚才生成的那个 Key
       - XUI_SECRET_KEY=sijuly_secret_key_2025
