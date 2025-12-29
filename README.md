@@ -69,8 +69,8 @@ server {
 ```
 * B：已有 Caddy 的用户 (手动配置)
 如果您已经安装了 Caddy（非脚本安装），请根据您的需求修改您的 /etc/caddy/Caddyfile（或其他目录）。
-场景
-1：使用全新的子域名（推荐） 请在 Caddyfile 的末尾追加以下内容：
+
+场景 1：使用全新的子域名（推荐） 请在 Caddyfile 的末尾追加以下内容：
 ```bash
 # 请将 xui.yourdomain.com 替换为您实际用于面板的域名
 xui.yourdomain.com {
