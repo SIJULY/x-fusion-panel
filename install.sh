@@ -108,6 +108,10 @@ generate_compose() {
     local PASS=$4
     local SECRET=$5 
 
+    # 修改点：增加了 subconverter 服务
+    # 注意：BIND_IP 仅对 xui-manager 生效，subconverter 默认映射到 127.0.0.1:25500 以供本机 Caddy 使用
+    # 如果是纯 IP 模式，subconverter 也会暴露在 25500 端口
+
     cat > ${INSTALL_DIR}/docker-compose.yml << EOF
 version: '3.8'
 services:
@@ -127,6 +131,13 @@ services:
       - XUI_USERNAME=${USER}
       - XUI_PASSWORD=${PASS}
       - XUI_SECRET_KEY=${SECRET}
+
+  subconverter:
+    image: tindy2013/subconverter:latest
+    container_name: subconverter
+    restart: always
+    ports:
+      - "127.0.0.1:25500:25500"
 EOF
 }
 
@@ -154,10 +165,21 @@ configure_caddy() {
     if [ -s "$CADDY_CONFIG_PATH" ] && [ "$(tail -c 1 "$CADDY_CONFIG_PATH")" != "" ]; then
         echo "" >> "$CADDY_CONFIG_PATH"
     fi
+
+    # 修改点：更新了 Caddy 配置逻辑，加入了 handle_path /convert
     cat >> "$CADDY_CONFIG_PATH" << EOF
 ${CADDY_MARK_START}
 ${DOMAIN} {
-    reverse_proxy 127.0.0.1:${PORT}
+    # 1. 订阅转换 (转发给本地 25500)
+    handle_path /convert* {
+        rewrite * /sub
+        reverse_proxy 127.0.0.1:25500
+    }
+
+    # 2. 主面板
+    handle {
+        reverse_proxy 127.0.0.1:${PORT}
+    }
 }
 ${CADDY_MARK_END}
 EOF
