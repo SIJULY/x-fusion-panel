@@ -1004,17 +1004,28 @@ async def delete_inbound_with_confirm(mgr, inbound_id, inbound_remark, callback)
             ui.button('确定删除', color='red', on_click=do_delete)
     d.open()
 
+# ================= [修正] 订阅编辑器 (包含 Token 编辑) =================
 class SubEditor:
     def __init__(self, data=None):
         self.data = data
-        self.d = data.copy() if data else {'name':'','token':str(uuid.uuid4()),'nodes':[]}
-        self.sel = set(self.d['nodes'])
+        if data:
+            self.d = data.copy()
+            # 🛡️ 安全修复：如果旧数据里没有 token，自动补全一个，防止报错
+            if 'token' not in self.d:
+                self.d['token'] = str(uuid.uuid4())
+            if 'nodes' not in self.d:
+                self.d['nodes'] = []
+        else:
+            self.d = {'name': '', 'token': str(uuid.uuid4()), 'nodes': []}
+            
+        self.sel = set(self.d.get('nodes', []))
         self.groups_data = {} 
         self.all_node_keys = set()
-        self.name_input = None # ✨ 新增：用于引用输入框控件
+        self.name_input = None 
+        self.token_input = None 
 
     def ui(self, dlg):
-        # 外层卡片：强制 flex-column (保留你验证过的布局)
+        # 外层卡片
         with ui.card().classes('w-[90vw] max-w-4xl p-0 bg-white').style('display: flex; flex-direction: column; height: 85vh;'):
             
             # 1. 标题栏
@@ -1022,14 +1033,21 @@ class SubEditor:
                 ui.label('订阅编辑器').classes('text-xl font-bold')
                 ui.button(icon='close', on_click=dlg.close).props('flat round dense')
             
-            # 2. 滚动区域：强制 block 或者 flex-column
+            # 2. 滚动区域
             with ui.element('div').classes('w-full flex-grow overflow-y-auto p-4').style('display: flex; flex-direction: column; gap: 1rem;'):
                 
-                # ✨ 修复点 1：绑定输入事件
-                # 将输入框赋值给 self.name_input，并添加 on_value_change
-                self.name_input = ui.input('订阅名称', value=self.d['name']).classes('w-full').props('outlined')
+                # 订阅名称
+                self.name_input = ui.input('订阅名称', value=self.d.get('name', '')).classes('w-full').props('outlined')
                 self.name_input.on_value_change(lambda e: self.d.update({'name': e.value}))
                 
+                # 订阅路径 (Token)
+                with ui.row().classes('w-full items-center gap-2'):
+                    self.token_input = ui.input('订阅路径 (Token)', value=self.d.get('token', ''), placeholder='例如: my-phone').classes('flex-grow').props('outlined')
+                    self.token_input.on_value_change(lambda e: self.d.update({'token': e.value.strip()}))
+                    
+                    # 随机生成按钮
+                    ui.button(icon='refresh', on_click=lambda: self.token_input.set_value(str(uuid.uuid4()))).props('flat dense').tooltip('生成随机 UUID')
+
                 # 全选工具栏
                 with ui.row().classes('w-full items-center justify-between bg-gray-100 p-2 rounded'):
                     ui.label('节点列表').classes('font-bold ml-2')
@@ -1043,15 +1061,32 @@ class SubEditor:
             # 3. 底部保存
             with ui.row().classes('w-full p-4 border-t'):
                 async def save():
-                    # ✨ 修复点 2：保存前强制读取输入框当前值 (防止事件延迟)
-                    if self.name_input:
-                        self.d['name'] = self.name_input.value
+                    if self.name_input: self.d['name'] = self.name_input.value
+                    
+                    if self.token_input: 
+                        new_token = self.token_input.value.strip()
+                        if not new_token:
+                            safe_notify("订阅路径不能为空", "negative")
+                            return
+                        # 查重逻辑
+                        if (not self.data) or (self.data.get('token') != new_token):
+                            for s in SUBS_CACHE:
+                                if s.get('token') == new_token:
+                                    safe_notify(f"路径 '{new_token}' 已被占用", "negative")
+                                    return
+                        self.d['token'] = new_token
                         
                     self.d['nodes'] = list(self.sel)
+                    
                     if self.data: 
-                        for i, s in enumerate(SUBS_CACHE):
-                            if s['token'] == self.data['token']: SUBS_CACHE[i] = self.d
+                        # 更新现有
+                        try:
+                            idx = SUBS_CACHE.index(self.data)
+                            SUBS_CACHE[idx] = self.d
+                        except:
+                            SUBS_CACHE.append(self.d)
                     else: 
+                        # 新建
                         SUBS_CACHE.append(self.d)
                     
                     await save_subs()
@@ -1096,26 +1131,16 @@ class SubEditor:
             sorted_groups = sorted(self.groups_data.keys())
 
             for g_name in sorted_groups:
-                # 一级：分组
                 with ui.expansion(g_name, icon='folder', value=True).classes('w-full border rounded mb-2').style('width: 100%;'):
-                    
-                    # 二级：垂直容器
                     with ui.column().classes('w-full p-0').style('display: flex; flex-direction: column; width: 100%;'):
-                        
                         servers = self.groups_data[g_name]
                         for item in servers:
                             srv = item['server']
                             nodes = item['nodes']
-                            
-                            # 三级：服务器块
                             with ui.column().classes('w-full p-2 border-b').style('display: flex; flex-direction: column; align-items: flex-start; width: 100%;'):
-                                
-                                # 服务器名
                                 with ui.row().classes('items-center gap-2 mb-2'):
                                     ui.icon('dns', size='xs')
                                     ui.label(srv['name']).classes('font-bold')
-                                
-                                # 四级：节点列表
                                 if nodes:
                                     with ui.column().classes('w-full pl-4 gap-1').style('display: flex; flex-direction: column; width: 100%;'):
                                         for n in nodes:
@@ -1132,7 +1157,8 @@ class SubEditor:
         if select_state: self.sel.update(self.all_node_keys)
         else: self.sel.clear()
         self.render_list()
-        
+
+# ⚠️⚠️⚠️ 注意：这个函数必须在 class 外面，一定要顶格写，不能缩进！ ⚠️⚠️⚠️
 def open_sub_editor(d):
     with ui.dialog() as dlg: SubEditor(d).ui(dlg); dlg.open()
 
