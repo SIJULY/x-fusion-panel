@@ -1957,7 +1957,7 @@ def render_sidebar_content():
         
 # ================== 登录与 MFA 逻辑 ==================
 @ui.page('/login')
-def login_page():
+def login_page(request: Request): # <--- 【修改 1】增加 request 参数
     # 容器：用于切换登录步骤 (账号密码 -> MFA)
     container = ui.card().classes('absolute-center w-full max-w-sm p-8 shadow-2xl rounded-xl bg-white')
 
@@ -2062,26 +2062,57 @@ def login_page():
 
     def finish():
         app.storage.user['authenticated'] = True
+        
+        # --- 【修改 2】登录成功后记录真实 IP ---
+        # 优先获取 X-Forwarded-For (适配 Docker/反代)，否则获取直连 IP
+        try:
+            client_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
+            app.storage.user['login_ip'] = client_ip
+        except:
+            pass # 防止极端情况报错
+        # --------------------------------------
+
         ui.navigate.to('/')
 
     render_step1()
 
 @ui.page('/')
-def main_page():
+def main_page(request: Request):
+    # 1. 基础认证检查
     if not app.storage.user.get('authenticated', False):
         return RedirectResponse('/login')
 
+    # 2. 获取并检查 IP
+    try:
+        current_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
+        recorded_ip = app.storage.user.get('login_ip')
+        
+        if recorded_ip and recorded_ip != current_ip:
+            app.storage.user.clear()
+            ui.notify('环境变动，请重新登录', type='negative')
+            return RedirectResponse('/login')
+            
+        display_ip = recorded_ip if recorded_ip else current_ip
+    except:
+        display_ip = "Unknown"
+
+    # --- UI 构建 ---
     with ui.header().classes('bg-slate-900 text-white h-14'):
         with ui.row().classes('w-full items-center justify-between'):
-            with ui.row().classes('items-center'):
-                ui.label('X-UI Manager Pro').classes('text-lg font-bold ml-4 mr-4')
-                
-                # --- ✨✨✨ 新增：右上角复制密钥按钮 ✨✨✨ ---
+            
+            # === 左侧区域：标题 + IP ===
+            with ui.row().classes('items-center gap-2'):
+                ui.label('X-UI Manager Pro').classes('text-lg font-bold ml-4')
+                ui.label(f"[登陆IP:{display_ip}]").classes('text-xs text-gray-400 font-mono pt-1')
+
+            # === 右侧区域：密钥按钮 + 登出按钮 ===
+            with ui.row().classes('items-center gap-2 mr-2'):
+                # 1. 密钥按钮 (移到了这里)
                 with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round').tooltip('点击复制通讯密钥'):
                     ui.badge('Key', color='red').props('floating')
-                # ---------------------------------------------
-
-            ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense')
+                
+                # 2. 登出按钮
+                ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense').tooltip('退出登录')
 
     global content_container
     with ui.row().classes('w-full h-screen gap-0'):
@@ -2089,9 +2120,7 @@ def main_page():
             render_sidebar_content()
         content_container = ui.column().classes('flex-grow h-full pl-6 overflow-y-auto p-4 bg-slate-50')
     
-    # [核心修复] 开机 2 秒后，执行【后台静默刷新】，不操作 UI，不跳转
     ui.timer(2.0, lambda: asyncio.create_task(silent_refresh_all()), once=True)
-    
     ui.timer(0.1, lambda: asyncio.create_task(load_dashboard_stats()), once=True)
     logger.info("✅ UI 已就绪")
 
