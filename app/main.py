@@ -50,8 +50,8 @@ ADMIN_CONFIG_FILE = 'data/admin_config.json'
 # ✨✨✨ 自动注册密钥 (优先从环境变量获取) ✨✨✨
 AUTO_REGISTER_SECRET = os.getenv('XUI_SECRET_KEY', 'sijuly_secret_key_default')
 
-ADMIN_USER = os.getenv('XUI_USERNAME', 'sijuly')
-ADMIN_PASS = os.getenv('XUI_PASSWORD', '050148Sq$')
+ADMIN_USER = os.getenv('XUI_USERNAME', 'admin')
+ADMIN_PASS = os.getenv('XUI_PASSWORD', 'admin')
 
 SERVERS_CACHE = []
 SUBS_CACHE = []
