@@ -225,6 +225,30 @@ class XUIManager:
                 except: pass
         return None
 
+
+    def get_server_status(self):
+        """获取服务器系统状态 (CPU, 内存, 硬盘, Uptime)"""
+        if not self.login(): return None
+        
+        # 适配不同版本的 X-UI API 路径
+        candidates = []
+        if self.login_path: candidates.append(self.login_path.replace('login', 'server/status'))
+        defaults = ['/xui/server/status', '/panel/server/status', '/server/status']
+        if self.api_prefix: defaults.insert(0, f"{self.api_prefix}/server/status")
+        
+        for d in defaults: 
+            if d not in candidates: candidates.append(d)
+            
+        for path in candidates:
+            try:
+                # server/status 通常是 POST 请求
+                r = self._request('POST', path)
+                if r and r.status_code == 200:
+                    res = r.json()
+                    if res.get('success'): return res.get('obj')
+            except: pass
+        return None
+
     def add_inbound(self, data): return self._action('/add', data)
     def update_inbound(self, iid, data): return self._action(f'/update/{iid}', data)
     def delete_inbound(self, iid): return self._action(f'/del/{iid}', {})
@@ -1571,7 +1595,17 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
     # D. 单个服务器
     elif scope == 'SINGLE':
         targets = [data]
-        title = f"🖥️ {data['name']}"
+        
+        # ✨✨✨ 需求1：提取域名显示在标题 ✨✨✨
+        raw_url = data['url']
+        try:
+            if '://' not in raw_url: raw_url = f'http://{raw_url}'
+            parsed = urlparse(raw_url)
+            # 获取 hostname，如果端口存在去掉端口
+            host_display = parsed.hostname or raw_url
+        except: host_display = raw_url
+        
+        title = f"🖥️ {data['name']} ({host_display})"
 
     if scope != 'SINGLE':
         targets.sort(key=smart_sort_key)
@@ -1606,94 +1640,264 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
                     await render_aggregated_view(targets, show_ping=show_ping, force_refresh=force_refresh)
 
     asyncio.create_task(_render())
+
+# ================= 新增：状态面板辅助函数 =================
+
+def format_uptime(seconds):
+    """将秒数转换为 天/小时/分钟"""
+    if not seconds: return "未知"
+    m, s = divmod(int(seconds), 60)
+    h, m = divmod(m, 60)
+    d, h = divmod(h, 24)
+    return f"{d}天 {h}小时 {m}分"
+
+def render_status_card(label, value_str, sub_text, color_class='text-blue-600', icon='memory'):
+    """渲染单个简易状态卡片 (用于负载、连接数等)"""
+    with ui.card().classes('p-3 shadow-sm border flex-grow items-center justify-between min-w-[150px]'):
+        with ui.row().classes('items-center gap-3'):
+            with ui.column().classes('justify-center items-center bg-gray-100 rounded-full p-2'):
+                ui.icon(icon).classes(f'{color_class} text-xl')
+            with ui.column().classes('gap-0'):
+                ui.label(label).classes('text-xs text-gray-400 font-bold')
+                ui.label(value_str).classes('text-sm font-bold text-slate-700')
+                if sub_text: ui.label(sub_text).classes('text-[10px] text-gray-400')
+
     
 async def render_single_server_view(server_conf, force_refresh=False):
-    mgr = get_manager(server_conf); list_container = ui.column().classes('w-full')
+    mgr = get_manager(server_conf)
+    
+    # UI 引用字典
+    ui_refs = {}
+
+    # --- 辅助函数：环形进度条 ---
+    def _create_live_ring(label, color, key_prefix):
+        with ui.column().classes('items-center justify-center min-w-[100px]'):
+            with ui.element('div').classes('relative flex items-center justify-center w-16 h-16 mb-2'):
+                ui_refs[f'{key_prefix}_ring'] = ui.circular_progress(0, size='60px', show_value=False, color=color).props('track-color=grey-3 thickness=0.15').classes('absolute transition-all duration-500')
+                ui_refs[f'{key_prefix}_pct'] = ui.label('--%').classes('text-xs font-bold text-gray-700 z-10')
+            ui.label(label).classes('text-xs font-bold text-gray-600')
+            ui_refs[f'{key_prefix}_detail'] = ui.label('-- / --').classes('text-[10px] text-gray-400 font-mono text-center leading-tight')
+
+    # --- 辅助函数：网络卡片 ---
+    def _create_live_net_card(title, icon, key_prefix):
+        with ui.card().classes('p-3 shadow-sm border border-gray-100 flex-grow min-w-[180px] flex-row items-center gap-3 bg-white'):
+            with ui.column().classes('p-2 bg-blue-50 rounded-full'):
+                ui.icon(icon).classes('text-blue-600 text-lg')
+            with ui.column().classes('gap-0 flex-grow'):
+                ui.label(title).classes('text-xs font-bold text-gray-400 mb-1')
+                with ui.row().classes('w-full justify-between items-center gap-2'):
+                    with ui.row().classes('items-center gap-1'):
+                        ui.icon('arrow_upward').classes('text-xs text-orange-400')
+                        ui_refs[f'{key_prefix}_up'] = ui.label('--').classes('text-sm font-bold text-slate-700 font-mono')
+                    with ui.row().classes('items-center gap-1'):
+                        ui.icon('arrow_downward').classes('text-xs text-green-500')
+                        ui_refs[f'{key_prefix}_down'] = ui.label('--').classes('text-sm font-bold text-slate-700 font-mono')
+
+    # --- 辅助函数：状态卡片 ---
+    def _create_live_stat_card(title, icon, color_cls, key_prefix):
+        with ui.card().classes('p-3 shadow-sm border flex-grow items-center justify-between min-w-[150px]'):
+            with ui.row().classes('items-center gap-3'):
+                with ui.column().classes('justify-center items-center bg-gray-100 rounded-full p-2'):
+                    ui_refs[f'{key_prefix}_icon'] = ui.icon(icon).classes(f'{color_cls} text-xl')
+                with ui.column().classes('gap-0'):
+                    ui.label(title).classes('text-xs text-gray-400 font-bold')
+                    ui_refs[f'{key_prefix}_main'] = ui.label('--').classes('text-sm font-bold text-slate-700')
+                    ui_refs[f'{key_prefix}_sub'] = ui.label('--').classes('text-[10px] text-gray-400')
+
+    # 顶部按钮
     with ui.row().classes('w-full justify-end mb-2'):
         ui.button('新建节点', icon='add', color='green', on_click=lambda: open_inbound_dialog(mgr, None, lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('dense')
 
+    # 布局容器
+    list_container = ui.column().classes('w-full mb-6') 
+    status_container = ui.column().classes('w-full') 
+
+    # ================= 1. 渲染节点列表 =================
     try:
         res = await fetch_inbounds_safe(server_conf, force_refresh=force_refresh)
         list_container.clear()
         
         raw_host = server_conf['url']
         try:
-            if '://' not in raw_host: raw_host = f'http://{raw_host}'
-            p = urlparse(raw_host); raw_host = p.hostname or raw_host.split('://')[-1].split(':')[0]
-        except: pass
+            if '://' not in raw_host: 
+                raw_host = f'http://{raw_host}'
+            p = urlparse(raw_host)
+            raw_host = p.hostname or raw_host.split('://')[-1].split(':')[0]
+        except: 
+            pass
 
-        # 1. 强制清除旧缓存 & 触发新 Ping
         if res:
-            for n in res:
-                t_host = n.get('listen') or raw_host
-                t_port = n.get('port')
-                k = f"{t_host}:{t_port}"
-                if k in PING_CACHE: del PING_CACHE[k]
             asyncio.create_task(batch_ping_nodes(res, raw_host))
 
         with list_container:
-            # 表头
             with ui.element('div').classes('grid w-full gap-4 font-bold text-gray-500 border-b pb-2 px-2').style(SINGLE_COLS):
                 ui.label('备注名称').classes('text-left pl-2')
                 for h in ['所在组', '已用流量', '协议', '端口', '延迟', '状态', '操作']: 
                     ui.label(h).classes('text-center')
             
-            if not res: ui.label('暂无节点或连接失败').classes('text-gray-400 mt-4 text-center w-full'); return
-            if not force_refresh: ui.label('本地缓存模式').classes('text-xs text-gray-300 w-full text-right px-2')
-            
-            for n in res:
-                traffic = format_bytes(n.get('up', 0) + n.get('down', 0))
-                target_host = n.get('listen') or raw_host
-                target_port = n.get('port')
-                ping_key = f"{target_host}:{target_port}"
-
-                with ui.element('div').classes('grid w-full gap-4 py-3 border-b hover:bg-blue-50 transition px-2').style(SINGLE_COLS):
-                    ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-2')
-                    ui.label(server_conf.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate')
-                    ui.label(traffic).classes('text-xs text-gray-600 w-full text-center font-mono')
-                    ui.label(n.get('protocol', 'unknown')).classes('uppercase text-xs font-bold w-full text-center')
-                    ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
+            if not res: 
+                ui.label('暂无节点或连接失败').classes('text-gray-400 mt-4 text-center w-full')
+            else:
+                if not force_refresh: 
+                    ui.label('本地缓存模式 (点击右上角同步以刷新)').classes('text-xs text-gray-300 w-full text-right px-2')
+                
+                for n in res:
+                    traffic = format_bytes(n.get('up', 0) + n.get('down', 0))
                     
-                    # ✨✨✨ [修复对齐] 延迟列 ✨✨✨
-                    with ui.row().classes('w-full justify-center items-center gap-1 no-wrap'):
-                        spinner = ui.spinner('dots', size='1em', color='primary') 
-                        spinner.set_visibility(False)
-                        lbl_ping = ui.label('').classes('text-xs font-mono font-bold text-center')
-
-                    def update_ping_display(l=lbl_ping, s=spinner, k=ping_key):
-                        val = PING_CACHE.get(k, None)
-                        if val is None:
-                            s.set_visibility(True)
-                            l.set_visibility(False)
-                        elif val == -1: 
-                            s.set_visibility(False)
-                            l.set_visibility(True)
-                            l.set_text('超时')
-                            l.classes(replace='text-red-500')
-                        else:
-                            s.set_visibility(False)
-                            l.set_visibility(True)
-                            l.set_text(f"{val} ms")
-                            l.classes(remove='text-red-500 text-green-600 text-yellow-600 text-red-400')
-                            if val < 100: l.classes(add='text-green-600')
-                            elif val < 200: l.classes(add='text-yellow-600')
-                            else: l.classes(add='text-red-400')
-                    
-                    ui.timer(0.5, update_ping_display)
-                    
-                    with ui.element('div').classes('flex justify-center w-full'): ui.icon('circle', color='green' if n.get('enable') else 'red').props('size=xs')
-                    
-                    # 操作栏
-                    with ui.row().classes('gap-2 justify-center w-full no-wrap'):
-                        link = generate_node_link(n, raw_host)
-                        if link: ui.button(icon='content_copy', on_click=lambda l=link: safe_copy_to_clipboard(l)).props('flat dense size=sm').tooltip('复制链接')
+                    with ui.element('div').classes('grid w-full gap-4 py-3 border-b hover:bg-blue-50 transition px-2').style(SINGLE_COLS):
+                        ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-2')
+                        ui.label(server_conf.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate')
+                        ui.label(traffic).classes('text-xs text-gray-600 w-full text-center font-mono')
+                        ui.label(n.get('protocol', 'unknown')).classes('uppercase text-xs font-bold w-full text-center')
+                        ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
                         
-                        detail_conf = generate_detail_config(n, raw_host)
-                        if detail_conf: ui.button(icon='description', on_click=lambda l=detail_conf: safe_copy_to_clipboard(l)).props('flat dense size=sm text-color=orange').tooltip('复制配置')
+                        ping_key = f"{n.get('listen') or raw_host}:{n.get('port')}"
+                        with ui.row().classes('w-full justify-center items-center gap-1 no-wrap'):
+                            spinner = ui.spinner('dots', size='1em', color='primary')
+                            spinner.set_visibility(False)
+                            lbl_ping = ui.label('').classes('text-xs font-mono font-bold text-center')
+                        
+                        # --- 【修复】update_ping 语法错误 ---
+                        def update_ping(l=lbl_ping, s=spinner, k=ping_key):
+                            val = PING_CACHE.get(k, None)
+                            if val is None:
+                                s.set_visibility(True)
+                                l.set_visibility(False)
+                            elif val == -1:
+                                s.set_visibility(False)
+                                l.set_visibility(True)
+                                l.set_text('超时')
+                                l.classes(replace='text-red-500')
+                            else:
+                                s.set_visibility(False)
+                                l.set_visibility(True)
+                                l.set_text(f"{val} ms")
+                                l.classes(remove='text-red-500 text-green-600 text-yellow-600 text-red-400')
+                                if val < 100:
+                                    l.classes(add='text-green-600')
+                                elif val < 200:
+                                    l.classes(add='text-yellow-600')
+                                else:
+                                    l.classes(add='text-red-400')
 
-                        ui.button(icon='edit', on_click=lambda i=n: open_inbound_dialog(mgr, i, lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm')
-                        ui.button(icon='delete', on_click=lambda i=n: delete_inbound_with_confirm(mgr, i['id'], i.get('remark','未命名'), lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm color=red')
-    except: pass
+                        ui.timer(0.5, update_ping)
+                        
+                        with ui.element('div').classes('flex justify-center w-full'): 
+                            ui.icon('circle', color='green' if n.get('enable') else 'red').props('size=xs')
+                        
+                        # 操作按钮
+                        with ui.row().classes('gap-2 justify-center w-full no-wrap'):
+                            l_url = generate_node_link(n, raw_host)
+                            if l_url: 
+                                ui.button(icon='content_copy', on_click=lambda u=l_url: safe_copy_to_clipboard(u)).props('flat dense size=sm').tooltip('复制链接')
+                            d_conf = generate_detail_config(n, raw_host)
+                            if d_conf: 
+                                ui.button(icon='description', on_click=lambda u=d_conf: safe_copy_to_clipboard(u)).props('flat dense size=sm text-color=orange').tooltip('复制配置')
+                            ui.button(icon='edit', on_click=lambda i=n: open_inbound_dialog(mgr, i, lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm')
+                            ui.button(icon='delete', on_click=lambda i=n: delete_inbound_with_confirm(mgr, i['id'], i.get('remark','未命名'), lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm color=red')
+    except Exception as e: 
+        logger.error(f"Render List Error: {e}")
+
+    # ================= 2. 渲染状态面板框架 =================
+    with status_container:
+        ui.separator().classes('my-4') 
+        with ui.card().classes('w-full p-4 bg-white rounded-xl shadow-sm border border-gray-100'):
+            # 标题栏 + 心跳
+            with ui.row().classes('w-full justify-between items-center mb-2'):
+                ui.label('服务器实时监控').classes('text-sm font-bold text-gray-500')
+                ui_refs['heartbeat'] = ui.spinner('dots', size='1em', color='green').classes('opacity-0 transition-opacity')
+
+            # Row 1: 资源
+            with ui.row().classes('w-full justify-around items-start mb-6 border-b pb-4'):
+                _create_live_ring('CPU', 'blue', 'cpu')
+                _create_live_ring('内存', 'green', 'mem')
+                _create_live_ring('硬盘', 'purple', 'disk')
+
+            # Row 2: 流量
+            with ui.row().classes('w-full gap-4 mb-6 flex-wrap'):
+                _create_live_net_card('实时网速', 'speed', 'speed')
+                _create_live_net_card('服务器总流量', 'data_usage', 'total')
+
+            # Row 3: 详情
+            with ui.row().classes('w-full gap-4 flex-wrap'):
+                _create_live_stat_card('Xray 状态', 'settings_power', 'text-gray-400', 'xray')
+                _create_live_stat_card('运行时间', 'schedule', 'text-cyan-600', 'uptime')
+                _create_live_stat_card('系统负载', 'analytics', 'text-pink-600', 'load')
+
+    # ================= 3. 数据更新任务 =================
+    async def update_data_task():
+        try:
+            # 心跳显示
+            if 'heartbeat' in ui_refs: 
+                ui_refs['heartbeat'].classes(remove='opacity-0')
+            
+            status = await run.io_bound(mgr.get_server_status)
+            
+            if status:
+                # CPU
+                cpu_val = status.get('cpu', 0)
+                ui_refs['cpu_ring'].set_value(cpu_val / 100)
+                ui_refs['cpu_pct'].set_text(f"{round(cpu_val, 1)}%")
+                ui_refs['cpu_detail'].set_text(f"{status.get('cpuModel','')[:12]}..")
+
+                # 内存
+                mem = status.get('mem', {})
+                mem_curr = mem.get('current', 0)
+                mem_total = mem.get('total', 1)
+                if mem_total > 0:
+                    ui_refs['mem_ring'].set_value(mem_curr / mem_total)
+                    ui_refs['mem_pct'].set_text(f"{round(mem_curr/mem_total*100, 1)}%")
+                ui_refs['mem_detail'].set_text(f"{format_bytes(mem_curr)} / {format_bytes(mem_total)}")
+
+                # 硬盘
+                disk = status.get('disk', {})
+                disk_curr = disk.get('current', 0)
+                disk_total = disk.get('total', 1)
+                if disk_total > 0:
+                    ui_refs['disk_ring'].set_value(disk_curr / disk_total)
+                    ui_refs['disk_pct'].set_text(f"{round(disk_curr/disk_total*100, 1)}%")
+                ui_refs['disk_detail'].set_text(f"{format_bytes(disk_curr)} / {format_bytes(disk_total)}")
+
+                # 网速
+                net = status.get('netIO', {})
+                ui_refs['speed_up'].set_text(f"{format_bytes(net.get('up',0))}/s")
+                ui_refs['speed_down'].set_text(f"{format_bytes(net.get('down',0))}/s")
+
+                # 总流量
+                traf = status.get('netTraffic', {})
+                ui_refs['total_up'].set_text(format_bytes(traf.get('sent',0)))
+                ui_refs['total_down'].set_text(format_bytes(traf.get('recv',0)))
+
+                # Xray
+                xray = status.get('xray', {})
+                state = str(xray.get('state', 'Unknown')).upper()
+                ui_refs['xray_main'].set_text(state)
+                ui_refs['xray_sub'].set_text(f"Ver: {xray.get('version','')}")
+                if state == 'RUNNING': 
+                    ui_refs['xray_icon'].classes(replace='text-green-600', remove='text-red-500 text-gray-400')
+                else: 
+                    ui_refs['xray_icon'].classes(replace='text-red-500', remove='text-green-600 text-gray-400')
+
+                # Uptime & Load
+                ui_refs['uptime_main'].set_text(format_uptime(status.get('uptime', 0)))
+                ui_refs['uptime_sub'].set_text('System Uptime')
+                
+                loads = status.get('loads', [0,0,0])
+                if not loads: loads = [0,0,0]
+                ui_refs['load_main'].set_text(f"{loads[0]} | {loads[1]}")
+                ui_refs['load_sub'].set_text('1min | 5min')
+
+            # 心跳隐藏
+            if 'heartbeat' in ui_refs: 
+                ui_refs['heartbeat'].classes(add='opacity-0')
+
+        except Exception as e:
+            pass
+
+    # 4. 启动定时器 (每3秒一次)
+    ui.timer(3.0, update_data_task)
+    # 5. 立即执行一次
+    ui.timer(0.1, update_data_task, once=True)
     
 # ================= [修改] 聚合视图 (修复区域分组无延迟数据的问题) =================
 async def render_aggregated_view(server_list, show_ping=False, force_refresh=False):
@@ -1872,7 +2076,7 @@ async def load_dashboard_stats():
 def render_sidebar_content():
     # 1. 顶部区域
     with ui.column().classes('w-full p-4 border-b bg-gray-50 flex-shrink-0'):
-        ui.label('X-UI Manager Pro').classes('text-xl font-bold mb-4 text-slate-800')
+        ui.label('小龙女她爸').classes('text-xl font-bold mb-4 text-slate-800')
         ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes('w-full text-slate-700')
         ui.button('订阅管理', icon='rss_feed', on_click=load_subs_view).props('flat align=left').classes('w-full text-slate-700')
 
