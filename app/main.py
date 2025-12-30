@@ -2322,30 +2322,41 @@ def main_page(request: Request):
     ui.timer(0.1, lambda: asyncio.create_task(load_dashboard_stats()), once=True)
     logger.info("✅ UI 已就绪")
 
-# ================= 全局定时 Ping 任务 =================
+# ================= 全局定时 Ping 任务 (仅启动一次 + 限流保护) =================
 async def run_global_ping_task():
-    while True:
-        try:
-            logger.info("📡 开始全局节点延迟测试...")
-            tasks = []
-            for srv in SERVERS_CACHE:
-                raw_host = srv['url']
-                try:
-                    if '://' not in raw_host: raw_host = f'http://{raw_host}'
-                    p = urlparse(raw_host); raw_host = p.hostname or raw_host.split('://')[-1].split(':')[0]
-                except: continue
-                
-                nodes = NODES_DATA.get(srv['url'], [])
-                if nodes:
-                    tasks.append(batch_ping_nodes(nodes, raw_host))
+    # 依然需要限流！否则启动时瞬间并发几百个 Ping 还是会卡死网页
+    semaphore = asyncio.Semaphore(5)
+
+    async def protected_ping_task(nodes, host):
+        async with semaphore:
+            try:
+                await batch_ping_nodes(nodes, host)
+            except:
+                pass
+            # 测完休息 0.5 秒
+            await asyncio.sleep(0.5)
+
+    # ❌ 移除了 while True 循环，只执行一次
+    try:
+        logger.info("📡 [系统启动] 执行首次全局延迟测试...")
+        tasks = []
+        for srv in SERVERS_CACHE:
+            raw_host = srv['url']
+            try:
+                if '://' not in raw_host: raw_host = f'http://{raw_host}'
+                p = urlparse(raw_host); raw_host = p.hostname or raw_host.split('://')[-1].split(':')[0]
+            except: continue
             
-            if tasks:
-                await asyncio.gather(*tasks)
-            logger.info("✅ 全局延迟测试完成")
-        except Exception as e:
-            logger.error(f"Ping 任务异常: {e}")
+            nodes = NODES_DATA.get(srv['url'], [])
+            if nodes:
+                tasks.append(protected_ping_task(nodes, raw_host))
         
-        await asyncio.sleep(300) # 5分钟 = 300秒
+        if tasks:
+            await asyncio.gather(*tasks)
+        
+        logger.info("✅ 首次延迟测试完成 (后台任务已结束)")
+    except Exception as e:
+        logger.error(f"Ping 任务异常: {e}")
 
 # 在 app 启动时运行
 app.on_startup(lambda: asyncio.create_task(run_global_ping_task()))
