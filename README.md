@@ -138,7 +138,16 @@ data/nodes_cache.json: 节点缓存数据
 
 ⚠️ 注意：请定期备份 data 目录以防数据丢失。
 
-<img width="1908" height="1546" alt="image" src="https://github.com/user-attachments/assets/8ef99f70-bbd4-4565-ae87-836b2c999204" />
+<img width="1923" height="1916" alt="7ffa1078-bdc7-41ed-9509-04d5383b5fe1" src="https://github.com/user-attachments/assets/1008ea89-5e13-462f-890c-f4d53dae3811" />
+
+<img width="1923" height="1901" alt="1253d136-2c1c-4039-96c7-15b8d8d42383" src="https://github.com/user-attachments/assets/5b8a5102-b977-492f-8ca3-b2695130fe0d" />
+
+<img width="1891" height="541" alt="image" src="https://github.com/user-attachments/assets/fbc9e3f5-57e0-495b-b14a-78c97593777a" />
+
+<img width="1923" height="1179" alt="22986a5b-312c-4ad1-9f5f-699a848b16bd" src="https://github.com/user-attachments/assets/3a8b68ec-bc45-4681-af13-d7f6a2c7e298" />
+
+
+
 
 
 
