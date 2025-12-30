@@ -19,6 +19,7 @@ from nicegui import ui, run, app, Client
 from fastapi import Response, Request
 from fastapi.responses import RedirectResponse
 from urllib.parse import urlparse, quote 
+from nicegui import ui, app
 
 # ================= 强制日志实时输出 =================
 sys.stdout.reconfigure(line_buffering=True)
@@ -57,7 +58,8 @@ SERVERS_CACHE = []
 SUBS_CACHE = []
 NODES_DATA = {}
 ADMIN_CONFIG = {}
-# ================= 智能分组配置 =================
+# ================= 智能分组配置 (修复版) =================
+# 移除了容易与单词冲突的2字母缩写 (如 CL 冲突 Oracle)
 AUTO_COUNTRY_MAP = {
     '🇭🇰': '🇭🇰 香港', 'HK': '🇭🇰 香港', '香港': '🇭🇰 香港',
     '🇹🇼': '🇹🇼 台湾', 'TW': '🇹🇼 台湾', '台湾': '🇹🇼 台湾',
@@ -317,7 +319,7 @@ async def fetch_inbounds_safe(server_conf, force_refresh=False):
             NODES_DATA[url] = []
             return []
 
-# ================= 使用 URL 安全的 Base64 =================
+# ================= [修改] 使用 URL 安全的 Base64 =================
 def safe_base64(s): 
     # 使用 urlsafe_b64encode 避免出现 + 和 /
     return base64.urlsafe_b64encode(s.encode('utf-8')).decode('utf-8')
@@ -333,7 +335,7 @@ def decode_base64_safe(s):
         try: return base64.b64decode(s).decode('utf-8')
         except: return ""
 
-# ================= 生成 SubConverter 转换链接 =================
+# ================= [新增] 生成 SubConverter 转换链接 =================
 def generate_converted_link(raw_link, target, domain_prefix):
     """
     生成经过 SubConverter 转换的订阅链接
@@ -380,7 +382,7 @@ def generate_node_link(node, server_host):
     except: return ""
     return ""
 
-# =================生成 Surge/Loon 格式明文配置 =================
+# ================= 新增：生成 Surge/Loon 格式明文配置 =================
 def generate_detail_config(node, server_host):
     try:
         p = node['protocol']
@@ -538,7 +540,7 @@ async def sub_handler(token: str, request: Request):
                 if l: links.append(l)
     return Response(safe_base64("\n".join(links)), media_type="text/plain; charset=utf-8")
 
-# ================= 分组订阅接口：支持 Tag 和 主分组 =================
+# ================= [修改] 分组订阅接口：支持 Tag 和 主分组 =================
 @app.get('/sub/group/{group_b64}')
 async def group_sub_handler(group_b64: str, request: Request):
     group_name = decode_base64_safe(group_b64)
@@ -546,7 +548,8 @@ async def group_sub_handler(group_b64: str, request: Request):
     
     links = []
     
-    # ✨✨✨ 同时筛选“主分组”和“Tags” ✨✨✨
+    # ✨✨✨ 核心修复：同时筛选“主分组”和“Tags” ✨✨✨
+    # 之前的代码只筛选了 s.get('group')，导致自定义分组（Tag）无法匹配
     target_servers = [
         s for s in SERVERS_CACHE 
         if s.get('group', '默认分组') == group_name or group_name in s.get('tags', [])
@@ -575,11 +578,11 @@ async def group_sub_handler(group_b64: str, request: Request):
         
     return Response(safe_base64("\n".join(links)), media_type="text/plain; charset=utf-8")
 
-# ================= 短链接接口：分组 =================
+# ================= [修改] 短链接接口：分组 =================
 @app.get('/get/group/{target}/{group_b64}')
 async def short_group_handler(target: str, group_b64: str):
     try:
-        # ✨✨✨ 必须用横杠 xui-manager，不能用下划线 ✨✨✨
+        # ✨✨✨ 重点修复：必须用横杠 xui-manager，不能用下划线 ✨✨✨
         internal_api = f"http://xui-manager:8080/sub/group/{group_b64}"
 
         params = {
@@ -606,11 +609,11 @@ async def short_group_handler(target: str, group_b64: str):
             return Response(f"Backend Error: {code} (Check Docker Network)", status_code=502)
     except Exception as e: return Response(f"Error: {str(e)}", status_code=500)
 
-# ================= 短链接接口：单个订阅 =================
+# ================= [修改] 短链接接口：单个订阅 =================
 @app.get('/get/sub/{target}/{token}')
 async def short_sub_handler(target: str, token: str):
     try:
-        # ✨✨✨ 必须用横杠 xui-manager ✨✨✨
+        # ✨✨✨ 重点修复：必须用横杠 xui-manager ✨✨✨
         internal_api = f"http://xui-manager:8080/sub/{token}"
 
         params = {
@@ -747,7 +750,7 @@ async def safe_copy_to_clipboard(text):
         else: safe_notify('复制失败', 'negative')
     except: safe_notify('复制功能不可用', 'negative')
 
-# =================  支持格式转换的分组复制 =================
+# ================= [修改] 支持格式转换的分组复制 =================
 async def copy_group_link(group_name, target=None):
     try:
         origin = await ui.run_javascript('return window.location.origin', timeout=3.0)
@@ -755,6 +758,7 @@ async def copy_group_link(group_name, target=None):
         encoded_name = safe_base64(group_name)
         
         if target:
+            # ✨ 修改：路径变为 /get/group/...
             final_link = f"{origin}/get/group/{target}/{encoded_name}"
             msg_prefix = "Surge" if target == 'surge' else "Clash"
         else:
@@ -1007,7 +1011,7 @@ async def delete_inbound(mgr, id, cb):
     else: safe_notify(f"❌ 删除失败: {msg}", "negative")
 
 
-# ================= 带二次确认的删除逻辑 =================
+# ================= [新增] 带二次确认的删除逻辑 =================
 async def delete_inbound_with_confirm(mgr, inbound_id, inbound_remark, callback):
     with ui.dialog() as d, ui.card():
         ui.label('删除确认').classes('text-lg font-bold text-red-600')
@@ -1025,13 +1029,13 @@ async def delete_inbound_with_confirm(mgr, inbound_id, inbound_remark, callback)
             ui.button('确定删除', color='red', on_click=do_delete)
     d.open()
 
-# ================= 订阅编辑器 (包含 Token 编辑) =================
+# ================= [修正] 订阅编辑器 (包含 Token 编辑) =================
 class SubEditor:
     def __init__(self, data=None):
         self.data = data
         if data:
             self.d = data.copy()
-            # 🛡️ 如果旧数据里没有 token，自动补全一个，防止报错
+            # 🛡️ 安全修复：如果旧数据里没有 token，自动补全一个，防止报错
             if 'token' not in self.d:
                 self.d['token'] = str(uuid.uuid4())
             if 'nodes' not in self.d:
@@ -1179,6 +1183,7 @@ class SubEditor:
         else: self.sel.clear()
         self.render_list()
 
+# ⚠️⚠️⚠️ 注意：这个函数必须在 class 外面，一定要顶格写，不能缩进！ ⚠️⚠️⚠️
 def open_sub_editor(d):
     with ui.dialog() as dlg: SubEditor(d).ui(dlg); dlg.open()
 
@@ -1377,7 +1382,7 @@ def open_create_group_dialog():
     with ui.dialog() as d, ui.card().classes('w-full max-w-sm flex flex-col gap-4 p-6'):
         ui.label('新建自定义分组').classes('text-lg font-bold mb-2')
         
-        # ✨ 只保留名称输入框，去掉了 server_select 下拉框
+        # ✨ 修改点：只保留名称输入框，去掉了 server_select 下拉框
         name_input = ui.input('分组名称', placeholder='例如: 微软云 / 生产环境').classes('w-full').props('outlined')
         
         async def save_new_group():
@@ -1392,7 +1397,7 @@ def open_create_group_dialog():
                 safe_notify("该分组已存在", "warning")
                 return
 
-            # ✨保存到 ADMIN_CONFIG，而不是去修改服务器数据
+            # ✨ 修改点：保存到 ADMIN_CONFIG，而不是去修改服务器数据
             if 'custom_groups' not in ADMIN_CONFIG: ADMIN_CONFIG['custom_groups'] = []
             ADMIN_CONFIG['custom_groups'].append(new_name)
             await save_admin_config()
@@ -1479,7 +1484,7 @@ def format_bytes(size):
         n += 1
     return f"{size:.2f} {power_labels[n]}B"
 
-# =================智能五段式排序逻辑 =================
+# ================= [新增] 智能五段式排序逻辑 =================
 def smart_sort_key(server_info):
     """
     解析名称格式: Oracle|🇦🇺 悉尼-AMD-1
@@ -1537,6 +1542,7 @@ def smart_sort_key(server_info):
                 p4 = second      # 此时 Part5(编号) 默认为0
         
         # 4. 优化排序体验: 让空类型 (如微软云) 排在有类型 (如AMD) 之前或之后
+        # 这里不做特殊处理，空字符串默认排在字母前
             
     except:
         pass # 解析失败则退化为默认
@@ -1544,7 +1550,7 @@ def smart_sort_key(server_info):
     return (p1, p2, p3, p4, p5)
     
 
-# =================  表格布局定义 (定义两种模式) =================
+# ================= [修改] 表格布局定义 (定义两种模式) =================
 
 # 1. 带延迟 (用于：区域分组、单个服务器) - 包含 90px 的延迟列
 # 格式: 服务器(150) 备注(200) 分组(1fr) 流量(100) 协议(80) 端口(80) 延迟(90) 状态(50) 操作(150)
@@ -1557,7 +1563,7 @@ COLS_NO_PING   = 'grid-template-columns: 150px 200px 1fr 100px 80px 80px 50px 15
 # 单个服务器视图直接复用带延迟的样式
 SINGLE_COLS = 'grid-template-columns: 200px 1fr 100px 80px 80px 90px 50px 150px; align-items: center;'
 
-# ================= 刷新逻辑 (区分是否显示延迟) =================
+# ================= [修改] 刷新逻辑 (区分是否显示延迟) =================
 async def refresh_content(scope='ALL', data=None, force_refresh=False):
     client = ui.context.client
     with client: show_loading(content_container)
@@ -1591,7 +1597,7 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
     elif scope == 'SINGLE':
         targets = [data]
         
-        # ✨✨✨提取域名显示在标题 ✨✨✨
+        # ✨✨✨ 需求1：提取域名显示在标题 ✨✨✨
         raw_url = data['url']
         try:
             if '://' not in raw_url: raw_url = f'http://{raw_url}'
@@ -1636,7 +1642,7 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
 
     asyncio.create_task(_render())
 
-# ================= 状态面板辅助函数 =================
+# ================= 新增：状态面板辅助函数 =================
 
 def format_uptime(seconds):
     """将秒数转换为 天/小时/分钟"""
@@ -1894,7 +1900,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
     # 5. 立即执行一次
     ui.timer(0.1, update_data_task, once=True)
     
-# =================聚合视图 =================
+# ================= [修改] 聚合视图 (修复区域分组无延迟数据的问题) =================
 async def render_aggregated_view(server_list, show_ping=False, force_refresh=False):
     list_container = ui.column().classes('w-full gap-4')
     
@@ -1932,7 +1938,7 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                 p = urlparse(raw_host); raw_host = p.hostname or raw_host.split('://')[-1].split(':')[0]
             except: pass
 
-            # ✨✨✨ 如果是区域分组(show_ping=True)，主动触发测速 ✨✨✨
+            # ✨✨✨ 修复点 1：如果是区域分组(show_ping=True)，主动触发测速 ✨✨✨
             if show_ping and res:
                  asyncio.create_task(batch_ping_nodes(res, raw_host))
 
@@ -1969,7 +1975,7 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                             ui.label(n.get('protocol', 'unk')).classes('uppercase text-xs font-bold w-full text-center')
                             ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
                             
-                            # ✨✨✨ 如果是区域分组，恢复动态刷新逻辑 ✨✨✨
+                            # ✨✨✨ 修复点 2：如果是区域分组，恢复动态刷新逻辑 ✨✨✨
                             if show_ping:
                                 with ui.row().classes('w-full justify-center items-center gap-1 no-wrap'):
                                     spinner = ui.spinner('dots', size='1em', color='primary')
@@ -2009,19 +2015,97 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                                 ui.button(icon='delete', on_click=lambda m=mgr, i=n, s=srv: delete_inbound_with_confirm(m, i['id'], i.get('remark','未命名'), lambda: refresh_content('SINGLE', s, force_refresh=True))).props('flat dense size=sm color=red')
                     except: continue
 
-
 async def load_dashboard_stats():
-    # 1. 清空容器
+    # 1. 缓冲
+    await asyncio.sleep(0.1)
     content_container.clear()
     
     # 2. 定义 UI 引用
     dash_refs = {}
 
-    # 3. 进入容器上下文 (这是关键！)
+    # 3. 辅助：超级坐标库
+    LOCATION_COORDS = {
+        '🇨🇳': (35.86, 104.19), 'China': (35.86, 104.19), '中国': (35.86, 104.19),
+        '🇭🇰': (22.31, 114.16), 'HK': (22.31, 114.16), 'Hong Kong': (22.31, 114.16), '香港': (22.31, 114.16),
+        '🇹🇼': (23.69, 120.96), 'TW': (23.69, 120.96), 'Taiwan': (23.69, 120.96), '台湾': (23.69, 120.96),
+        '🇯🇵': (36.20, 138.25), 'JP': (36.20, 138.25), 'Japan': (36.20, 138.25), '日本': (36.20, 138.25),
+        'Tokyo': (35.68, 139.76), '东京': (35.68, 139.76),
+        'Osaka': (34.69, 135.50), '大阪': (34.69, 135.50),
+        '🇸🇬': (1.35, 103.81), 'SG': (1.35, 103.81), 'Singapore': (1.35, 103.81), '新加坡': (1.35, 103.81),
+        '🇰🇷': (35.90, 127.76), 'KR': (35.90, 127.76), 'Korea': (35.90, 127.76), '韩国': (35.90, 127.76),
+        'Seoul': (37.56, 126.97), '首尔': (37.56, 126.97),
+        'Chuncheon': (37.88, 127.72), '春川': (37.88, 127.72),
+        '🇮🇳': (20.59, 78.96), 'IN': (20.59, 78.96), 'India': (20.59, 78.96), '印度': (20.59, 78.96),
+        'Mumbai': (19.07, 72.87), '孟买': (19.07, 72.87),
+        'Hyderabad': (17.38, 78.48), '海得拉巴': (17.38, 78.48),
+        '🇮🇩': (-0.78, 113.92), 'ID': (-0.78, 113.92), 'Indonesia': (-0.78, 113.92), '印尼': (-0.78, 113.92),
+        'Jakarta': (-6.20, 106.84), '雅加达': (-6.20, 106.84), 'Batam': (1.13, 104.05), '巴淡': (1.13, 104.05),
+        '🇲🇾': (4.21, 101.97), 'MY': (4.21, 101.97), 'Malaysia': (4.21, 101.97), '马来西亚': (4.21, 101.97),
+        '🇹🇭': (15.87, 100.99), 'TH': (15.87, 100.99), 'Thailand': (15.87, 100.99), '泰国': (15.87, 100.99),
+        'Bangkok': (13.75, 100.50), '曼谷': (13.75, 100.50),
+        '🇻🇳': (14.05, 108.27), 'VN': (14.05, 108.27), 'Vietnam': (14.05, 108.27), '越南': (14.05, 108.27),
+        '🇵🇭': (12.87, 121.77), 'PH': (12.87, 121.77), 'Philippines': (12.87, 121.77), '菲律宾': (12.87, 121.77),
+        '🇮🇱': (31.04, 34.85), 'IL': (31.04, 34.85), 'Israel': (31.04, 34.85), '以色列': (31.04, 34.85),
+        'Jerusalem': (31.76, 35.21), '耶路撒冷': (31.76, 35.21),
+        '🇹🇷': (38.96, 35.24), 'TR': (38.96, 35.24), 'Turkey': (38.96, 35.24), '土耳其': (38.96, 35.24),
+        'Istanbul': (41.00, 28.97), '伊斯坦布尔': (41.00, 28.97),
+        '🇦🇪': (23.42, 53.84), 'AE': (23.42, 53.84), 'UAE': (23.42, 53.84), '阿联酋': (23.42, 53.84),
+        'Dubai': (25.20, 55.27), '迪拜': (25.20, 55.27),
+        'Abu Dhabi': (24.45, 54.37), '阿布扎比': (24.45, 54.37),
+        '🇺🇸': (37.09, -95.71), 'US': (37.09, -95.71), 'USA': (37.09, -95.71), 'United States': (37.09, -95.71), '美国': (37.09, -95.71),
+        'San Jose': (37.33, -121.88), '圣何塞': (37.33, -121.88),
+        'Los Angeles': (34.05, -118.24), '洛杉矶': (34.05, -118.24),
+        'Phoenix': (33.44, -112.07), '凤凰城': (33.44, -112.07),
+        'Ashburn': (39.04, -77.48), '阿什本': (39.04, -77.48),
+        'San Francisco': (37.77, -122.41), '旧金山': (37.77, -122.41),
+        'New York': (40.71, -74.00), '纽约': (40.71, -74.00),
+        '🇨🇦': (56.13, -106.34), 'CA': (56.13, -106.34), 'Canada': (56.13, -106.34), '加拿大': (56.13, -106.34),
+        'Toronto': (43.65, -79.38), '多伦多': (43.65, -79.38),
+        'Vancouver': (49.28, -123.12), '温哥华': (49.28, -123.12),
+        '🇧🇷': (-14.23, -51.92), 'BR': (-14.23, -51.92), 'Brazil': (-14.23, -51.92), '巴西': (-14.23, -51.92),
+        'Sao Paulo': (-23.55, -46.63), '圣保罗': (-23.55, -46.63),
+        '🇲🇽': (23.63, -102.55), 'MX': (23.63, -102.55), 'Mexico': (23.63, -102.55), '墨西哥': (23.63, -102.55),
+        'Monterrey': (25.68, -100.31), '蒙特雷': (25.68, -100.31),
+        '🇨🇱': (-35.67, -71.54), 'CL': (-35.67, -71.54), 'Chile': (-35.67, -71.54), '智利': (-35.67, -71.54),
+        'Santiago': (-33.44, -70.66), '圣地亚哥': (-33.44, -70.66),
+        'Valparaiso': (-33.04, -71.61), '瓦尔帕莱索': (-33.04, -71.61),
+        '🇦🇷': (-38.41, -63.61), 'AR': (-38.41, -63.61), 'Argentina': (-38.41, -63.61), '阿根廷': (-38.41, -63.61),
+        '🇬🇧': (55.37, -3.43), 'UK': (55.37, -3.43), 'United Kingdom': (55.37, -3.43), '英国': (55.37, -3.43),
+        'London': (51.50, -0.12), '伦敦': (51.50, -0.12),
+        '🇩🇪': (51.16, 10.45), 'DE': (51.16, 10.45), 'Germany': (51.16, 10.45), '德国': (51.16, 10.45),
+        'Frankfurt': (50.11, 8.68), '法兰克福': (50.11, 8.68),
+        '🇫🇷': (46.22, 2.21), 'FR': (46.22, 2.21), 'France': (46.22, 2.21), '法国': (46.22, 2.21),
+        'Paris': (48.85, 2.35), '巴黎': (48.85, 2.35),
+        'Marseille': (43.29, 5.36), '马赛': (43.29, 5.36),
+        '🇳🇱': (52.13, 5.29), 'NL': (52.13, 5.29), 'Netherlands': (52.13, 5.29), '荷兰': (52.13, 5.29),
+        'Amsterdam': (52.36, 4.90), '阿姆斯特丹': (52.36, 4.90),
+        '🇷🇺': (61.52, 105.31), 'RU': (61.52, 105.31), 'Russia': (61.52, 105.31), '俄罗斯': (61.52, 105.31),
+        'Moscow': (55.75, 37.61), '莫斯科': (55.75, 37.61),
+        '🇮🇹': (41.87, 12.56), 'IT': (41.87, 12.56), 'Italy': (41.87, 12.56), '意大利': (41.87, 12.56),
+        'Milan': (45.46, 9.19), '米兰': (45.46, 9.19), 'Turin': (45.07, 7.68), '都灵': (45.07, 7.68),
+        '🇪🇸': (40.46, -3.74), 'ES': (40.46, -3.74), 'Spain': (40.46, -3.74), '西班牙': (40.46, -3.74),
+        'Madrid': (40.41, -3.70), '马德里': (40.41, -3.70),
+        '🇸🇪': (60.12, 18.64), 'SE': (60.12, 18.64), 'Sweden': (60.12, 18.64), '瑞典': (60.12, 18.64),
+        'Stockholm': (59.32, 18.06), '斯德哥尔摩': (59.32, 18.06),
+        '🇨🇭': (46.81, 8.22), 'CH': (46.81, 8.22), 'Switzerland': (46.81, 8.22), '瑞士': (46.81, 8.22),
+        'Zurich': (47.37, 8.54), '苏黎世': (47.37, 8.54),
+        '🇦🇺': (-25.27, 133.77), 'AU': (-25.27, 133.77), 'Australia': (-25.27, 133.77), '澳大利亚': (-25.27, 133.77), '澳洲': (-25.27, 133.77),
+        'Sydney': (-33.86, 151.20), '悉尼': (-33.86, 151.20),
+        '🇿🇦': (-30.55, 22.93), 'ZA': (-30.55, 22.93), 'South Africa': (-30.55, 22.93), '南非': (-30.55, 22.93),
+        'Johannesburg': (-26.20, 28.04), '约翰内斯堡': (-26.20, 28.04),
+    }
+
+    # 4. 匹配算法
+    def get_coords(name):
+        for k in sorted(LOCATION_COORDS.keys(), key=len, reverse=True):
+            if k in name: return LOCATION_COORDS[k]
+        return None
+
+    # 5. 进入容器上下文
     with content_container:
         ui.label('系统概览').classes('text-3xl font-bold mb-6 text-slate-800 tracking-tight')
         
-        # === 卡片区域 ===
+        # === A. 顶部卡片 ===
         with ui.row().classes('w-full gap-6 mb-8'):
             def create_stat_card(key, title, sub_text, icon, gradient):
                 with ui.card().classes(f'flex-1 p-6 shadow-lg border-none text-white {gradient} rounded-xl transform hover:scale-105 transition duration-300 relative overflow-hidden'):
@@ -2029,7 +2113,7 @@ async def load_dashboard_stats():
                     with ui.row().classes('items-center justify-between w-full relative z-10'):
                         with ui.column().classes('gap-1'):
                             ui.label(title).classes('opacity-80 text-xs font-bold uppercase tracking-wider')
-                            dash_refs[key] = ui.label('0').classes('text-3xl font-extrabold tracking-tight')
+                            dash_refs[key] = ui.label('Loading...').classes('text-3xl font-extrabold tracking-tight')
                             ui.label(sub_text).classes('opacity-70 text-xs font-medium')
                         ui.icon(icon).classes('text-4xl opacity-80')
 
@@ -2038,10 +2122,13 @@ async def load_dashboard_stats():
             create_stat_card('traffic', '总流量消耗', 'Upload + Download', 'bolt', 'bg-gradient-to-br from-emerald-500 to-teal-600')
             create_stat_card('subs', '订阅配置', 'Subscriptions', 'rss_feed', 'bg-gradient-to-br from-orange-400 to-red-500')
 
-        # === 图表区域 ===
-        with ui.row().classes('w-full gap-6 mb-6'):
-            with ui.card().classes('w-2/3 p-6 shadow-md border-none rounded-xl bg-white'):
-                ui.label('📊 服务器流量排行 (GB)').classes('text-lg font-bold text-slate-700 mb-4')
+        # === B. 图表区域 ===
+        with ui.row().classes('w-full gap-6 mb-6 flex-wrap xl:flex-nowrap items-stretch'):
+            # 左侧：排行
+            with ui.card().classes('w-full xl:w-2/3 p-6 shadow-md border-none rounded-xl bg-white flex flex-col'):
+                with ui.row().classes('w-full justify-between items-center mb-2'):
+                    ui.label('📊 服务器流量排行 (GB)').classes('text-lg font-bold text-slate-700')
+                    dash_refs['traffic_top1'] = ui.badge('Wait...', color='indigo').props('outline')
                 dash_refs['bar_chart'] = ui.echart({
                     'tooltip': {'trigger': 'axis'},
                     'grid': {'left': '3%', 'right': '4%', 'bottom': '3%', 'containLabel': True},
@@ -2050,73 +2137,138 @@ async def load_dashboard_stats():
                     'series': [{'type': 'bar', 'data': [], 'barWidth': '40%', 'itemStyle': {'borderRadius': [4, 4, 0, 0], 'color': '#6366f1'}}]
                 }).classes('w-full h-80')
 
-            with ui.card().classes('flex-grow p-6 shadow-md border-none rounded-xl bg-white'):
-                ui.label('🍩 协议分布').classes('text-lg font-bold text-slate-700 mb-4')
+            # 右侧：分布
+            with ui.card().classes('w-full xl:w-1/3 p-6 shadow-md border-none rounded-xl bg-white flex flex-col'):
+                ui.label('🍩 协议分布').classes('text-lg font-bold text-slate-700 mb-2')
                 dash_refs['pie_chart'] = ui.echart({
                     'color': ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
-                    'tooltip': {'trigger': 'item'}, 'legend': {'bottom': '0%'},
-                    'series': [{'name': '协议', 'type': 'pie', 'radius': ['50%', '70%'], 'label': {'show': False, 'position': 'center'}, 'emphasis': {'label': {'show': True, 'fontSize': '20', 'fontWeight': 'bold'}}, 'data': []}]
-                }).classes('w-full h-80')
+                    'tooltip': {'trigger': 'item'}, 
+                    'legend': {'bottom': '0%', 'icon': 'circle'},
+                    'series': [{'name': '协议', 'type': 'pie', 'radius': ['50%', '70%'], 'center': ['50%', '45%'], 
+                                'itemStyle': {'borderRadius': 5, 'borderColor': '#fff', 'borderWidth': 2},
+                                'label': {'show': False}, 'emphasis': {'label': {'show': True, 'fontSize': '20', 'fontWeight': 'bold'}}, 'data': []}]
+                }).classes('w-full h-56')
+                
+                ui.separator().classes('my-4')
+                
+                with ui.row().classes('w-full justify-between gap-2'):
+                    with ui.column().classes('items-center flex-1 p-2 bg-blue-50 rounded-lg'):
+                        with ui.row().classes('text-xs text-blue-400 font-bold mb-1').style('gap: 2px'):
+                            ui.icon('arrow_upward', size='xs')
+                            ui.label('上传')
+                        dash_refs['stat_up'] = ui.label('--').classes('text-sm font-extrabold text-blue-700')
+                    with ui.column().classes('items-center flex-1 p-2 bg-green-50 rounded-lg'):
+                        with ui.row().classes('text-xs text-green-500 font-bold mb-1').style('gap: 2px'):
+                            ui.icon('arrow_downward', size='xs')
+                            ui.label('下载')
+                        dash_refs['stat_down'] = ui.label('--').classes('text-sm font-extrabold text-green-700')
+                    with ui.column().classes('items-center flex-1 p-2 bg-purple-50 rounded-lg'):
+                        with ui.row().classes('text-xs text-purple-500 font-bold mb-1').style('gap: 2px'):
+                            ui.icon('data_usage', size='xs')
+                            ui.label('节点均量')
+                        dash_refs['stat_avg'] = ui.label('--').classes('text-sm font-extrabold text-purple-700')
 
-        # === 数据更新逻辑 ===
+        # === C. 底部地图 (Leaflet) ===
+        with ui.row().classes('w-full gap-6 mb-6'):
+            with ui.card().classes('w-full p-0 shadow-md border-none rounded-xl bg-white overflow-hidden'):
+                with ui.row().classes('w-full px-6 py-4 bg-slate-50 border-b border-gray-100 justify-between items-center'):
+                    with ui.row().classes('gap-2 items-center'):
+                        ui.icon('public', color='blue').classes('text-xl')
+                        ui.label('全球节点实景分布 (Leaflet)').classes('text-lg font-bold text-slate-700')
+                    dash_refs['map_info'] = ui.label('等待数据...').classes('text-xs text-gray-400')
+
+                # 初始化地图 (锁定高度 500px)
+                dash_refs['map'] = ui.leaflet(center=(30, 100), zoom=2).classes('w-full h-[500px]')
+
+        # === D. 数据更新任务 (定义在 with 内部) ===
         async def update_dashboard_data():
             try:
-                # 检查容器状态，防止报错
+                # 检查容器
                 if content_container.is_deleted: return
 
                 total_servers = len(SERVERS_CACHE)
                 online_servers = 0
                 total_nodes = 0
                 total_traffic_bytes = 0
+                total_up_bytes = 0
+                total_down_bytes = 0
+                
                 server_traffic_map = {}
                 protocol_count = {}
+                map_markers = []
 
+                # 计算数据
                 for s in SERVERS_CACHE:
                     res = NODES_DATA.get(s['url'], [])
                     name = s.get('name', '未命名')
+                    
+                    # 匹配坐标
+                    coords = get_coords(name)
+                    if coords:
+                        map_markers.append((coords[0], coords[1], name))
+
                     if res:
                         online_servers += 1
                         total_nodes += len(res)
                         srv_traffic = 0
                         for n in res: 
-                            t = int(n.get('up', 0)) + int(n.get('down', 0))
-                            total_traffic_bytes += t
-                            srv_traffic += t
+                            u = int(n.get('up', 0)); d = int(n.get('down', 0)); t = u + d
+                            total_up_bytes += u; total_down_bytes += d; total_traffic_bytes += t; srv_traffic += t
                             proto = str(n.get('protocol', 'unknown')).upper()
                             protocol_count[proto] = protocol_count.get(proto, 0) + 1
                         server_traffic_map[name] = srv_traffic
                     else:
                         server_traffic_map[name] = 0
 
-                # 更新界面
+                # 更新 UI 文字和图表
                 if 'servers' in dash_refs: dash_refs['servers'].set_text(f"{online_servers}/{total_servers}")
                 if 'nodes' in dash_refs: dash_refs['nodes'].set_text(str(total_nodes))
                 if 'traffic' in dash_refs: dash_refs['traffic'].set_text(f"{total_traffic_bytes/(1024**3):.2f} GB")
                 if 'subs' in dash_refs: dash_refs['subs'].set_text(str(len(SUBS_CACHE)))
 
                 if 'bar_chart' in dash_refs:
-                    sorted_traffic = sorted(server_traffic_map.items(), key=lambda x: x[1], reverse=True)[:15]
-                    names = [x[0] for x in sorted_traffic]
-                    values = [round(x[1]/(1024**3), 2) for x in sorted_traffic]
+                    sorted_traffic = sorted(server_traffic_map.items(), key=lambda x: x[1], reverse=True)[:15] 
+                    names = [x[0] for x in sorted_traffic]; values = [round(x[1]/(1024**3), 2) for x in sorted_traffic]
                     dash_refs['bar_chart'].options['xAxis']['data'] = names
                     dash_refs['bar_chart'].options['series'][0]['data'] = values
                     dash_refs['bar_chart'].update()
+                    if sorted_traffic: dash_refs['traffic_top1'].set_text(f"Top 1: {sorted_traffic[0][0]}")
 
                 if 'pie_chart' in dash_refs:
                     pie_data = [{'name': k, 'value': v} for k, v in protocol_count.items()]
                     dash_refs['pie_chart'].options['series'][0]['data'] = pie_data
                     dash_refs['pie_chart'].update()
+                    dash_refs['stat_up'].set_text(format_bytes(total_up_bytes))
+                    dash_refs['stat_down'].set_text(format_bytes(total_down_bytes))
+                    avg_traffic = total_traffic_bytes / total_nodes if total_nodes > 0 else 0
+                    dash_refs['stat_avg'].set_text(format_bytes(avg_traffic))
+
+                # 更新地图标记 (✅ 终极修复：移除 .popup，避免崩溃)
+                if 'map' in dash_refs and map_markers:
+                    m = dash_refs['map']
+                    dash_refs['map_info'].set_text(f'已定位 {len(map_markers)} / {total_servers} 个节点')
+                    
+                    if not getattr(m, 'has_drawn_markers', False):
+                        for lat, lng, name in map_markers:
+                            # 随机微调
+                            lat += (random.random() - 0.5) * 0.1
+                            lng += (random.random() - 0.5) * 0.1
+                            
+                            # 仅添加标记，不要调用 .popup(name)，否则程序会崩溃在第一个点
+                            m.marker(latlng=(lat, lng))
+                            
+                        m.has_drawn_markers = True
 
             except Exception as e:
-                logger.error(f"Dashboard Update Error: {e}")
+                # 增强日志，方便排查
+                logger.error(f"❌ Dashboard Update Error: {e}")
 
-        # === 🔴 在 with content_container 内部启动定时器 ===
-        # 定时器就绑定到了 content_container 上，不会出现 Slot 错误
+        # 6. 立即运行一次
+        await update_dashboard_data()
+        
+        # 7. 注册定时器
         ui.timer(3.0, update_dashboard_data)
         
-        # 立即运行一次
-        await update_dashboard_data()
-
 @ui.refreshable
 def render_sidebar_content():
     # 1. 顶部区域
@@ -2200,7 +2352,7 @@ def render_sidebar_content():
         
 # ================== 登录与 MFA 逻辑 ==================
 @ui.page('/login')
-def login_page(request: Request): 
+def login_page(request: Request): # <--- 【修改 1】增加 request 参数
     # 容器：用于切换登录步骤 (账号密码 -> MFA)
     container = ui.card().classes('absolute-center w-full max-w-sm p-8 shadow-2xl rounded-xl bg-white')
 
@@ -2306,7 +2458,7 @@ def login_page(request: Request):
     def finish():
         app.storage.user['authenticated'] = True
         
-        # --- 登录成功后记录真实 IP ---
+        # --- 【修改 2】登录成功后记录真实 IP ---
         # 优先获取 X-Forwarded-For (适配 Docker/反代)，否则获取直连 IP
         try:
             client_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
@@ -2319,17 +2471,21 @@ def login_page(request: Request):
 
     render_step1()
 
+
+
 @ui.page('/')
 def main_page(request: Request):
-    # 1. 基础认证检查
+    # ================= 1. 基础认证检查 =================
     if not app.storage.user.get('authenticated', False):
         return RedirectResponse('/login')
 
-    # 2. 获取并检查 IP
+    # ================= 2. 获取并检查 IP =================
     try:
+        # 优先获取 X-Forwarded-For (适配 Docker/反代)
         current_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
         recorded_ip = app.storage.user.get('login_ip')
         
+        # IP 变动安全检查
         if recorded_ip and recorded_ip != current_ip:
             app.storage.user.clear()
             ui.notify('环境变动，请重新登录', type='negative')
@@ -2339,34 +2495,41 @@ def main_page(request: Request):
     except:
         display_ip = "Unknown"
 
-    # --- UI 构建 ---
+    # ================= 3. UI 构建 =================
     with ui.header().classes('bg-slate-900 text-white h-14'):
         with ui.row().classes('w-full items-center justify-between'):
             
-            # === 左侧区域：标题 + IP ===
+            # --- 左侧：标题 + IP ---
             with ui.row().classes('items-center gap-2'):
                 ui.label('X-UI Manager Pro').classes('text-lg font-bold ml-4')
                 ui.label(f"[登陆IP:{display_ip}]").classes('text-xs text-gray-400 font-mono pt-1')
 
-            # === 右侧区域：密钥按钮 + 登出按钮 ===
+            # --- 右侧：密钥 + 登出 ---
             with ui.row().classes('items-center gap-2 mr-2'):
-                # 1. 密钥按钮 (移到了这里)
+                # 密钥按钮
                 with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round').tooltip('点击复制通讯密钥'):
                     ui.badge('Key', color='red').props('floating')
                 
-                # 2. 登出按钮
+                # 登出按钮
                 ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense').tooltip('退出登录')
 
+    # ================= 4. 布局容器 =================
     global content_container
     with ui.row().classes('w-full h-screen gap-0'):
+        # 左侧边栏
         with ui.column().classes('w-80 h-full border-r pr-0 overflow-hidden'):
             render_sidebar_content()
+        
+        # 右侧内容区
         content_container = ui.column().classes('flex-grow h-full pl-6 overflow-y-auto p-4 bg-slate-50')
     
+    # ================= 5. 启动后台任务 =================
+    # 延迟启动，避免阻塞页面渲染
     ui.timer(2.0, lambda: asyncio.create_task(silent_refresh_all()), once=True)
     ui.timer(0.1, lambda: asyncio.create_task(load_dashboard_stats()), once=True)
+    
     logger.info("✅ UI 已就绪")
-
+    
 # ================= 全局定时 Ping 任务 (仅启动一次 + 限流保护) =================
 async def run_global_ping_task():
     # 依然需要限流！否则启动时瞬间并发几百个 Ping 还是会卡死网页
@@ -2381,6 +2544,7 @@ async def run_global_ping_task():
             # 测完休息 0.5 秒
             await asyncio.sleep(0.5)
 
+    # ❌ 移除了 while True 循环，只执行一次
     try:
         logger.info("📡 [系统启动] 执行首次全局延迟测试...")
         tasks = []
