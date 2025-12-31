@@ -325,9 +325,6 @@ class WebSSH:
                 self.channel.settimeout(0.0) 
                 self.active = True
 
-                # ✨ 发送回车唤醒 Shell
-                self.channel.send('\n')
-
                 # 6. 启动读取循环
                 asyncio.create_task(self._read_loop())
                 
