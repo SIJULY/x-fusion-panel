@@ -4,7 +4,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-yellow)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-**X-Fusion Panel** (原 X-UI Manager) 是一个全能型 VPS 集中管理平台。它将 X-UI 面板管理、高性能 SSH 网页终端、全球节点地图监控以及订阅转换功能完美融合。通过统一的 Web 界面，您可以轻松掌控分布在世界各地的服务器。
+**X-Fusion Panel**  是一个全能型 VPS 集中管理平台。它将 X-UI 面板管理、高性能 SSH 网页终端、全球节点地图监控以及订阅转换功能完美融合。通过统一的 Web 界面，您可以轻松掌控分布在世界各地的服务器。
 
 ---
 
