@@ -18,10 +18,19 @@
     * **分组订阅**：支持按“国家/地区”或“自定义标签”生成专属订阅。
     * **格式转换**：内置 SubConverter，直接输出 Clash、Surge 等格式。
 * **☁️ 集中管理**：支持无限添加 X-UI 面板，自动同步节点状态，支持批量操作。
-* **💾 数据安全**：支持 JSON 全量备份与恢复，支持批量导入 URL，支持平滑迁移。
+* **💾 数据安全**：采取密码+MFA+IP记录三重保护措施防止面板数据安全，支持 JSON 全量备份与恢复，支持批量导入 URL，支持平滑迁移。
 * **🛡️ 稳定架构**：采用 Docker 容器化部署，内置 Caddy 反代，开箱即用。
 
 ---
+<img width="2146" height="1816" alt="image" src="https://github.com/user-attachments/assets/7c8b2163-50aa-4b6a-b550-8dde09e57818" />
+<img width="2119" height="1393" alt="image" src="https://github.com/user-attachments/assets/7746c2b5-c0da-4fbf-8499-e6431e7e5d94" />
+<img width="2133" height="1876" alt="0c69c5d7-a82a-4900-9d45-2190d075f557" src="https://github.com/user-attachments/assets/b65f53fb-37f3-46c6-8897-f1359fb5d4eb" />
+<img width="2136" height="1881" alt="image" src="https://github.com/user-attachments/assets/fae65091-c411-46c3-a4a3-8af97eac50b9" />
+<img width="2143" height="1868" alt="image" src="https://github.com/user-attachments/assets/db7439ee-7cbc-4860-b723-598d8517f1e2" />
+
+
+
+
 
 ## 🚀 快速安装
 
@@ -153,4 +162,4 @@ static/: 本地静态资源（xterm.js 等，用于加速 SSH 访问）
 
 ⭐ Support
 
-## 如果觉得项目有用，请点个 ⭐ Star 支持一下！
+如果觉得项目有用，请点个 ⭐ Star 支持一下！
