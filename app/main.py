@@ -2952,9 +2952,6 @@ async def load_dashboard_stats():
             if k in name: return LOCATION_COORDS[k]
         return None
 
-    # [清理] 移除了内部 fetch_geo_from_ip (已改用全局函数)
-    # [清理] 移除了内部 get_flag_for_country (已改用全局函数)
-
     # 6. 进入容器上下文
     with content_container:
         ui.label('系统概览').classes('text-3xl font-bold mb-6 text-slate-800 tracking-tight')
@@ -3066,9 +3063,13 @@ async def load_dashboard_stats():
                             coords = (geo_info[0], geo_info[1])
                             country_name = geo_info[2]
                             
-                            # ✨✨✨ 自动纠正分组逻辑 ✨✨✨
+                            # ✨✨✨ 自动纠正分组逻辑 (修正版) ✨✨✨
                             current_group = s.get('group', '默认分组')
-                            if current_group in ['默认分组', '自动注册', '未分组']:
+                            
+                            # ✨ 允许 '自动导入' 和 '🏳️ 其他地区' 组的服务器被重新检测并归队
+                            auto_fix_whitelist = ['默认分组', '自动注册', '未分组', '自动导入', '🏳️ 其他地区']
+                            
+                            if current_group in auto_fix_whitelist:
                                 # [调用全局函数] 找到对应的国旗分组名
                                 new_group = get_flag_for_country(country_name)
                                 if new_group != current_group:
@@ -3143,6 +3144,157 @@ async def load_dashboard_stats():
         
         # 7. 注册定时器
         ui.timer(3.0, update_dashboard_data)
+
+# ================= 全能批量编辑器 (搜索/管理/删除) =================
+class BulkEditor:
+    def __init__(self, target_servers, title="批量管理"):
+        self.all_servers = target_servers # 传入的源数据列表
+        self.title = title
+        self.selected_urls = set()
+        self.ui_rows = {} # 存储 {url: (row_element, name_label)} 用于搜索过滤
+        self.dialog = None
+
+    def open(self):
+        with ui.dialog() as d, ui.card().classes('w-full max-w-4xl h-[85vh] flex flex-col p-0 overflow-hidden'):
+            self.dialog = d
+            
+            # --- 1. 顶部标题 ---
+            with ui.row().classes('w-full justify-between items-center p-4 bg-gray-50 border-b flex-shrink-0'):
+                with ui.row().classes('items-center gap-2'):
+                    ui.icon('edit_note', color='primary').classes('text-xl')
+                    ui.label(self.title).classes('text-lg font-bold')
+                ui.button(icon='close', on_click=d.close).props('flat round dense color=grey')
+
+            # --- 2. 工具栏 (搜索 & 全选) ---
+            with ui.column().classes('w-full p-4 gap-3 border-b bg-white flex-shrink-0'):
+                # 搜索框
+                self.search_input = ui.input(placeholder='🔍 搜索服务器名称、IP 或 备注...').props('outlined dense clearable').classes('w-full')
+                self.search_input.on('input', self.on_search) # 绑定实时搜索
+                
+                with ui.row().classes('w-full justify-between items-center'):
+                    with ui.row().classes('gap-2'):
+                        ui.button('全选', on_click=lambda: self.toggle_all(True)).props('flat dense size=sm color=primary')
+                        ui.button('全不选', on_click=lambda: self.toggle_all(False)).props('flat dense size=sm color=grey')
+                        self.count_label = ui.label('已选: 0').classes('text-xs font-bold text-gray-500 self-center ml-2')
+            
+            # --- 3. 列表区域 (可滚动) ---
+            with ui.scroll_area().classes('w-full flex-grow p-2 bg-gray-50'):
+                with ui.column().classes('w-full gap-1') as self.list_container:
+                    if not self.all_servers:
+                        ui.label('当前组无服务器').classes('w-full text-center text-gray-400 mt-10')
+                    
+                    # 渲染列表
+                    for s in self.all_servers:
+                        # 使用 card 渲染每一行，方便隐藏
+                        with ui.row().classes('w-full items-center p-2 bg-white rounded border border-gray-200 hover:border-blue-400 transition') as row:
+                            chk = ui.checkbox(value=False).props('dense').classes('mr-2')
+                            # 绑定勾选事件
+                            chk.on_value_change(lambda e, u=s['url']: self.on_check(u, e.value))
+                            
+                            with ui.column().classes('gap-0 flex-grow overflow-hidden'):
+                                # 标题行 (加粗)
+                                name_lbl = ui.label(s['name']).classes('text-sm font-bold text-gray-800 truncate')
+                                # 副标题 (URL/IP)
+                                ui.label(s['url']).classes('text-xs text-gray-400 font-mono truncate')
+                            
+                            # 状态小圆点 (装饰)
+                            ui.icon('circle', color='green' if '1' in str(s.get('ssh_port','')) else 'grey').props('size=xs')
+
+                        # 存入索引以便搜索时操作显隐
+                        self.ui_rows[s['url']] = {
+                            'el': row, 
+                            'search_text': f"{s['name']} {s['url']}".lower(),
+                            'checkbox': chk
+                        }
+
+            # --- 4. 底部操作栏 ---
+            with ui.row().classes('w-full p-4 border-t bg-white justify-between items-center flex-shrink-0'):
+                with ui.row().classes('gap-2'):
+                    ui.label('批量操作:').classes('text-sm font-bold text-gray-600 self-center')
+                    
+                    # 操作 1: 移动分组
+                    async def move_group():
+                        if not self.selected_urls: return safe_notify('未选择服务器', 'warning')
+                        with ui.dialog() as sub_d, ui.card().classes('w-80'):
+                            ui.label('移动到分组').classes('font-bold mb-2')
+                            # 获取所有现有分组
+                            groups = sorted(list(get_all_groups_set()))
+                            sel = ui.select(groups, label='选择分组', new_value_mode='add-unique').classes('w-full')
+                            ui.button('确定移动', on_click=lambda: do_move(sel.value)).classes('w-full mt-4 bg-blue-600 text-white')
+                            
+                            async def do_move(target_group):
+                                if not target_group: return
+                                count = 0
+                                for s in SERVERS_CACHE:
+                                    if s['url'] in self.selected_urls:
+                                        s['group'] = target_group
+                                        count += 1
+                                await save_servers()
+                                sub_d.close(); d.close()
+                                render_sidebar_content.refresh()
+                                await refresh_content('ALL') # 刷新右侧
+                                safe_notify(f'已移动 {count} 个服务器到 [{target_group}]', 'positive')
+                        sub_d.open()
+
+                    ui.button('移动分组', icon='folder_open', on_click=move_group).props('flat dense color=blue')
+
+                    # 操作 2: 删除
+                    async def delete_servers():
+                        if not self.selected_urls: return safe_notify('未选择服务器', 'warning')
+                        with ui.dialog() as sub_d, ui.card():
+                            ui.label(f'确定删除选中的 {len(self.selected_urls)} 个服务器?').classes('font-bold text-red-600')
+                            ui.label('此操作不可恢复！').classes('text-xs text-gray-400')
+                            with ui.row().classes('w-full justify-end mt-4'):
+                                ui.button('取消', on_click=sub_d.close).props('flat')
+                                async def confirm_del():
+                                    global SERVERS_CACHE
+                                    # 过滤掉选中的
+                                    SERVERS_CACHE = [s for s in SERVERS_CACHE if s['url'] not in self.selected_urls]
+                                    await save_servers()
+                                    sub_d.close(); d.close()
+                                    render_sidebar_content.refresh()
+                                    if content_container: content_container.clear()
+                                    safe_notify('删除成功', 'positive')
+                                ui.button('确定删除', color='red', on_click=confirm_del)
+                        sub_d.open()
+
+                    ui.button('删除', icon='delete', on_click=delete_servers).props('flat dense color=red')
+
+                ui.button('关闭', on_click=d.close).props('outline color=grey')
+
+        d.open()
+
+    def on_search(self, e):
+        keyword = e.value.lower().strip()
+        for url, item in self.ui_rows.items():
+            # 搜索匹配逻辑
+            visible = keyword in item['search_text']
+            item['el'].set_visibility(visible)
+            # 如果被隐藏了，是否要自动取消勾选？这里暂时保留勾选状态，更符合直觉
+
+    def on_check(self, url, value):
+        if value: self.selected_urls.add(url)
+        else: self.selected_urls.discard(url)
+        self.count_label.set_text(f'已选: {len(self.selected_urls)}')
+
+    def toggle_all(self, state):
+        # 只对当前“可见”的行生效 (搜索过滤后的)
+        visible_urls = [u for u, item in self.ui_rows.items() if item['el'].visible]
+        
+        for url in visible_urls:
+            self.ui_rows[url]['checkbox'].value = state
+            # on_check 会自动被触发
+        
+        # 如果是全选，selected_urls 会增加；如果是全不选，只移除可见的
+        if not state:
+            for url in visible_urls: self.selected_urls.discard(url)
+        
+        self.count_label.set_text(f'已选: {len(self.selected_urls)}')
+
+def open_bulk_edit_dialog(servers, title="管理"):
+    editor = BulkEditor(servers, title)
+    editor.open()
+
 
 # ================= 批量 SSH 执行逻辑  =================
 class BatchSSH:
@@ -3324,7 +3476,7 @@ batch_ssh_manager = BatchSSH()
 def render_sidebar_content():
     # 1. 顶部区域
     with ui.column().classes('w-full p-4 border-b bg-gray-50 flex-shrink-0'):
-        ui.label('小龙女她爸').classes('text-xl font-bold mb-4 text-slate-800')
+        ui.label('X-Fusion Panel').classes('text-xl font-bold mb-4 text-slate-800')
         ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes('w-full text-slate-700')
         ui.button('订阅管理', icon='rss_feed', on_click=load_subs_view).props('flat align=left').classes('w-full text-slate-700')
 
@@ -3333,16 +3485,20 @@ def render_sidebar_content():
         
         with ui.row().classes('w-full gap-2 px-1 mb-4'):
             ui.button('新建分组', icon='create_new_folder', on_click=open_create_group_dialog).props('dense unelevated').classes('flex-grow bg-blue-600 text-white text-xs')
-            # [修复] 补全了括号，并修改为调用 open_server_dialog(None)
             ui.button('添加服务器', icon='add', color='green', on_click=lambda: open_server_dialog(None)).props('dense unelevated').classes('flex-grow text-xs')
 
         # --- A. 全部节点 ---
         all_count = len(SERVERS_CACHE)
-        with ui.row().classes('w-full items-center justify-between p-3 border rounded mb-2 bg-slate-100 hover:bg-slate-200 cursor-pointer').on('click', lambda _: refresh_content('ALL')):
+        with ui.row().classes('w-full items-center justify-between p-3 border rounded mb-2 bg-slate-100 hover:bg-slate-200 cursor-pointer group').on('click', lambda _: refresh_content('ALL')):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('dns', color='primary')
                 ui.label('所有服务器').classes('font-bold')
-            ui.badge(str(all_count), color='blue')
+            
+            with ui.row().classes('items-center gap-1'):
+                # 批量编辑按钮
+                ui.button(icon='edit_note', on_click=lambda: open_bulk_edit_dialog(SERVERS_CACHE, "所有服务器")) \
+                    .props('flat dense round size=xs color=grey').on('click.stop').tooltip('批量管理所有')
+                ui.badge(str(all_count), color='blue')
 
         # --- B. 自定义分组 (Tags) ---
         if 'custom_groups' in ADMIN_CONFIG and ADMIN_CONFIG['custom_groups']:
@@ -3356,23 +3512,18 @@ def render_sidebar_content():
                     with exp.add_slot('header'):
                         with ui.row().classes('w-full h-full items-center justify-between no-wrap cursor-pointer').on('click', lambda _, g=tag_group: refresh_content('TAG', g)):
                             ui.label(tag_group).classes('flex-grow font-bold truncate')
-                            ui.button(icon='edit', on_click=lambda _, g=tag_group: open_group_mgmt_dialog(g)).props('flat dense round size=xs color=grey').on('click.stop')
+                            # 批量编辑按钮
+                            ui.button(icon='edit', on_click=lambda _, s=tag_servers, t=tag_group: open_bulk_edit_dialog(s, f"分组: {t}")).props('flat dense round size=xs color=grey').on('click.stop')
                             ui.badge(str(len(tag_servers)), color='orange' if not tag_servers else 'grey')
                     
                     with ui.column().classes('w-full gap-0 bg-gray-50'):
                         if not tag_servers:
                             ui.label('空分组').classes('text-xs text-gray-400 p-2 italic')
                         for s in tag_servers:
-                            # [修改] 增加了 group 类
                             with ui.row().classes('w-full justify-between items-center p-2 pl-4 border-b border-gray-100 hover:bg-blue-100 cursor-pointer group').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
                                 ui.label(s['name']).classes('text-sm truncate flex-grow')
-                                
-                                # [新增] 按钮组：SSH + 编辑
                                 with ui.row().classes('gap-1 items-center'):
-                                    ui.button(icon='terminal', on_click=lambda _, s=s: open_ssh_interface(s)) \
-                                        .props('flat dense round size=xs color=grey-8').on('click.stop').tooltip('SSH 连接')
-                                    
-                                    # [修改] 调用 open_server_dialog
+                                    ui.button(icon='terminal', on_click=lambda _, s=s: open_ssh_interface(s)).props('flat dense round size=xs color=grey-8').on('click.stop')
                                     ui.button(icon='edit', on_click=lambda _, idx=SERVERS_CACHE.index(s): open_server_dialog(idx)).props('flat dense round size=xs color=grey').on('click.stop')
 
         # --- C. 智能区域分组 ---
@@ -3381,7 +3532,7 @@ def render_sidebar_content():
         country_buckets = {}
         for s in SERVERS_CACHE:
             saved_group = s.get('group')
-            if saved_group and saved_group not in ['默认分组', '自动注册', '未分组']:
+            if saved_group and saved_group not in ['默认分组', '自动注册', '未分组', '自动导入', '🏳️ 其他地区']:
                 c_group = saved_group
             else:
                 c_group = detect_country_group(s.get('name', ''))
@@ -3399,23 +3550,20 @@ def render_sidebar_content():
                  with exp.add_slot('header'):
                     with ui.row().classes('w-full h-full items-center justify-between no-wrap cursor-pointer').on('click', lambda _, g=c_name: refresh_content('COUNTRY', g)):
                         ui.label(c_name).classes('flex-grow font-bold truncate')
+                        # 批量编辑按钮
+                        ui.button(icon='edit_note', on_click=lambda _, s=c_servers, t=c_name: open_bulk_edit_dialog(s, f"区域: {t}")) \
+                            .props('flat dense round size=xs color=grey').on('click.stop').tooltip('批量管理此区域')
                         ui.badge(str(len(c_servers)), color='green')
                  
                  with ui.column().classes('w-full gap-0 bg-gray-50'):
                     for s in c_servers:
-                         # [修改] 增加了 group 类
                          with ui.row().classes('w-full justify-between items-center p-2 pl-4 border-b border-gray-100 hover:bg-blue-100 cursor-pointer group').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
                                 ui.label(s['name']).classes('text-sm truncate flex-grow')
-                                
-                                # [新增] 按钮组：SSH + 编辑
                                 with ui.row().classes('gap-1 items-center'):
-                                    ui.button(icon='terminal', on_click=lambda _, s=s: open_ssh_interface(s)) \
-                                        .props('flat dense round size=xs color=grey-8').on('click.stop').tooltip('SSH 连接')
-
-                                    # [修改] 调用 open_server_dialog
+                                    ui.button(icon='terminal', on_click=lambda _, s=s: open_ssh_interface(s)).props('flat dense round size=xs color=grey-8').on('click.stop')
                                     ui.button(icon='edit', on_click=lambda _, idx=SERVERS_CACHE.index(s): open_server_dialog(idx)).props('flat dense round size=xs color=grey').on('click.stop')
 
-    # 3. 底部
+    # 3. 底部功能区 (必须保留！)
     with ui.column().classes('w-full p-2 border-t mt-auto mb-15 gap-2 bg-white z-10'):
         ui.button('批量 SSH 执行', icon='playlist_play', on_click=batch_ssh_manager.open_dialog) \
             .props('flat align=left').classes('w-full text-slate-800 font-bold mb-1 bg-blue-50 hover:bg-blue-100')
@@ -3653,8 +3801,6 @@ async def run_global_ping_task():
     except Exception as e:
         logger.error(f"Ping 任务异常: {e}")
 
-# 在 app 启动时运行
-app.on_startup(lambda: asyncio.create_task(run_global_ping_task()))
 
 # ✨✨✨ 注册本地静态文件目录 ✨✨✨
 app.add_static_files('/static', 'static')
