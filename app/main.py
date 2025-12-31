@@ -26,6 +26,108 @@ from nicegui import ui, app
 
 IP_GEO_CACHE = {}
 
+# ================= 辅助：全局 GeoIP 和 智能命名逻辑 =================
+
+# 从 IP 获取地理信息 (全局版)
+def fetch_geo_from_ip(host):
+    try:
+        clean_host = host.split('://')[-1].split(':')[0]
+        # 跳过内网
+        if clean_host.startswith('192.168.') or clean_host.startswith('10.') or clean_host == '127.0.0.1':
+            return None
+        if clean_host in IP_GEO_CACHE:
+            return IP_GEO_CACHE[clean_host]
+        
+        # 请求 ip-api (lang=zh-CN)
+        with requests.Session() as s:
+            url = f"http://ip-api.com/json/{clean_host}?lang=zh-CN&fields=status,lat,lon,country"
+            r = s.get(url, timeout=3)
+            if r.status_code == 200:
+                data = r.json()
+                if data.get('status') == 'success':
+                    result = (data['lat'], data['lon'], data['country'])
+                    IP_GEO_CACHE[clean_host] = result
+                    return result
+    except: 
+        pass
+    return None
+
+# 获取国旗 (全局版)
+def get_flag_for_country(country_name):
+    for k, v in AUTO_COUNTRY_MAP.items():
+        if k in country_name:
+            return v 
+    return f"🏳️ {country_name}"
+
+# ✨✨✨ [逻辑修正] 自动给名称添加国旗 ✨✨✨
+async def auto_prepend_flag(name, url):
+    """
+    检查名字是否已经包含任意已知国旗。
+    - 如果包含：直接返回原名（尊重用户填写或面板自带的国旗）。
+    - 如果不包含：根据 IP 归属地自动添加。
+    """
+    if not name: return name
+
+    # 1. 关键修正：遍历所有已知国旗，检查名称中是否已存在
+    # AUTO_COUNTRY_MAP 的值格式如 "🇺🇸 美国", 我们只取空格前的 emoji
+    for v in AUTO_COUNTRY_MAP.values():
+        flag_icon = v.split(' ')[0] # 提取 🇺🇸
+        if flag_icon in name:
+            # logger.info(f"名称 '{name}' 已包含国旗 {flag_icon}，跳过自动添加")
+            return name
+
+    # 2. 如果没有国旗，则进行 GeoIP 查询
+    try:
+        geo_info = await run.io_bound(fetch_geo_from_ip, url)
+        if not geo_info: 
+            return name # 查不到 IP 信息，原样返回
+        
+        country_name = geo_info[2]
+        flag_group = get_flag_for_country(country_name) 
+        flag_icon = flag_group.split(' ')[0] 
+        
+        # 再次确认（防止 GeoIP 返回的国旗就是名字里有的，虽然上面已经过滤过一次）
+        if flag_icon in name:
+            return name
+            
+        return f"{flag_icon} {name}"
+    except Exception as e:
+        return name
+
+# ✨✨✨ 智能命名核心逻辑 ✨✨✨
+async def generate_smart_name(server_conf):
+    """尝试获取面板节点名，获取不到则用 GeoIP+序号"""
+    # 1. 尝试连接面板获取节点名
+    try:
+        mgr = get_manager(server_conf)
+        inbounds = await run_in_bg_executor(mgr.get_inbounds)
+        if inbounds and len(inbounds) > 0:
+            # 优先找一个有备注的节点
+            for node in inbounds:
+                if node.get('remark'):
+                    # 注意：这里直接返回面板的 remark，不加处理
+                    # 后续会交给 auto_prepend_flag 统一处理国旗
+                    return node['remark'] 
+    except: pass
+
+    # 2. 尝试 GeoIP 命名 (如果面板连不上)
+    try:
+        geo_info = await run.io_bound(fetch_geo_from_ip, server_conf['url'])
+        if geo_info:
+            country_name = geo_info[2]
+            flag_prefix = get_flag_for_country(country_name) # 这里自带国旗，如 "🇺🇸 美国"
+            
+            # 计算序号
+            count = 1
+            for s in SERVERS_CACHE:
+                if s.get('name', '').startswith(flag_prefix):
+                    count += 1
+            return f"{flag_prefix}-{count}"
+    except: pass
+
+    # 3. 兜底
+    return f"Server-{len(SERVERS_CACHE) + 1}"
+
 
 # ================= SSH 全局配置区域  =================
 GLOBAL_SSH_KEY_FILE = 'data/global_ssh_key'
@@ -1077,7 +1179,7 @@ async def auto_register_node(request: Request):
         
         new_server_config = {
             'name': alias,
-            'group': '自动注册',
+            'group': '默认分组',
             'url': target_url,
             'user': username,
             'pass': password,
@@ -1874,26 +1976,22 @@ async def open_server_dialog(idx=None):
     is_edit = idx is not None
     data = SERVERS_CACHE[idx] if is_edit else {}
     
-    # 还原为原来的 max-w-sm (小窗模式)，去除固定高度，由内容撑开
     with ui.dialog() as d, ui.card().classes('w-full max-w-sm p-5 flex flex-col gap-4'):
         
         # 1. 标题栏
         with ui.row().classes('w-full justify-between items-center'):
             ui.label('编辑服务器' if is_edit else '添加服务器').classes('text-lg font-bold')
-            # 顶部增加一个简单的 Tab 切换器
             tabs = ui.tabs().classes('text-blue-600')
             with tabs:
                 t_xui = ui.tab('面板', icon='settings')
                 t_ssh = ui.tab('SSH', icon='terminal')
 
         # 2. 变量绑定
-        name = ui.input(value=data.get('name',''), label='备注名称').classes('w-full').props('outlined dense')
+        name = ui.input(value=data.get('name',''), label='备注名称 (留空自动获取)').classes('w-full').props('outlined dense')
         group = ui.select(options=get_all_groups(), value=data.get('group','默认分组'), new_value_mode='add-unique', label='分组').classes('w-full').props('outlined dense')
         
-        # 3. 内容面板区域 (无缝切换)
+        # 3. 内容面板区域
         with ui.tab_panels(tabs, value=t_xui).classes('w-full animated fadeIn'):
-            
-            # --- 面板 A: X-Fusion Panel配置 (默认) ---
             with ui.tab_panel(t_xui).classes('p-0 flex flex-col gap-3'):
                 url = ui.input(value=data.get('url',''), label='面板 URL (http://ip:port)').classes('w-full').props('outlined dense')
                 with ui.row().classes('w-full gap-2'):
@@ -1901,20 +1999,15 @@ async def open_server_dialog(idx=None):
                     pwd = ui.input(value=data.get('pass',''), label='密码', password=True).classes('flex-1').props('outlined dense')
                 prefix = ui.input(value=data.get('prefix',''), label='API 前缀 (选填)').classes('w-full').props('outlined dense')
 
-            # --- 面板 B: SSH 配置 ---
             with ui.tab_panel(t_ssh).classes('p-0 flex flex-col gap-3'):
                 with ui.row().classes('w-full gap-2'):
                     ssh_user = ui.input(value=data.get('ssh_user','root'), label='SSH 用户').classes('flex-1').props('outlined dense')
                     ssh_port = ui.input(value=data.get('ssh_port','22'), label='端口').classes('w-1/3').props('outlined dense')
                 
-                # 认证方式选择
                 auth_type = ui.select(['全局密钥', '独立密码', '独立密钥'], value=data.get('ssh_auth_type', '全局密钥'), label='认证方式').classes('w-full').props('outlined dense options-dense')
-                
-                # 动态输入框
                 ssh_pwd = ui.input(label='SSH 密码', password=True, value=data.get('ssh_password','')).classes('w-full').props('outlined dense')
                 ssh_key = ui.textarea(label='SSH 私钥', value=data.get('ssh_key','')).classes('w-full').props('outlined dense rows=3 input-class=font-mono text-xs')
                 
-                # 绑定显隐逻辑
                 ssh_pwd.bind_visibility_from(auth_type, 'value', value='独立密码')
                 ssh_key.bind_visibility_from(auth_type, 'value', value='独立密钥')
                 ui.label('✅ 将自动使用全局私钥连接').bind_visibility_from(auth_type, 'value', value='全局密钥').classes('text-green-600 text-xs text-center mt-2')
@@ -1931,8 +2024,19 @@ async def open_server_dialog(idx=None):
                 ui.button('删除', on_click=delete, color='red').props('flat dense')
 
             async def save():
+                # 1. 自动命名逻辑 (如果为空)
+                final_name = name.value.strip()
+                temp_conf = {'url': url.value, 'user': user.value, 'pass': pwd.value, 'prefix': prefix.value}
+                
+                if not final_name:
+                    safe_notify("正在智能获取名称...", "ongoing")
+                    final_name = await generate_smart_name(temp_conf)
+                
+                # 2. 自动补全国旗逻辑
+                final_name = await auto_prepend_flag(final_name, url.value)
+
                 new_data = {
-                    'name': name.value, 'group': group.value,
+                    'name': final_name, 'group': group.value,
                     'url': url.value, 'user': user.value, 'pass': pwd.value, 'prefix': prefix.value,
                     'ssh_port': ssh_port.value, 'ssh_user': ssh_user.value,
                     'ssh_auth_type': auth_type.value, 'ssh_password': ssh_pwd.value, 'ssh_key': ssh_key.value
@@ -1944,11 +2048,11 @@ async def open_server_dialog(idx=None):
                 render_sidebar_content.refresh()
                 await refresh_content('SINGLE', SERVERS_CACHE[idx] if is_edit else SERVERS_CACHE[-1], force_refresh=True)
                 d.close()
-                safe_notify('保存成功', 'positive')
+                safe_notify(f'保存成功: {final_name}', 'positive')
             
             ui.button('保存配置', on_click=save).classes('bg-slate-900 text-white shadow-lg')
     d.open()
-
+    
 def open_group_mgmt_dialog(group_name):
     # 只用于管理自定义分组 (Tags)
     with ui.dialog() as d, ui.card().classes('w-[95vw] max-w-[500px] flex flex-col p-0 gap-0 overflow-hidden'):
@@ -2100,38 +2204,26 @@ async def open_data_mgmt_dialog():
             tab_import = ui.tab('恢复 / 批量添加')
             
         with ui.tab_panels(tabs, value=tab_export).classes('w-full p-6 overflow-y-auto flex-grow'):
-            
-            # --- 面板 A: 导出 (极简模式：完美居中) ---
-            # items-center justify-center -> 让内容水平垂直都居中
+            # --- 面板 A: 导出 ---
             with ui.tab_panel(tab_export).classes('flex flex-col gap-8 items-center justify-center h-full'):
                 full_backup = {
-                    "version": "3.0",
-                    "timestamp": __import__('time').time(),
-                    "servers": SERVERS_CACHE,
-                    "subscriptions": SUBS_CACHE,
-                    "admin_config": ADMIN_CONFIG,
-                    "global_ssh_key": load_global_key(),
-                    "cache": NODES_DATA
+                    "version": "3.0", "timestamp": __import__('time').time(),
+                    "servers": SERVERS_CACHE, "subscriptions": SUBS_CACHE,
+                    "admin_config": ADMIN_CONFIG, "global_ssh_key": load_global_key(), "cache": NODES_DATA
                 }
                 json_str = json.dumps(full_backup, indent=2, ensure_ascii=False)
                 
-                # 提示图标区域 (现在会完美居中)
                 with ui.column().classes('items-center gap-2'):
                     ui.icon('cloud_download', size='5rem', color='primary').classes('opacity-90')
                     ui.label('备份数据已准备就绪').classes('text-xl font-bold text-gray-700 tracking-wide')
                     ui.label(f'包含 {len(SERVERS_CACHE)} 个服务器配置').classes('text-xs text-gray-400')
 
-                # 按钮区域 (限制最大宽度，更美观)
                 with ui.column().classes('w-full max-w-md gap-4'):
-                    ui.button('复制到剪贴板', icon='content_copy', on_click=lambda: safe_copy_to_clipboard(json_str)) \
-                        .classes('w-full h-12 text-base font-bold bg-blue-600 text-white shadow-lg rounded-lg hover:scale-105 transition')
-                    
-                    ui.button('下载 .json 文件', icon='download', on_click=lambda: ui.download(json_str.encode('utf-8'), 'xui_manager_backup_v3.json')) \
-                        .classes('w-full h-12 text-base font-bold bg-green-600 text-white shadow-lg rounded-lg hover:scale-105 transition')
+                    ui.button('复制到剪贴板', icon='content_copy', on_click=lambda: safe_copy_to_clipboard(json_str)).classes('w-full h-12 text-base font-bold bg-blue-600 text-white shadow-lg rounded-lg hover:scale-105 transition')
+                    ui.button('下载 .json 文件', icon='download', on_click=lambda: ui.download(json_str.encode('utf-8'), 'xui_manager_backup_v3.json')).classes('w-full h-12 text-base font-bold bg-green-600 text-white shadow-lg rounded-lg hover:scale-105 transition')
 
-            # --- 面板 B: 导入 & 批量添加 (保持原样) ---
+            # --- 面板 B: 导入 & 批量添加 ---
             with ui.tab_panel(tab_import).classes('flex flex-col gap-6'):
-                
                 # === 功能区 1: 恢复备份 ===
                 with ui.expansion('方式一：恢复 JSON 备份文件', icon='restore', value=False).classes('w-full border rounded bg-gray-50'):
                     with ui.column().classes('p-4 gap-4 w-full'):
@@ -2146,21 +2238,17 @@ async def open_data_mgmt_dialog():
                                 raw = import_text.value.strip()
                                 if not raw: safe_notify("内容不能为空", 'warning'); return
                                 data = json.loads(raw)
-                                
                                 new_servers = data.get('servers', []) if isinstance(data, dict) else data
                                 new_subs = data.get('subscriptions', []); new_config = data.get('admin_config', {})
                                 new_ssh_key = data.get('global_ssh_key', ''); new_cache = data.get('cache', {})
 
                                 added = 0; updated = 0
                                 existing_map = {s['url']: i for i, s in enumerate(SERVERS_CACHE)}
-                                
                                 for item in new_servers:
                                     url = item.get('url')
                                     if url in existing_map:
-                                        if overwrite_chk.value:
-                                            SERVERS_CACHE[existing_map[url]] = item; updated += 1
-                                    else:
-                                        SERVERS_CACHE.append(item); existing_map[url] = len(SERVERS_CACHE) - 1; added += 1
+                                        if overwrite_chk.value: SERVERS_CACHE[existing_map[url]] = item; updated += 1
+                                    else: SERVERS_CACHE.append(item); existing_map[url] = len(SERVERS_CACHE) - 1; added += 1
 
                                 if restore_key_chk.value and new_ssh_key: save_global_key(new_ssh_key)
                                 if restore_sub_chk.value:
@@ -2173,7 +2261,6 @@ async def open_data_mgmt_dialog():
                                 safe_notify(f"恢复完成: +{added} / ~{updated}", 'positive'); d.close()
                                 if content_container: content_container.clear()
                             except Exception as e: safe_notify(f"错误: {e}", 'negative')
-
                         ui.button('执行恢复', on_click=process_json_import).classes('w-full bg-slate-800 text-white')
 
                 # === 功能区 2: 批量添加 ===
@@ -2181,7 +2268,6 @@ async def open_data_mgmt_dialog():
                     with ui.column().classes('p-4 gap-4 w-full'):
                         ui.label('批量输入 (每行一个，支持 IP 或 URL)').classes('text-xs font-bold text-gray-500')
                         url_area = ui.textarea(placeholder='192.168.1.10\n192.168.1.11:2202\nhttp://example.com:54321').classes('w-full h-32 font-mono text-sm bg-gray-50').props('outlined')
-                        
                         ui.separator()
                         
                         # --- 默认设置区域 ---
@@ -2189,7 +2275,6 @@ async def open_data_mgmt_dialog():
                             def_ssh_user = ui.input('默认 SSH 用户', value='root').props('dense outlined')
                             def_ssh_port = ui.input('默认 SSH 端口', value='22').props('dense outlined')
                             def_ssh_pwd  = ui.input('默认 SSH 密码 (选填)').props('dense outlined placeholder="留空则用全局密钥"')
-                            
                             def_xui_port = ui.input('默认 X-UI 端口', value='54321').props('dense outlined')
                             def_xui_user = ui.input('默认 X-UI 账号', value='admin').props('dense outlined')
                             def_xui_pass = ui.input('默认 X-UI 密码', value='admin').props('dense outlined')
@@ -2205,41 +2290,34 @@ async def open_data_mgmt_dialog():
                             for line in lines:
                                 target_ssh_port = def_ssh_port.value
                                 target_xui_port = def_xui_port.value
-                                
                                 if '://' in line:
                                     final_url = line
-                                    try: 
-                                        parsed = urlparse(line)
-                                        name = parsed.hostname or line
+                                    try: parsed = urlparse(line); name = parsed.hostname or line
                                     except: name = line
                                 else:
                                     if ':' in line and not line.startswith('['): 
-                                        parts = line.split(':')
-                                        host_ip = parts[0]
-                                        target_ssh_port = parts[1]
-                                    else:
-                                        host_ip = line
-                                    
-                                    final_url = f"http://{host_ip}:{target_xui_port}"
-                                    name = host_ip
+                                        parts = line.split(':'); host_ip = parts[0]; target_ssh_port = parts[1]
+                                    else: host_ip = line
+                                    final_url = f"http://{host_ip}:{target_xui_port}"; name = host_ip
 
                                 if final_url in existing_urls: continue
-                                
                                 auth_type = '独立密码' if def_ssh_pwd.value.strip() else '全局密钥'
                                 
                                 new_server = {
-                                    'name': name,
-                                    'group': '自动导入',
-                                    'url': final_url,
-                                    'user': def_xui_user.value,
-                                    'pass': def_xui_pass.value,
-                                    'prefix': '',
-                                    'ssh_user': def_ssh_user.value,
-                                    'ssh_port': target_ssh_port,
-                                    'ssh_auth_type': auth_type,
-                                    'ssh_password': def_ssh_pwd.value,
-                                    'ssh_key': ''
+                                    'name': name, 'group': '默认分组', 'url': final_url,
+                                    'user': def_xui_user.value, 'pass': def_xui_pass.value, 'prefix': '',
+                                    'ssh_user': def_ssh_user.value, 'ssh_port': target_ssh_port,
+                                    'ssh_auth_type': auth_type, 'ssh_password': def_ssh_pwd.value, 'ssh_key': ''
                                 }
+
+                                # 1. 自动命名
+                                if name == host_ip or name == final_url:
+                                    safe_notify(f"正在智能处理: {host_ip}...", "ongoing")
+                                    new_server['name'] = await generate_smart_name(new_server)
+                                
+                                # 2. 补全国旗
+                                new_server['name'] = await auto_prepend_flag(new_server['name'], final_url)
+
                                 SERVERS_CACHE.append(new_server)
                                 existing_urls.add(final_url)
                                 count += 1
@@ -2247,13 +2325,10 @@ async def open_data_mgmt_dialog():
                             if count > 0:
                                 await save_servers()
                                 render_sidebar_content.refresh()
-                                safe_notify(f"成功添加 {count} 台服务器", 'positive')
-                                d.close()
-                            else:
-                                safe_notify("未添加任何服务器 (可能已存在)", 'warning')
+                                safe_notify(f"成功添加 {count} 台服务器", 'positive'); d.close()
+                            else: safe_notify("未添加任何服务器 (可能已存在)", 'warning')
 
                         ui.button('确认批量添加', icon='add_box', on_click=run_batch_import).classes('w-full bg-blue-600 text-white h-10')
-
     d.open()
     
 # ================= 渲染逻辑 =================
@@ -2810,14 +2885,13 @@ async def load_dashboard_stats():
     await asyncio.sleep(0.1)
     content_container.clear()
     
-    # ✨✨✨ 强制重置容器样式 ✨✨✨
-    # 确保仪表盘也是顶部对齐且可滚动的
+    # 强制重置容器样式
     content_container.classes(remove='justify-center items-center overflow-hidden p-6', add='overflow-y-auto p-4 pl-6 justify-start')
     
     # 2. 定义 UI 引用
     dash_refs = {}
     
-    # 标记是否有数据被自动修正，如果有，最后需要保存并刷新侧边栏
+    # 标记是否有数据被自动修正
     config_changed = False
 
     # 3. 辅助：超级坐标库 (用于名称匹配)
@@ -2878,36 +2952,8 @@ async def load_dashboard_stats():
             if k in name: return LOCATION_COORDS[k]
         return None
 
-    # 4. 辅助：从 IP 获取详细信息 (坐标 + 国家名)
-    def fetch_geo_from_ip(host):
-        try:
-            clean_host = host.split('://')[-1].split(':')[0]
-            if clean_host in IP_GEO_CACHE:
-                return IP_GEO_CACHE[clean_host]
-            
-            # ✨ 关键：请求 lang=zh-CN 以获得中文国家名
-            with requests.Session() as s:
-                url = f"http://ip-api.com/json/{clean_host}?lang=zh-CN&fields=status,lat,lon,country"
-                r = s.get(url, timeout=2)
-                if r.status_code == 200:
-                    data = r.json()
-                    if data.get('status') == 'success':
-                        # 返回 (纬度, 经度, 国家名)
-                        result = (data['lat'], data['lon'], data['country'])
-                        IP_GEO_CACHE[clean_host] = result
-                        return result
-        except: 
-            pass
-        return None
-
-    # 5. 辅助：根据中文国家名匹配国旗
-    def get_flag_for_country(country_name):
-        # 简单反向查找，利用 AUTO_COUNTRY_MAP
-        # 你的 AUTO_COUNTRY_MAP 格式是 {'美国': '🇺🇸 美国', ...}
-        for k, v in AUTO_COUNTRY_MAP.items():
-            if k in country_name: # 比如 "美国" in "美国"
-                return v # 返回 "🇺🇸 美国"
-        return f"🏳️ {country_name}" # 找不到就用白旗
+    # [清理] 移除了内部 fetch_geo_from_ip (已改用全局函数)
+    # [清理] 移除了内部 get_flag_for_country (已改用全局函数)
 
     # 6. 进入容器上下文
     with content_container:
@@ -2986,9 +3032,9 @@ async def load_dashboard_stats():
                 # 初始化地图 (高度 700px, 中心点 30,20)
                 dash_refs['map'] = ui.leaflet(center=(30, 20), zoom=2).classes('w-full h-[700px]')
 
-        # === D. 数据更新任务 (定义在 with 内部) ===
+        # === D. 数据更新任务 ===
         async def update_dashboard_data():
-            nonlocal config_changed # 引用外部变量
+            nonlocal config_changed
             try:
                 if content_container.is_deleted: return
 
@@ -3013,7 +3059,7 @@ async def load_dashboard_stats():
                     
                     # 2. 如果名称匹配失败，尝试 IP 定位
                     if not coords:
-                        # 获取地理信息 (lat, lon, country_name)
+                        # [调用全局函数] 获取地理信息 (lat, lon, country_name)
                         geo_info = await run.io_bound(fetch_geo_from_ip, s['url'])
                         
                         if geo_info:
@@ -3023,7 +3069,7 @@ async def load_dashboard_stats():
                             # ✨✨✨ 自动纠正分组逻辑 ✨✨✨
                             current_group = s.get('group', '默认分组')
                             if current_group in ['默认分组', '自动注册', '未分组']:
-                                # 找到对应的国旗分组名
+                                # [调用全局函数] 找到对应的国旗分组名
                                 new_group = get_flag_for_country(country_name)
                                 if new_group != current_group:
                                     s['group'] = new_group
@@ -3069,7 +3115,7 @@ async def load_dashboard_stats():
                     avg_traffic = total_traffic_bytes / total_nodes if total_nodes > 0 else 0
                     dash_refs['stat_avg'].set_text(format_bytes(avg_traffic))
 
-                # 更新地图标记 (保持 marker，避免崩溃)
+                # 更新地图标记
                 if 'map' in dash_refs and map_markers:
                     m = dash_refs['map']
                     dash_refs['map_info'].set_text(f'已定位 {len(map_markers)} / {total_servers} 个节点')
@@ -3097,7 +3143,6 @@ async def load_dashboard_stats():
         
         # 7. 注册定时器
         ui.timer(3.0, update_dashboard_data)
-
 
 # ================= 批量 SSH 执行逻辑  =================
 class BatchSSH:
@@ -3614,9 +3659,7 @@ app.on_startup(lambda: asyncio.create_task(run_global_ping_task()))
 # ✨✨✨ 注册本地静态文件目录 ✨✨✨
 app.add_static_files('/static', 'static')
 
-# 在 app 启动时运行
-app.on_startup(lambda: asyncio.create_task(run_global_ping_task()))
-
 if __name__ in {"__main__", "__mp_main__"}:
     logger.info("🚀 系统正在初始化...")
+    # 请根据需要修改 host, port, storage_secret
     ui.run(title='X-Fusion Panel', host='0.0.0.0', port=8080, language='zh-CN', storage_secret='sijuly_secret_key', reload=False)
