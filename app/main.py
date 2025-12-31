@@ -66,6 +66,10 @@ BG_EXECUTOR = ThreadPoolExecutor(max_workers=20)
 # 2. 限制后台并发数
 SYNC_SEMAPHORE = asyncio.Semaphore(15) 
 
+
+LAST_AUTO_SYNC_TIME = 0
+SYNC_COOLDOWN_SECONDS = 300  # 冷却时间：300秒（5分钟）
+
 # ================= 配置区域 =================
 CONFIG_FILE = 'data/servers.json'
 SUBS_FILE = 'data/subscriptions.json'
@@ -602,7 +606,22 @@ async def run_in_bg_executor(func, *args):
     return await loop.run_in_executor(BG_EXECUTOR, func, *args)
 
 # [核心] 静默刷新逻辑
-async def silent_refresh_all():
+async def silent_refresh_all(is_auto_trigger=False): # 增加参数
+    global LAST_AUTO_SYNC_TIME
+
+    # 如果是自动触发（打开网页），且处于冷却期内，则跳过
+    if is_auto_trigger:
+        current_time = __import__('time').time()
+        if current_time - LAST_AUTO_SYNC_TIME < SYNC_COOLDOWN_SECONDS:
+            remaining = int(SYNC_COOLDOWN_SECONDS - (current_time - LAST_AUTO_SYNC_TIME))
+            logger.info(f"⏳ [防抖] 距离上次同步不足 {SYNC_COOLDOWN_SECONDS}秒，跳过自动更新 (剩余冷却: {remaining}s)")
+            # 虽然不更新数据，但要记得刷新一下UI显示缓存
+            render_sidebar_content.refresh()
+            return
+
+        # 更新最后同步时间
+        LAST_AUTO_SYNC_TIME = current_time
+
     safe_notify(f'🚀 开始后台静默刷新 ({len(SERVERS_CACHE)} 个服务器)...')
     tasks = []
     for srv in SERVERS_CACHE:
@@ -3484,7 +3503,7 @@ def main_page(request: Request):
                 # 登出按钮
                 ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense').tooltip('退出登录')
 
-# ================= 5. 布局容器 =================
+    # ================= 5. 布局容器 =================
     global content_container
     # ✨✨✨ 添加 no-wrap (禁止换行) ✨✨✨
     with ui.row().classes('w-full h-screen gap-0 no-wrap items-stretch'):
@@ -3500,11 +3519,16 @@ def main_page(request: Request):
     
     # ================= 6. 启动后台任务 =================
     # 延迟启动，避免阻塞页面渲染
-    ui.timer(2.0, lambda: asyncio.create_task(silent_refresh_all()), once=True)
+    
+    # 👇👇👇 [关键修改点] 开启自动触发标记，配合冷却逻辑防止崩溃死循环 👇👇👇
+    ui.timer(2.0, lambda: asyncio.create_task(silent_refresh_all(is_auto_trigger=True)), once=True)
+    
+    # 启动仪表盘数据刷新
     ui.timer(0.1, lambda: asyncio.create_task(load_dashboard_stats()), once=True)
     
     logger.info("✅ UI 已就绪")
     
+
 # ================= 全局定时 Ping 任务 (仅启动一次 + 限流保护) =================
 async def run_global_ping_task():
     # 依然需要限流！否则启动时瞬间并发几百个 Ping 还是会卡死网页
