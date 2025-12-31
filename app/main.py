@@ -3309,7 +3309,7 @@ def render_sidebar_content():
                                     ui.button(icon='edit', on_click=lambda _, idx=SERVERS_CACHE.index(s): open_server_dialog(idx)).props('flat dense round size=xs color=grey').on('click.stop')
 
     # 3. 底部
-    with ui.column().classes('w-full p-2 border-t mt-auto'):
+    with ui.column().classes('w-full p-2 border-t mt-auto mb-15 gap-2 bg-white z-10'):
         ui.button('批量 SSH 执行', icon='playlist_play', on_click=batch_ssh_manager.open_dialog) \
             .props('flat align=left').classes('w-full text-slate-800 font-bold mb-1 bg-blue-50 hover:bg-blue-100')
         ui.button('全局 SSH 设置', icon='vpn_key', on_click=open_global_settings_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm')
