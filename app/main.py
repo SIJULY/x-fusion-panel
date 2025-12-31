@@ -26,7 +26,7 @@ from nicegui import ui, app
 IP_GEO_CACHE = {}
 
 
-# ================= SSH 全局配置区域 (新增) =================
+# ================= SSH 全局配置区域=================
 GLOBAL_SSH_KEY_FILE = 'data/global_ssh_key'
 
 def load_global_key():
@@ -187,7 +187,7 @@ def safe_notify(message, type='info', timeout=3000):
     except: logger.info(f"[Notify] {message}")
 
 
-# ================= SSH 连接核心逻辑 (新增) =================
+# ================= SSH 连接核心逻辑  =================
 def get_ssh_client(server_data):
     """建立 SSH 连接"""
     client = paramiko.SSHClient()
@@ -219,9 +219,8 @@ def get_ssh_client(server_data):
     except Exception as e:
         return None, f"❌ 连接失败: {str(e)}"
 
-# ================= [修复版] 交互式 WebSSH 类 =================
+# ================= 交互式 WebSSH 类 =================
 
-# 这个辅助函数必须在 class WebSSH 上面
 def get_ssh_client_sync(server_data):
     return get_ssh_client(server_data)
 
@@ -377,7 +376,7 @@ class WebSSH:
                 ui.run_javascript(f'if(window.{self.term_id}) window.{self.term_id}.dispose();')
         except: pass
 
-# ================= [最终修正版] SSH 界面入口 (宽屏垂直居中) =================
+# ================= SSH 界面入口 =================
 ssh_instances = {} 
 
 def open_ssh_interface(server_data):
@@ -395,7 +394,7 @@ def open_ssh_interface(server_data):
 
     with content_container:
         # ✨ 灰色背景大容器 (Wrapper)
-        # w-full: 宽度占满 (满足你的要求)
+        # w-full: 宽度占满 
         # h-[85vh]: 高度固定为视口的 85%，这样上下就会留出空隙，实现“悬浮感”
         with ui.column().classes('w-full h-[85vh] bg-gray-100 rounded-2xl p-4 shadow-2xl border border-gray-200 gap-3 relative'):
             
@@ -642,7 +641,7 @@ async def fetch_inbounds_safe(server_conf, force_refresh=False):
             NODES_DATA[url] = []
             return []
 
-# ================= [修改] 使用 URL 安全的 Base64 =================
+# =================  使用 URL 安全的 Base64 =================
 def safe_base64(s): 
     # 使用 urlsafe_b64encode 避免出现 + 和 /
     return base64.urlsafe_b64encode(s.encode('utf-8')).decode('utf-8')
@@ -658,7 +657,7 @@ def decode_base64_safe(s):
         try: return base64.b64decode(s).decode('utf-8')
         except: return ""
 
-# ================= [新增] 生成 SubConverter 转换链接 =================
+# ================= 生成 SubConverter 转换链接 =================
 def generate_converted_link(raw_link, target, domain_prefix):
     """
     生成经过 SubConverter 转换的订阅链接
@@ -705,7 +704,7 @@ def generate_node_link(node, server_host):
     except: return ""
     return ""
 
-# ================= 新增：生成 Surge/Loon 格式明文配置 =================
+# ================= 生成 Surge/Loon 格式明文配置 =================
 def generate_detail_config(node, server_host):
     try:
         p = node['protocol']
@@ -786,7 +785,7 @@ def generate_detail_config(node, server_host):
         # logger.error(f"格式转换失败: {e}")
         return ""
 
-# ================= 新增：延迟测试核心逻辑 =================
+# ================= 延迟测试核心逻辑 =================
 import subprocess
 import platform
 
@@ -863,7 +862,7 @@ async def sub_handler(token: str, request: Request):
                 if l: links.append(l)
     return Response(safe_base64("\n".join(links)), media_type="text/plain; charset=utf-8")
 
-# ================= [修改] 分组订阅接口：支持 Tag 和 主分组 =================
+# ================= 分组订阅接口：支持 Tag 和 主分组 =================
 @app.get('/sub/group/{group_b64}')
 async def group_sub_handler(group_b64: str, request: Request):
     group_name = decode_base64_safe(group_b64)
@@ -871,8 +870,7 @@ async def group_sub_handler(group_b64: str, request: Request):
     
     links = []
     
-    # ✨✨✨ 核心修复：同时筛选“主分组”和“Tags” ✨✨✨
-    # 之前的代码只筛选了 s.get('group')，导致自定义分组（Tag）无法匹配
+    # ✨✨✨ 同时筛选“主分组”和“Tags” ✨✨✨
     target_servers = [
         s for s in SERVERS_CACHE 
         if s.get('group', '默认分组') == group_name or group_name in s.get('tags', [])
@@ -901,11 +899,10 @@ async def group_sub_handler(group_b64: str, request: Request):
         
     return Response(safe_base64("\n".join(links)), media_type="text/plain; charset=utf-8")
 
-# ================= [修改] 短链接接口：分组 =================
+# ================= 短链接接口：分组 =================
 @app.get('/get/group/{target}/{group_b64}')
 async def short_group_handler(target: str, group_b64: str):
     try:
-        # ✨✨✨ 重点修复：必须用横杠 xui-manager，不能用下划线 ✨✨✨
         internal_api = f"http://xui-manager:8080/sub/group/{group_b64}"
 
         params = {
@@ -932,11 +929,10 @@ async def short_group_handler(target: str, group_b64: str):
             return Response(f"Backend Error: {code} (Check Docker Network)", status_code=502)
     except Exception as e: return Response(f"Error: {str(e)}", status_code=500)
 
-# ================= [修改] 短链接接口：单个订阅 =================
+# ================= 短链接接口：单个订阅 =================
 @app.get('/get/sub/{target}/{token}')
 async def short_sub_handler(target: str, token: str):
     try:
-        # ✨✨✨ 重点修复：必须用横杠 xui-manager ✨✨✨
         internal_api = f"http://xui-manager:8080/sub/{token}"
 
         params = {
@@ -1073,7 +1069,7 @@ async def safe_copy_to_clipboard(text):
         else: safe_notify('复制失败', 'negative')
     except: safe_notify('复制功能不可用', 'negative')
 
-# ================= [修改] 支持格式转换的分组复制 =================
+# =================  支持格式转换的分组复制 =================
 async def copy_group_link(group_name, target=None):
     try:
         origin = await ui.run_javascript('return window.location.origin', timeout=3.0)
@@ -1334,7 +1330,7 @@ async def delete_inbound(mgr, id, cb):
     else: safe_notify(f"❌ 删除失败: {msg}", "negative")
 
 
-# ================= [新增] 带二次确认的删除逻辑 =================
+# ================= 带二次确认的删除逻辑 =================
 async def delete_inbound_with_confirm(mgr, inbound_id, inbound_remark, callback):
     with ui.dialog() as d, ui.card():
         ui.label('删除确认').classes('text-lg font-bold text-red-600')
@@ -1352,7 +1348,7 @@ async def delete_inbound_with_confirm(mgr, inbound_id, inbound_remark, callback)
             ui.button('确定删除', color='red', on_click=do_delete)
     d.open()
 
-# ================= [修正] 订阅编辑器 (包含 Token 编辑) =================
+# ================= 订阅编辑器 (包含 Token 编辑) =================
 class SubEditor:
     def __init__(self, data=None):
         self.data = data
@@ -1506,11 +1502,11 @@ class SubEditor:
         else: self.sel.clear()
         self.render_list()
 
-# ⚠️⚠️⚠️ 注意：这个函数必须在 class 外面，一定要顶格写，不能缩进！ ⚠️⚠️⚠️
+
 def open_sub_editor(d):
     with ui.dialog() as dlg: SubEditor(d).ui(dlg); dlg.open()
 
-# ================= [修改] 订阅管理视图 (增加转换按钮) =================
+# ================= 订阅管理视图 (增加转换按钮) =================
 async def load_subs_view():
     show_loading(content_container)
     try: origin = await ui.run_javascript('return window.location.origin', timeout=3.0)
@@ -1555,7 +1551,7 @@ async def load_subs_view():
                         clash_short = f"{origin}/get/sub/clash/{sub['token']}"
                         ui.button(icon='cloud_queue', on_click=lambda u=clash_short: safe_copy_to_clipboard(u)).props('flat dense round size=sm text-color=green').tooltip('复制 Clash 订阅')
                         
-# ================= [修改] 还原为小巧卡片式弹窗 (带切换功能) =================
+# ================= 小巧卡片式弹窗 (带切换功能) =================
 async def open_server_dialog(idx=None):
     is_edit = idx is not None
     data = SERVERS_CACHE[idx] if is_edit else {}
@@ -1849,7 +1845,7 @@ def format_bytes(size):
         n += 1
     return f"{size:.2f} {power_labels[n]}B"
 
-# ================= [新增] 智能五段式排序逻辑 =================
+# ================= 智能五段式排序逻辑 =================
 def smart_sort_key(server_info):
     """
     解析名称格式: Oracle|🇦🇺 悉尼-AMD-1
@@ -1915,7 +1911,7 @@ def smart_sort_key(server_info):
     return (p1, p2, p3, p4, p5)
     
 
-# ================= [修改] 表格布局定义 (定义两种模式) =================
+# ================= 表格布局定义 (定义两种模式) =================
 
 # 1. 带延迟 (用于：区域分组、单个服务器) - 包含 90px 的延迟列
 # 格式: 服务器(150) 备注(200) 分组(1fr) 流量(100) 协议(80) 端口(80) 延迟(90) 状态(50) 操作(150)
@@ -1928,14 +1924,10 @@ COLS_NO_PING   = 'grid-template-columns: 150px 200px 1fr 100px 80px 80px 50px 15
 # 单个服务器视图直接复用带延迟的样式
 SINGLE_COLS = 'grid-template-columns: 200px 1fr 100px 80px 80px 90px 50px 150px; align-items: center;'
 
-# ================= [修复版] 刷新逻辑 (增加样式重置) =================
+# ================= 刷新逻辑 (增加样式重置) =================
 async def refresh_content(scope='ALL', data=None, force_refresh=False):
     client = ui.context.client
     with client: 
-        # ✨✨✨ 核心修复：强制重置容器样式为“正常列表模式” ✨✨✨
-        # 移除 SSH 的居中 (justify-center) 和 隐藏滚动 (overflow-hidden)
-        # 恢复 顶部对齐 (justify-start) 和 自动滚动 (overflow-y-auto)
-        # 恢复 默认内边距 (p-4 pl-6)
         content_container.classes(remove='justify-center items-center overflow-hidden p-6', add='overflow-y-auto p-4 pl-6 justify-start')
         
         show_loading(content_container)
@@ -2009,7 +2001,7 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
 
     asyncio.create_task(_render())
 
-# ================= 新增：状态面板辅助函数 =================
+# ================= 状态面板辅助函数 =================
 
 def format_uptime(seconds):
     """将秒数转换为 天/小时/分钟"""
@@ -2267,7 +2259,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
     # 5. 立即执行一次
     ui.timer(0.1, update_data_task, once=True)
     
-# ================= [修改] 聚合视图 (修复区域分组无延迟数据的问题) =================
+# =================聚合视图  =================
 async def render_aggregated_view(server_list, show_ping=False, force_refresh=False):
     list_container = ui.column().classes('w-full gap-4')
     
@@ -2305,7 +2297,7 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                 p = urlparse(raw_host); raw_host = p.hostname or raw_host.split('://')[-1].split(':')[0]
             except: pass
 
-            # ✨✨✨ 修复点 1：如果是区域分组(show_ping=True)，主动触发测速 ✨✨✨
+            # ✨✨✨ 如果是区域分组(show_ping=True)，主动触发测速 ✨✨✨
             if show_ping and res:
                  asyncio.create_task(batch_ping_nodes(res, raw_host))
 
@@ -2342,7 +2334,7 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                             ui.label(n.get('protocol', 'unk')).classes('uppercase text-xs font-bold w-full text-center')
                             ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
                             
-                            # ✨✨✨ 修复点 2：如果是区域分组，恢复动态刷新逻辑 ✨✨✨
+                            # ✨✨✨ 如果是区域分组，恢复动态刷新逻辑 ✨✨✨
                             if show_ping:
                                 with ui.row().classes('w-full justify-center items-center gap-1 no-wrap'):
                                     spinner = ui.spinner('dots', size='1em', color='primary')
@@ -2390,7 +2382,7 @@ async def load_dashboard_stats():
     await asyncio.sleep(0.1)
     content_container.clear()
     
-    # ✨✨✨ 核心修复：强制重置容器样式 ✨✨✨
+    # ✨✨✨ 强制重置容器样式 ✨✨✨
     # 确保仪表盘也是顶部对齐且可滚动的
     content_container.classes(remove='justify-center items-center overflow-hidden p-6', add='overflow-y-auto p-4 pl-6 justify-start')
     
@@ -2677,6 +2669,183 @@ async def load_dashboard_stats():
         
         # 7. 注册定时器
         ui.timer(3.0, update_dashboard_data)
+
+
+# ================= 批量 SSH 执行逻辑 =================
+class BatchSSH:
+    def __init__(self):
+        self.selected_urls = set()
+        self.log_element = None
+        self.is_running = False
+        self.dialog = None
+
+    def open_dialog(self):
+        self.selected_urls = set()
+        with ui.dialog() as d, ui.card().classes('w-full max-w-4xl h-[80vh] flex flex-col p-0 overflow-hidden'):
+            self.dialog = d
+            
+            # --- 标题栏 ---
+            with ui.row().classes('w-full justify-between items-center p-4 bg-gray-50 border-b'):
+                with ui.row().classes('items-center gap-2'):
+                    ui.icon('terminal', color='primary').classes('text-xl')
+                    ui.label('批量 SSH 执行').classes('text-lg font-bold')
+                ui.button(icon='close', on_click=d.close).props('flat round dense color=grey')
+
+            # --- 内容容器 (用于切换视图) ---
+            self.content_box = ui.column().classes('w-full flex-grow overflow-hidden p-0')
+            
+            # 初始渲染：选择服务器视图
+            self.render_selection_view()
+        d.open()
+
+    def render_selection_view(self):
+        self.content_box.clear()
+        with self.content_box:
+            # 工具栏
+            with ui.row().classes('w-full p-2 border-b gap-2 bg-white items-center'):
+                ui.button('全选', on_click=lambda: self.toggle_all(True)).props('flat dense color=primary')
+                ui.button('全不选', on_click=lambda: self.toggle_all(False)).props('flat dense color=grey')
+                self.count_label = ui.label('已选: 0').classes('ml-auto text-sm font-bold text-gray-600 mr-4')
+
+            # 服务器列表
+            with ui.scroll_area().classes('w-full flex-grow p-4'):
+                with ui.column().classes('w-full gap-1'):
+                    # 按分组显示，看起来更清晰
+                    groups = {}
+                    for s in SERVERS_CACHE:
+                        g = s.get('group', '默认分组')
+                        if g not in groups: groups[g] = []
+                        groups[g].append(s)
+
+                    self.checks = {}
+                    for g_name, servers in groups.items():
+                        ui.label(g_name).classes('text-xs font-bold text-gray-400 mt-2')
+                        for s in servers:
+                            with ui.row().classes('w-full items-center p-2 hover:bg-blue-50 rounded border border-transparent hover:border-blue-200 transition'):
+                                chk = ui.checkbox(value=False, on_change=self.update_count).props('dense')
+                                self.checks[s['url']] = chk
+                                with ui.column().classes('gap-0 ml-2'):
+                                    ui.label(s['name']).classes('text-sm font-bold')
+                                    ui.label(s['url']).classes('text-xs text-gray-400 font-mono')
+
+            # 底部按钮
+            with ui.row().classes('w-full p-4 border-t bg-gray-50 justify-end'):
+                ui.button('下一步: 输入命令', on_click=self.go_to_execution, icon='arrow_forward').classes('bg-slate-900 text-white')
+
+    def toggle_all(self, state):
+        for chk in self.checks.values():
+            chk.value = state
+        self.update_count()
+
+    def update_count(self):
+        count = sum(1 for c in self.checks.values() if c.value)
+        self.count_label.set_text(f'已选: {count}')
+
+    def go_to_execution(self):
+        # 收集选中的服务器
+        self.selected_urls = {url for url, chk in self.checks.items() if chk.value}
+        if not self.selected_urls:
+            safe_notify('请至少选择一个服务器', 'warning')
+            return
+
+        # 切换到执行视图
+        self.render_execution_view()
+
+    def render_execution_view(self):
+        self.content_box.clear()
+        with self.content_box:
+            # 上半部分：命令输入
+            with ui.column().classes('w-full p-4 border-b bg-white gap-2 flex-shrink-0'):
+                ui.label(f'向 {len(self.selected_urls)} 台服务器发送命令:').classes('text-sm font-bold text-gray-600')
+                self.cmd_input = ui.textarea(placeholder='例如: apt update -y && apt upgrade -y').classes('w-full font-mono text-sm').props('outlined rows=3')
+                
+                with ui.row().classes('w-full justify-between items-center'):
+                    ui.label('提示: 命令将在后台并发执行，窗口关闭不影响运行。').classes('text-xs text-gray-400')
+                    with ui.row().classes('gap-2'):
+                        ui.button('上一步', on_click=self.render_selection_view).props('flat dense')
+                        self.run_btn = ui.button('立即执行', on_click=self.run_batch, icon='play_arrow').classes('bg-green-600 text-white')
+
+            # 下半部分：日志输出
+            self.log_container = ui.log().classes('w-full flex-grow font-mono text-xs bg-black text-white p-4 overflow-y-auto')
+
+    async def run_batch(self):
+        cmd = self.cmd_input.value.strip()
+        if not cmd:
+            safe_notify('请输入命令', 'warning')
+            return
+        
+        self.run_btn.disable()
+        self.cmd_input.disable()
+        self.log_container.push(f"🚀 开始批量执行: {cmd}")
+        self.log_container.push(f"--------------------------------------------------")
+
+        # 启动后台任务
+        asyncio.create_task(self._process_batch(cmd, list(self.selected_urls)))
+
+    async def _process_batch(self, cmd, urls):
+        # 限制并发数，防止瞬间卡死 (例如同时只连 10 台)
+        sem = asyncio.Semaphore(10)
+
+        async def _worker(url):
+            async with sem:
+                # 找到服务器配置
+                server = next((s for s in SERVERS_CACHE if s['url'] == url), None)
+                if not server: return
+                
+                name = server['name']
+                
+                # 尝试 UI 更新 (因为此时窗口可能已关闭)
+                def log_safe(msg):
+                    try: 
+                        if self.log_container and self.log_container.visible:
+                            self.log_container.push(msg)
+                    except: pass # 窗口已关闭，忽略 UI 更新
+
+                log_safe(f"⏳ [{name}] 连接中...")
+                
+                try:
+                    # 在线程池中执行 SSH (复用你现有的 run_in_bg_executor)
+                    # 我们需要一个非阻塞的 exec 函数
+                    def ssh_sync_exec():
+                        client, msg = get_ssh_client_sync(server) # 复用你的 WebSSH 辅助函数
+                        if not client: return False, msg
+                        try:
+                            # 设置超时 30秒
+                            stdin, stdout, stderr = client.exec_command(cmd, timeout=30)
+                            out = stdout.read().decode().strip()
+                            err = stderr.read().decode().strip()
+                            client.close()
+                            return True, (out, err)
+                        except Exception as e:
+                            return False, str(e)
+
+                    success, result = await run.io_bound(ssh_sync_exec)
+                    
+                    if success:
+                        out, err = result
+                        if out: log_safe(f"✅ [{name}] 输出:\n{out}")
+                        if err: log_safe(f"⚠️ [{name}] 警告/错误:\n{err}")
+                        if not out and not err: log_safe(f"✅ [{name}] 执行完成 (无返回内容)")
+                    else:
+                        log_safe(f"❌ [{name}] 失败: {result}")
+                        
+                except Exception as e:
+                    log_safe(f"❌ [{name}] 系统异常: {e}")
+                
+                log_safe(f"--------------------------------------------------")
+
+        # 创建所有任务
+        tasks = [_worker(u) for u in urls]
+        await asyncio.gather(*tasks)
+        
+        try:
+            self.log_container.push("🏁 所有任务执行完毕")
+            self.run_btn.enable()
+            self.cmd_input.enable()
+        except: pass
+
+batch_ssh_manager = BatchSSH()
+
         
 @ui.refreshable
 def render_sidebar_content():
@@ -2775,12 +2944,14 @@ def render_sidebar_content():
 
     # 3. 底部
     with ui.column().classes('w-full p-2 border-t mt-auto'):
+        ui.button('批量 SSH 执行', icon='playlist_play', on_click=batch_ssh_manager.open_dialog) \
+            .props('flat align=left').classes('w-full text-slate-800 font-bold mb-1 bg-blue-50 hover:bg-blue-100')
         ui.button('全局 SSH 设置', icon='vpn_key', on_click=open_global_settings_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm')
         ui.button('数据备份 / 恢复', icon='save', on_click=open_data_mgmt_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm')
         
 # ================== 登录与 MFA 逻辑 ==================
 @ui.page('/login')
-def login_page(request: Request): # <--- 【修改 1】增加 request 参数
+def login_page(request: Request):
     # 容器：用于切换登录步骤 (账号密码 -> MFA)
     container = ui.card().classes('absolute-center w-full max-w-sm p-8 shadow-2xl rounded-xl bg-white')
 
@@ -2886,7 +3057,7 @@ def login_page(request: Request): # <--- 【修改 1】增加 request 参数
     def finish():
         app.storage.user['authenticated'] = True
         
-        # --- 【修改 2】登录成功后记录真实 IP ---
+        # --- 登录成功后记录真实 IP ---
         # 优先获取 X-Forwarded-For (适配 Docker/反代)，否则获取直连 IP
         try:
             client_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
@@ -2949,7 +3120,7 @@ def main_page(request: Request):
 
 # ================= 5. 布局容器 =================
     global content_container
-    # ✨✨✨ 核心修复：添加 no-wrap (禁止换行) ✨✨✨
+    # ✨✨✨添加 no-wrap (禁止换行) ✨✨✨
     with ui.row().classes('w-full h-screen gap-0 no-wrap items-stretch'):
         
         # 左侧边栏
@@ -2982,7 +3153,6 @@ async def run_global_ping_task():
             # 测完休息 0.5 秒
             await asyncio.sleep(0.5)
 
-    # ❌ 移除了 while True 循环，只执行一次
     try:
         logger.info("📡 [系统启动] 执行首次全局延迟测试...")
         tasks = []
@@ -3007,7 +3177,7 @@ async def run_global_ping_task():
 # 在 app 启动时运行
 app.on_startup(lambda: asyncio.create_task(run_global_ping_task()))
 
-# ✨✨✨ [新增] 注册本地静态文件目录 ✨✨✨
+# ✨✨✨ 注册本地静态文件目录 ✨✨✨
 app.add_static_files('/static', 'static')
 
 # 在 app 启动时运行
