@@ -150,18 +150,7 @@ static/: 本地静态资源（xterm.js 等，用于加速 SSH 访问）
 
 ⚠️ 注意：请定期备份 data 目录以防数据丢失。
 
-<img width="1923" height="1916" alt="7ffa1078-bdc7-41ed-9509-04d5383b5fe1" src="https://github.com/user-attachments/assets/1008ea89-5e13-462f-890c-f4d53dae3811" />
 
-<img width="1923" height="1901" alt="1253d136-2c1c-4039-96c7-15b8d8d42383" src="https://github.com/user-attachments/assets/5b8a5102-b977-492f-8ca3-b2695130fe0d" />
-
-<img width="1891" height="541" alt="image" src="https://github.com/user-attachments/assets/fbc9e3f5-57e0-495b-b14a-78c97593777a" />
-
-<img width="1923" height="1179" alt="22986a5b-312c-4ad1-9f5f-699a848b16bd" src="https://github.com/user-attachments/assets/3a8b68ec-bc45-4681-af13-d7f6a2c7e298" />
-
-
-
-
-
-
+⭐ Support
 
 ## 如果觉得项目有用，请点个 ⭐ Star 支持一下！
