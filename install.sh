@@ -2,16 +2,21 @@
 
 # ==============================================================================
 # X-Fusion Panel 一键安装/管理脚本
-# GitHub: https://github.com/SIJULY/xui_manager
+# GitHub: https://github.com/SIJULY/x-fusion-panel
 # ==============================================================================
 
 # --- 全局变量 ---
-PROJECT_NAME="xui_manager"
+# ✨✨✨ 修改：目录名正式更名为 x-fusion-panel ✨✨✨
+PROJECT_NAME="x-fusion-panel"
 INSTALL_DIR="/root/${PROJECT_NAME}"
-REPO_URL="https://raw.githubusercontent.com/SIJULY/xui_manager/main"
+OLD_INSTALL_DIR="/root/xui_manager" # 定义旧目录以便迁移
+
+# 仓库地址
+REPO_URL="https://raw.githubusercontent.com/SIJULY/x-fusion-panel/main"
+
 CADDY_CONFIG_PATH="/etc/caddy/Caddyfile"
-CADDY_MARK_START="# X-UI Manager Config Start"
-CADDY_MARK_END="# X-UI Manager Config End"
+CADDY_MARK_START="# X-Fusion Panel Config Start"
+CADDY_MARK_END="# X-Fusion Panel Config End"
 
 # 颜色定义
 RED="\033[31m"
@@ -32,7 +37,6 @@ check_root() {
     fi
 }
 
-# 智能等待 APT 锁
 wait_for_apt_lock() {
     echo -e "${BLUE}[信息] 正在检查系统 APT 锁状态...${PLAIN}"
     local wait_time=0
@@ -77,35 +81,61 @@ check_docker() {
 
 # --- 核心功能函数 ---
 
+# ✨✨✨ 新增：数据迁移函数 ✨✨✨
+migrate_old_data() {
+    if [ -d "$OLD_INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR" ]; then
+        echo -e "${YELLOW}=================================================${PLAIN}"
+        print_info "检测到旧版安装目录 ($OLD_INSTALL_DIR)"
+        print_info "正在自动迁移数据到新目录 ($INSTALL_DIR)..."
+        
+        # 1. 停止旧容器
+        cd "$OLD_INSTALL_DIR"
+        if docker compose ps | grep -q "xui_manager"; then
+            print_info "停止旧版容器..."
+            docker compose down
+        fi
+        
+        # 2. 移动目录
+        cd /root
+        mv "$OLD_INSTALL_DIR" "$INSTALL_DIR"
+        print_success "目录重命名完成。"
+        
+        # 3. 清理旧的 docker-compose.yml (稍后会生成新的)
+        rm -f "$INSTALL_DIR/docker-compose.yml"
+        
+        echo -e "${YELLOW}=================================================${PLAIN}"
+    fi
+}
+
 deploy_base() {
     check_docker
+    
+    # 执行迁移检查
+    migrate_old_data
+
     mkdir -p ${INSTALL_DIR}/app
     mkdir -p ${INSTALL_DIR}/data
-    
-    # ✨✨✨ 新增：创建静态文件目录 ✨✨✨
     mkdir -p ${INSTALL_DIR}/static
     
     cd ${INSTALL_DIR}
 
-    print_info "正在拉取最新代码..."
-    # 下载 Dockerfile 和 requirements.txt
+    print_info "正在拉取最新代码 (X-Fusion)..."
     curl -sS -O ${REPO_URL}/Dockerfile
     curl -sS -O ${REPO_URL}/requirements.txt
 
     print_info "正在下载主程序..."
     curl -sS -o app/main.py ${REPO_URL}/app/main.py
 
-    # ✨✨✨ 新增：下载 SSH 终端所需的静态资源 ✨✨✨
     print_info "正在下载静态资源 (xterm.js)..."
-    # 这里我们使用 cdn.jsdelivr.net 下载稳定版本并保存到本地
     curl -sS -o static/xterm.css "https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css"
     curl -sS -o static/xterm.js "https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"
     curl -sS -o static/xterm-addon-fit.js "https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"
 
     if [ ! -f "app/main.py" ]; then
-        print_error "主程序下载失败！请检查 GitHub 仓库中是否包含 app/main.py 文件。"
+        print_error "主程序下载失败！请检查 GitHub 仓库地址是否正确。"
     fi
 
+    # 初始化空文件 (如果不存在)
     if [ ! -f "data/servers.json" ]; then echo "[]" > data/servers.json; fi
     if [ ! -f "data/subscriptions.json" ]; then echo "[]" > data/subscriptions.json; fi
     if [ ! -f "data/admin_config.json" ]; then echo "{}" > data/admin_config.json; fi
@@ -118,13 +148,13 @@ generate_compose() {
     local PASS=$4
     local SECRET=$5 
 
-    # ✨✨✨ 修改：增加了 static 目录挂载 ✨✨✨
+    # ✨✨✨ 修改：容器名和服务名统一改为 x-fusion-panel ✨✨✨
     cat > ${INSTALL_DIR}/docker-compose.yml << EOF
 version: '3.8'
 services:
-  xui-manager:
+  x-fusion-panel:
     build: .
-    container_name: xui_manager
+    container_name: x-fusion-panel
     restart: always
     ports:
       - "${BIND_IP}:${PORT}:8080"
@@ -133,7 +163,7 @@ services:
       - ./data/subscriptions.json:/app/data/subscriptions.json
       - ./data/nodes_cache.json:/app/data/nodes_cache.json
       - ./data/admin_config.json:/app/data/admin_config.json
-      - ./static:/app/static  # 挂载静态资源
+      - ./static:/app/static
     environment:
       - TZ=Asia/Shanghai
       - XUI_USERNAME=${USER}
@@ -177,13 +207,10 @@ configure_caddy() {
     cat >> "$CADDY_CONFIG_PATH" << EOF
 ${CADDY_MARK_START}
 ${DOMAIN} {
-    # 1. 订阅转换 (转发给本地 25500)
     handle_path /convert* {
         rewrite * /sub
         reverse_proxy 127.0.0.1:25500
     }
-
-    # 2. 主面板
     handle {
         reverse_proxy 127.0.0.1:${PORT}
     }
@@ -199,43 +226,48 @@ install_panel() {
     wait_for_apt_lock
     deploy_base
 
+    # 如果有旧配置，尝试读取旧账号密码（为了方便迁移）
+    local def_user="admin"
+    local def_pass="admin"
+    local def_key=$(cat /proc/sys/kernel/random/uuid | tr -d '-')
+
+    # 简单的配置嗅探 (如果存在旧的 compose 文件)
+    if [ -f "${INSTALL_DIR}/docker-compose.yml.bak" ]; then
+        grep "XUI_USERNAME" "${INSTALL_DIR}/docker-compose.yml.bak" &>/dev/null && def_user=$(grep "XUI_USERNAME=" "${INSTALL_DIR}/docker-compose.yml.bak" | cut -d= -f2)
+        grep "XUI_PASSWORD" "${INSTALL_DIR}/docker-compose.yml.bak" &>/dev/null && def_pass=$(grep "XUI_PASSWORD=" "${INSTALL_DIR}/docker-compose.yml.bak" | cut -d= -f2)
+        grep "XUI_SECRET_KEY" "${INSTALL_DIR}/docker-compose.yml.bak" &>/dev/null && def_key=$(grep "XUI_SECRET_KEY=" "${INSTALL_DIR}/docker-compose.yml.bak" | cut -d= -f2)
+    fi
+
     echo "------------------------------------------------"
-    read -p "请设置面板登录账号 [admin]: " admin_user
-    admin_user=${admin_user:-admin}
-    read -p "请设置面板登录密码 [admin]: " admin_pass
-    admin_pass=${admin_pass:-admin}
+    read -p "请设置面板登录账号 [${def_user}]: " admin_user
+    admin_user=${admin_user:-$def_user}
+    read -p "请设置面板登录密码 [${def_pass}]: " admin_pass
+    admin_pass=${admin_pass:-$def_pass}
     
-    # --- 生成/设置通讯密钥 ---
-    rand_key=$(cat /proc/sys/kernel/random/uuid | tr -d '-')
     echo "------------------------------------------------"
-    echo -e "${YELLOW}配置自动注册通讯密钥 (用于 OCI 开机面板对接)${PLAIN}"
-    echo -e "系统已生成随机密钥: ${GREEN}${rand_key}${PLAIN}"
+    echo -e "${YELLOW}配置自动注册通讯密钥${PLAIN}"
+    echo -e "推荐密钥: ${GREEN}${def_key}${PLAIN}"
     read -p "按回车使用此密钥，或输入自定义密钥: " input_key
-    secret_key=${input_key:-$rand_key}
+    secret_key=${input_key:-$def_key}
     echo "------------------------------------------------"
 
-    # --- ✨✨✨ 重点警告 ✨✨✨ ---
     echo -e "${YELLOW}================================================================${PLAIN}"
-    echo -e "${RED}⚠️  特别提示 / IMPORTANT WARNING  ⚠️${PLAIN}"
-    echo -e "${YELLOW}如果您的VPS已经部署了其他网站（例如使用了 Nginx, NPM, Caddy 等），${PLAIN}"
-    echo -e "${RED}请务必选择 [1] IP + 端口模式${PLAIN}${YELLOW}，否则会导致 80/443 端口冲突！${PLAIN}"
+    echo -e "${RED}⚠️  特别提示  ⚠️${PLAIN}"
+    echo -e "${YELLOW}已有Web服务(Nginx/Caddy)请选 [1] IP模式，否则会导致端口冲突。${PLAIN}"
     echo -e "${YELLOW}================================================================${PLAIN}"
     
     echo "请选择访问方式："
-    echo "  1) IP + 端口访问 (安全，适合已有 Web 服务的环境)"
-    echo "  2) 域名访问 (自动申请 HTTPS，适合纯净环境)"
+    echo "  1) IP + 端口访问"
+    echo "  2) 域名访问 (自动 HTTPS)"
     read -p "请输入选项 [2]: " net_choice
     net_choice=${net_choice:-2}
 
     if [ "$net_choice" == "1" ]; then
         read -p "请输入开放端口 [8081]: " port
         port=${port:-8081}
-        
         generate_compose "0.0.0.0" "$port" "$admin_user" "$admin_pass" "$secret_key"
-        
-        print_info "正在启动容器..."
+        print_info "正在启动容器 (X-Fusion Panel)..."
         docker compose up -d --build
-        
         ip_addr=$(curl -s ifconfig.me)
         print_success "安装成功！"
         echo -e "登录地址: http://${ip_addr}:${port}"
@@ -244,52 +276,44 @@ install_panel() {
         if [ -z "$domain" ]; then print_error "域名不能为空"; fi
         read -p "请输入内部运行端口 [8081]: " port
         port=${port:-8081}
-
         generate_compose "127.0.0.1" "$port" "$admin_user" "$admin_pass" "$secret_key"
-        
-        print_info "正在启动容器..."
+        print_info "正在启动容器 (X-Fusion Panel)..."
         docker compose up -d --build
-
         install_caddy_if_needed
         configure_caddy "$domain" "$port"
-
         print_success "安装成功！"
         echo -e "登录地址: https://${domain}"
     fi
-    
-    echo -e "账号: ${BLUE}${admin_user}${PLAIN}"
-    echo -e "密码: ${BLUE}${admin_pass}${PLAIN}"
-    echo -e "------------------------------------------------"
-    echo -e "通讯密钥: ${GREEN}${secret_key}${PLAIN}"
-    echo -e "------------------------------------------------"
 }
 
 update_panel() {
+    # 智能判断：如果是旧目录用户运行了更新，先执行迁移
+    if [ -d "$OLD_INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR" ]; then
+        print_warning "检测到旧版目录，正在迁移到新架构..."
+        migrate_old_data
+    fi
+
     if [ ! -d "${INSTALL_DIR}" ]; then print_error "未检测到安装目录，请先执行安装。"; fi
     if [ ! -f "${INSTALL_DIR}/docker-compose.yml" ]; then print_error "配置文件丢失，无法更新。"; fi
 
     echo -e "${BLUE}=================================================${PLAIN}"
-    print_info "正在执行智能更新..."
+    print_info "正在执行 X-Fusion Panel 智能更新..."
     
     cd ${INSTALL_DIR}
     
-    # 1. 备份旧配置
     cp docker-compose.yml docker-compose.yml.bak
-    print_info "已备份旧配置到 docker-compose.yml.bak"
+    print_info "已备份旧配置"
 
-    # 2. 提取旧配置参数
+    # 提取旧配置
     OLD_USER=$(grep "XUI_USERNAME=" docker-compose.yml | cut -d= -f2)
     OLD_PASS=$(grep "XUI_PASSWORD=" docker-compose.yml | cut -d= -f2)
     OLD_KEY=$(grep "XUI_SECRET_KEY=" docker-compose.yml | cut -d= -f2)
-    
     PORT_LINE=$(grep ":8080" docker-compose.yml | head -n 1)
     
-    # 3. 判断安装模式
     if [[ $PORT_LINE == *"127.0.0.1"* ]]; then
         BIND_IP="127.0.0.1"
         OLD_PORT=$(echo "$PORT_LINE" | sed -E 's/.*127.0.0.1:([0-9]+):8080.*/\1/' | tr -d ' "-')
         IS_DOMAIN_MODE=true
-        print_info "检测到原有安装为：域名反代模式 (端口 $OLD_PORT)"
     else
         BIND_IP="0.0.0.0"
         if [[ $PORT_LINE == *"0.0.0.0"* ]]; then
@@ -298,51 +322,60 @@ update_panel() {
              OLD_PORT=$(echo "$PORT_LINE" | sed -E 's/.*- "([0-9]+):8080.*/\1/' | tr -d ' "-')
         fi
         IS_DOMAIN_MODE=false
-        print_info "检测到原有安装为：IP直连模式 (端口 $OLD_PORT)"
     fi
 
-    # 4. 停止旧容器
+    # 停止旧容器
     docker compose down
 
-    # 5. 更新代码与静态资源 (✨✨✨ 修改点 ✨✨✨)
+    # 彻底删除可能的旧名容器（防止冲突）
+    if docker ps -a | grep -q "xui_manager"; then
+        docker rm -f xui_manager 2>/dev/null
+    fi
+
     print_info "正在拉取最新代码..."
     curl -sS -o app/main.py ${REPO_URL}/app/main.py
     
-    print_info "正在更新静态资源..."
+    print_info "更新静态资源..."
     mkdir -p static
     curl -sS -o static/xterm.css "https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css"
     curl -sS -o static/xterm.js "https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"
     curl -sS -o static/xterm-addon-fit.js "https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"
 
-    # 6. 重新生成 docker-compose.yml (会自动加入挂载配置)
     generate_compose "$BIND_IP" "$OLD_PORT" "$OLD_USER" "$OLD_PASS" "$OLD_KEY"
-    print_info "配置文件已重建（包含静态资源挂载）。"
 
-    # 7. 域名模式更新 Caddy
     if [ "$IS_DOMAIN_MODE" = true ] && [ -f "$CADDY_CONFIG_PATH" ]; then
         EXISTING_DOMAIN=$(grep -B 2 "reverse_proxy 127.0.0.1:${OLD_PORT}" "$CADDY_CONFIG_PATH" | grep " {" | head -n 1 | awk '{print $1}')
         if [ -n "$EXISTING_DOMAIN" ]; then
-            print_info "检测到域名：${EXISTING_DOMAIN}，正在更新 Caddy 转发规则..."
             install_caddy_if_needed
             configure_caddy "${EXISTING_DOMAIN}" "${OLD_PORT}"
         fi
     fi
 
-    # 8. 启动新容器
-    print_info "正在启动更新后的容器..."
+    print_info "启动新容器..."
     docker compose up -d --build
-    print_success "更新完成！服务已重启。"
+    print_success "更新完成！"
 }
 
 uninstall_panel() {
     read -p "确定要卸载吗？(y/n): " confirm
     if [ "$confirm" != "y" ]; then exit 0; fi
+    
+    # 删除新目录
     if [ -d "${INSTALL_DIR}" ]; then
         cd ${INSTALL_DIR}
         docker compose down
         cd /root
         rm -rf ${INSTALL_DIR}
     fi
+    
+    # 也检查旧目录，防止残留
+    if [ -d "${OLD_INSTALL_DIR}" ]; then
+        cd "${OLD_INSTALL_DIR}"
+        docker compose down 2>/dev/null
+        cd /root
+        rm -rf "${OLD_INSTALL_DIR}"
+    fi
+
     if [ -f "$CADDY_CONFIG_PATH" ]; then
         if grep -q "$CADDY_MARK_START" "$CADDY_CONFIG_PATH"; then
             sed -i "/${CADDY_MARK_START}/,/${CADDY_MARK_END}/d" "$CADDY_CONFIG_PATH"
