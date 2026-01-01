@@ -3410,6 +3410,7 @@ class BulkEditor:
                 with ui.row().classes('gap-2'):
                     ui.label('批量操作:').classes('text-sm font-bold text-gray-600 self-center')
                     
+                    # === 移动分组 ===
                     async def move_group():
                         if not self.selected_urls: return safe_notify('未选择服务器', 'warning')
                         with ui.dialog() as sub_d, ui.card().classes('w-80'):
@@ -3434,6 +3435,88 @@ class BulkEditor:
 
                     ui.button('移动分组', icon='folder_open', on_click=move_group).props('flat dense color=blue')
 
+                    # =========================================================
+                    # ✨✨✨ [新增] 批量修改 SSH 设置 (用户名/认证方式) ✨✨✨
+                    # =========================================================
+                    async def batch_ssh_config():
+                        if not self.selected_urls: return safe_notify('未选择服务器', 'warning')
+
+                        with ui.dialog() as d_ssh, ui.card().classes('w-96 p-5 flex flex-col gap-3'):
+                            with ui.row().classes('items-center gap-2 mb-1'):
+                                ui.icon('vpn_key', color='teal').classes('text-xl')
+                                ui.label('批量 SSH 配置').classes('text-lg font-bold')
+                            
+                            ui.label(f'正在修改 {len(self.selected_urls)} 个服务器的连接信息').classes('text-xs text-gray-400')
+                            
+                            # 1. 用户名设置
+                            ui.label('SSH 用户名').classes('text-xs font-bold text-gray-500 mt-2')
+                            user_input = ui.input(placeholder='留空则保持原样 (不修改)').props('outlined dense').classes('w-full')
+                            
+                            # 2. 认证方式选择
+                            ui.label('认证方式').classes('text-xs font-bold text-gray-500 mt-2')
+                            # 对应 open_server_dialog 中的选项
+                            auth_opts = ['不修改', '全局密钥', '独立密码', '独立密钥']
+                            auth_sel = ui.select(auth_opts, value='不修改').props('outlined dense options-dense').classes('w-full')
+                            
+                            # 3. 凭证输入 (根据选择显隐)
+                            # 密码输入框
+                            pwd_input = ui.input('输入新密码', password=True).props('outlined dense').classes('w-full')
+                            pwd_input.bind_visibility_from(auth_sel, 'value', value='独立密码')
+                            
+                            # 私钥输入框
+                            key_input = ui.textarea('输入新私钥', placeholder='-----BEGIN OPENSSH PRIVATE KEY-----') \
+                                .props('outlined dense rows=4 input-class=text-xs font-mono').classes('w-full')
+                            key_input.bind_visibility_from(auth_sel, 'value', value='独立密钥')
+                            
+                            # 全局密钥提示
+                            global_hint = ui.label('✅ 将统一使用全局 SSH 密钥连接').classes('text-xs text-green-600 bg-green-50 p-2 rounded w-full text-center')
+                            global_hint.bind_visibility_from(auth_sel, 'value', value='全局密钥')
+
+                            async def save_ssh_changes():
+                                count = 0
+                                target_user = user_input.value.strip()
+                                target_auth = auth_sel.value
+                                
+                                # 遍历并修改
+                                for s in SERVERS_CACHE:
+                                    if s['url'] in self.selected_urls:
+                                        changed = False
+                                        
+                                        # 修改用户名 (仅当输入不为空时)
+                                        if target_user:
+                                            s['ssh_user'] = target_user
+                                            changed = True
+                                        
+                                        # 修改认证方式
+                                        if target_auth != '不修改':
+                                            s['ssh_auth_type'] = target_auth
+                                            changed = True
+                                            
+                                            # 如果选了独立密码/密钥，更新对应的字段
+                                            if target_auth == '独立密码':
+                                                s['ssh_password'] = pwd_input.value
+                                            elif target_auth == '独立密钥':
+                                                s['ssh_key'] = key_input.value
+                                        
+                                        if changed: count += 1
+
+                                if count > 0:
+                                    await save_servers()
+                                    d_ssh.close()
+                                    safe_notify(f'✅ 已更新 {count} 个服务器的 SSH 配置', 'positive')
+                                else:
+                                    d_ssh.close()
+                                    safe_notify('未做任何修改', 'warning')
+
+                            with ui.row().classes('w-full justify-end mt-4 gap-2'):
+                                ui.button('取消', on_click=d_ssh.close).props('flat color=grey')
+                                ui.button('保存配置', icon='save', on_click=save_ssh_changes).classes('bg-teal-600 text-white shadow-md')
+
+                        d_ssh.open()
+
+                    ui.button('SSH 设置', icon='vpn_key', on_click=batch_ssh_config).props('flat dense color=teal')
+
+                    # === 删除服务器 ===
                     async def delete_servers():
                         if not self.selected_urls: return safe_notify('未选择服务器', 'warning')
                         with ui.dialog() as sub_d, ui.card():
