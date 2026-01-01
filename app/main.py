@@ -52,42 +52,47 @@ def fetch_geo_from_ip(host):
         pass
     return None
 
-# ================= 全局 DNS 缓存 (解决域名显示问题) =================
+# ================= 全局 DNS 缓存 ======================
 DNS_CACHE = {}
+
+async def _resolve_dns_bg(host):
+    """后台线程池解析 DNS，解析完自动刷新 UI"""
+    try:
+        # 放到后台线程去跑，绝对不卡主界面
+        ip = await run.io_bound(socket.gethostbyname, host)
+        DNS_CACHE[host] = ip
+    except: 
+        DNS_CACHE[host] = "failed" # 标记失败，防止反复解析
 
 def get_real_ip_display(url):
     """
-    从 URL 中提取主机名，如果是域名则尝试解析为 IP。
-    带有缓存机制，防止卡顿。
+    非阻塞获取 IP：
+    1. 有缓存 -> 直接返回 IP
+    2. 没缓存 -> 先返回域名，同时偷偷启动后台解析任务
     """
     try:
-        # 1. 提取 Host (去掉 http:// 和 端口)
+        # 提取域名/IP
         host = url.split('://')[-1].split(':')[0]
         
-        # 2. 如果已经是 IP (简单的正则或判断)，直接返回
-        # 简单判断：如果全是数字和点，且不是纯数字
-        if list(filter(lambda x: x in '0123456789.', host)) and not host.isdigit():
-             # 进一步校验是否是 IP 格式 (简单校验)
-             import re
-             if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host):
-                 return host
+        # 1. 如果本身就是 IP，直接返回
+        import re
+        if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host):
+            return host
 
-        # 3. 如果是域名，查缓存
+        # 2. 查缓存
         if host in DNS_CACHE:
-            return DNS_CACHE[host]
+            val = DNS_CACHE[host]
+            # 如果之前解析成功了就返回 IP，失败了就还返回域名
+            return val if val != "failed" else host
         
-        # 4. 尝试解析 (为了不阻塞 UI，这里设置较短超时，或者由后台任务预热)
-        # 注意：在 UI 渲染线程直接做 socket 解析可能会有轻微卡顿，
-        # 建议首次显示域名，后台慢慢解析。但为了满足“只显示IP”的需求，
-        # 这里尝试同步解析，但建议配合后台刷新。
-        try:
-            addr_info = socket.gethostbyname(host)
-            DNS_CACHE[host] = addr_info
-            return addr_info
-        except:
-            return host # 解析失败，只能显示域名
+        # 3. 没缓存？(系统刚启动)
+        # 关键点：不要在这里等！直接发起一个后台任务，然后马上返回域名
+        # 这样网页渲染就不会被卡住
+        asyncio.create_task(_resolve_dns_bg(host))
+        return host 
+        
     except:
-        return url    
+        return url
 
 # ================= 获取国旗  =====================
 def get_flag_for_country(country_name):
@@ -96,7 +101,7 @@ def get_flag_for_country(country_name):
             return v 
     return f"🏳️ {country_name}"
 
-# ✨✨✨ [逻辑修正] 自动给名称添加国旗 ✨✨✨
+# ✨✨✨ 自动给名称添加国旗 ✨✨✨
 async def auto_prepend_flag(name, url):
     """
     检查名字是否已经包含任意已知国旗。
@@ -105,7 +110,7 @@ async def auto_prepend_flag(name, url):
     """
     if not name: return name
 
-    # 1. 关键修正：遍历所有已知国旗，检查名称中是否已存在
+    # 1. 遍历所有已知国旗，检查名称中是否已存在
     # AUTO_COUNTRY_MAP 的值格式如 "🇺🇸 美国", 我们只取空格前的 emoji
     for v in AUTO_COUNTRY_MAP.values():
         flag_icon = v.split(' ')[0] # 提取 🇺🇸
@@ -274,7 +279,6 @@ content_container = None
 def init_data():
     if not os.path.exists('data'): os.makedirs('data')
     
-    # 👇👇👇 【核心修复】必须声明这些是全局变量！ 👇👇👇
     global SERVERS_CACHE, SUBS_CACHE, NODES_DATA, ADMIN_CONFIG
     
     logger.info(f"正在初始化数据... (当前登录账号: {ADMIN_USER})")
@@ -370,8 +374,6 @@ def get_ssh_client(server_data):
         return None, f"❌ 连接失败: {str(e)}"
 
 # =================  交互式 WebSSH 类 =================
-
-# 这个辅助函数必须在 class WebSSH 上面
 def get_ssh_client_sync(server_data):
     return get_ssh_client(server_data)
 
@@ -532,7 +534,6 @@ def open_ssh_interface(server_data):
     # 1. 清理内容
     content_container.clear()
     
-    # ✨ 关键调整：
     # h-full: 容器高度占满屏幕，为垂直居中做准备
     # p-6: 保持四周留白，不贴边
     # flex flex-col justify-center: 让内部的灰色大卡片在垂直方向居中！
@@ -746,14 +747,14 @@ def get_manager(server_conf):
         managers[key] = XUIManager(server_conf['url'], server_conf['user'], server_conf['pass'], server_conf.get('prefix'))
     return managers[key]
 
-# ================= 修复版核心逻辑：即时存档 + 顺序修正 =================
+# ================= 即时存档 + 顺序修正 =================
 
 # 1. 辅助函数：后台线程执行
 async def run_in_bg_executor(func, *args):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(BG_EXECUTOR, func, *args)
 
-# 2. 单个服务器同步逻辑 (修正版：失败时清空缓存)
+# 2. 单个服务器同步逻辑 
 async def fetch_inbounds_safe(server_conf, force_refresh=False):
     url = server_conf['url']
     name = server_conf.get('name', '未命名')
@@ -826,7 +827,6 @@ async def silent_refresh_all(is_auto_trigger=False):
     # 2. 执行同步流程
     safe_notify(f'🚀 开始后台静默刷新 ({len(SERVERS_CACHE)} 个服务器)...')
     
-    # ✨✨✨ [核心修改] 先把时间写入硬盘！✨✨✨
     # 只要开始跑了，就标记为"已更新"，防止重启后重复触发
     ADMIN_CONFIG['last_sync_time'] = time.time()
     await save_admin_config() 
@@ -1016,7 +1016,7 @@ async def ping_host(host, port):
             # 尝试建立 TCP 连接 (超时 2秒)
             _, writer = await asyncio.wait_for(
                 asyncio.open_connection(host, port), 
-                timeout=2.0
+                timeout=5.0
             )
             writer.close()
             await writer.wait_closed()
@@ -1135,7 +1135,7 @@ async def short_group_handler(target: str, group_b64: str):
             return Response(f"Backend Error: {code} (Check Docker Network)", status_code=502)
     except Exception as e: return Response(f"Error: {str(e)}", status_code=500)
 
-# ================= [修改] 短链接接口：单个订阅 (支持重命名) =================
+# ================= 短链接接口：单个订阅 (支持重命名) =================
 @app.get('/get/sub/{target}/{token}')
 async def short_sub_handler(target: str, token: str):
     try:
@@ -1742,7 +1742,7 @@ class SubEditor:
 def open_sub_editor(d):
     with ui.dialog() as dlg: SubEditor(d).ui(dlg); dlg.open()
     
-# ================= [修复版] 订阅管理视图 (极简模式：只显在线) =================
+# ================= 订阅管理视图 (极简模式：只显在线) =================
 async def load_subs_view():
     show_loading(content_container)
     try: origin = await ui.run_javascript('return window.location.origin', timeout=3.0)
@@ -2320,7 +2320,7 @@ def format_bytes(size):
         n += 1
     return f"{size:.2f} {power_labels[n]}B"
 
-# ================= 智能排序逻辑 (请放在 detect_country_group 下方) =================
+# ================= 智能排序逻辑=================
 import re
 
 CN_NUM_MAP = {'〇':0, '零':0, '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9}
@@ -2410,25 +2410,26 @@ SINGLE_COLS = 'grid-template-columns: 200px 1fr 100px 80px 80px 90px 50px 150px;
 # 格式: 服务器(150) 备注(200) 在线状态(1fr) 流量(100) 协议(80) 端口(80) 操作(150)
 COLS_ALL_SERVERS = 'grid-template-columns: 150px 200px 1fr 100px 80px 80px 150px; align-items: center;'
 
+# ✨✨✨区域分组专用布局  ✨✨✨
 # 格式: 服务器(150) 备注(200) 在线状态(1fr) 流量(100) 协议(80) 端口(80) 操作(150)
 COLS_SPECIAL_WITH_PING = 'grid-template-columns: 150px 200px 1fr 100px 80px 80px 150px; align-items: center;'
 
 # ✨✨✨ 新增：单服务器专用布局 (移除延迟列 90px，格式与 All Servers 一致) ✨✨✨
 # 格式: 备注(200) 所在组(1fr) 流量(100) 协议(80) 端口(80) 状态(100) 操作(150)
 SINGLE_COLS_NO_PING = 'grid-template-columns: 200px 1fr 100px 80px 80px 100px 150px; align-items: center;'
-
-# ================= [修复版] 刷新逻辑 (增加样式重置 & 智能回退) =================
+# =================  刷新逻辑 (防闪烁 + 极速响应) =================
 async def refresh_content(scope='ALL', data=None, force_refresh=False):
     # 1. 安全检查 UI 上下文
     try:
         client = ui.context.client
-    except: return # 页面可能已关闭
+    except: return 
 
     with client: 
-        # 重置容器样式
-        if not content_container: return
-        content_container.classes(remove='justify-center items-center overflow-hidden p-6', add='overflow-y-auto p-4 pl-6 justify-start')
-        show_loading(content_container)
+        # ✨ 优化：只有在容器完全为空（首次加载）时，才显示 Loading 占位
+        # 避免每次点击切换时先把界面清空显示 Loading，导致视觉上的剧烈闪烁
+        if not content_container or len(list(content_container)) == 0:
+            content_container.classes(remove='justify-center items-center overflow-hidden p-6', add='overflow-y-auto p-4 pl-6 justify-start')
+            show_loading(content_container)
     
     targets = []
     title = ""
@@ -2450,7 +2451,20 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
             
         # C. 国家分组
         elif scope == 'COUNTRY':
-            targets = [s for s in SERVERS_CACHE if detect_country_group(s.get('name', '')) == data]
+            targets = []
+            for s in SERVERS_CACHE:
+                # 1. 获取服务器的最终归属组 (优先用保存的，没有则自动检测)
+                saved = s.get('group')
+                # 排除那些非区域的特殊组
+                if saved and saved not in ['默认分组', '自动注册', '未分组', '自动导入', '🏳️ 其他地区']:
+                    real_group = saved
+                else:
+                    real_group = detect_country_group(s.get('name', ''))
+                
+                # 2. 如果归属组等于当前点击的组名，则加入列表
+                if real_group == data:
+                    targets.append(s)
+            
             title = f"🏳️ 区域: {data} ({len(targets)})"
             is_group_view = True
             show_ping = True 
@@ -2484,10 +2498,13 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
         safe_notify(f'正在同步 {len(targets)} 个服务器...')
 
     async def _render():
-        await asyncio.sleep(0.1) # 让 Loading 先显示出来
+        # ✨ 关键优化：移除人为的延迟 await asyncio.sleep(0.1)
+        # 这会让点击响应变快，减少“顿一下”的感觉
+        
         with client:
+            # 清空容器，准备重绘
+            # 由于去掉了人为延迟，这里的清空到重绘会非常快，肉眼几乎感觉不到闪烁
             content_container.clear()
-            SERVER_UI_MAP.clear()
             
             with content_container:
                 # 1. 顶部栏
@@ -2513,6 +2530,7 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
                 elif scope == 'SINGLE': 
                     await render_single_server_view(targets[0], force_refresh)
                 else: 
+                    # 调用优化后的聚合视图函数
                     await render_aggregated_view(targets, show_ping=show_ping, force_refresh=force_refresh)
 
     asyncio.create_task(_render())
@@ -2658,7 +2676,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
     except Exception as e: 
         logger.error(f"Render List Error: {e}")
 
-    # ================= 2. 渲染状态面板框架 (保持不变) =================
+    # ================= 2. 渲染状态面板框架  =================
     with status_container:
         ui.separator().classes('my-4') 
         with ui.card().classes('w-full p-4 bg-white rounded-xl shadow-sm border border-gray-100'):
@@ -2684,7 +2702,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
                 _create_live_stat_card('运行时间', 'schedule', 'text-cyan-600', 'uptime')
                 _create_live_stat_card('系统负载', 'analytics', 'text-pink-600', 'load')
 
-    # ================= 3. 数据更新任务 (保持不变) =================
+    # ================= 3. 数据更新任务 =================
     async def update_data_task():
         try:
             # 心跳显示
@@ -2760,7 +2778,11 @@ async def render_single_server_view(server_conf, force_refresh=False):
     # 5. 立即执行一次
     ui.timer(0.1, update_data_task, once=True)
     
-# ================= [修改版 4.0] 聚合视图 (延迟状态合一，移除延迟列) =================
+# ================= 聚合视图 (局部静默刷新 + 自动状态更新) =================
+# 全局字典，用于存储每行 UI 元素的引用，以便局部更新
+# 结构: { 'server_url': { 'row_el': row_element, 'status_icon': icon, 'status_label': label, ... } }
+UI_ROW_REFS = {} 
+
 async def render_aggregated_view(server_list, show_ping=False, force_refresh=False):
     list_container = ui.column().classes('w-full gap-4')
     
@@ -2778,11 +2800,8 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
     is_all_servers = (server_list == SERVERS_CACHE) or (len(server_list) == len(SERVERS_CACHE) and not show_ping)
     use_special_mode = is_all_servers or show_ping
     
-    # 确定 CSS (现在区域分组和所有服务器布局一致了)
-    if use_special_mode:
-        current_css = COLS_SPECIAL_WITH_PING 
-    else:
-        current_css = COLS_NO_PING
+    # 确定 CSS
+    current_css = COLS_SPECIAL_WITH_PING if use_special_mode else COLS_NO_PING
 
     with list_container:
         # --- 表头 ---
@@ -2790,7 +2809,6 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
             ui.label('服务器').classes('text-left pl-2')
             ui.label('备注名称').classes('text-left pl-2')
             
-            # Col 3
             if use_special_mode: ui.label('在线状态').classes('text-center')
             else: ui.label('所在组').classes('text-center')
             
@@ -2798,16 +2816,12 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
             ui.label('协议').classes('text-center')
             ui.label('端口').classes('text-center')
             
-            # ✨✨✨ 已删除 '延迟' 表头 ✨✨✨
-            
-            # Col 状态圆点 (仅自定义分组)
             if not use_special_mode: ui.label('状态').classes('text-center')
             
             ui.label('操作').classes('text-center')
         
         # --- 数据行 ---
         for i, res in enumerate(results):
-            if i % 5 == 0: await asyncio.sleep(0.001)
             srv = server_list[i]
             if isinstance(res, Exception): res = []
             if res is None: res = []
@@ -2819,7 +2833,7 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                 p = urlparse(raw_host); raw_host = p.hostname or raw_host.split('://')[-1].split(':')[0]
             except: pass
 
-            # 触发后台测速 (但不显示延迟列，只用于改变图标颜色)
+            # 触发后台 Ping 任务 (只管发，不等待)
             if show_ping and res:
                  asyncio.create_task(batch_ping_nodes(res, raw_host))
 
@@ -2827,7 +2841,7 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
             SERVER_UI_MAP[srv['url']] = row_wrapper
             
             with row_wrapper:
-                # --- 情况 A: 无数据 ---
+                # --- 情况 A: 无数据 / 连接失败 ---
                 if not res:
                     with ui.element('div').classes('grid w-full gap-4 py-3 border-b bg-gray-50 px-2 items-center').style(current_css):
                         ui.label(srv['name']).classes('text-xs text-gray-500 truncate w-full text-left pl-2')
@@ -2845,14 +2859,11 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                         else:
                             ui.label(srv.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate')
                         
-                        # 占位符
                         for _ in range(3): ui.label('-').classes('w-full text-center')
                         
-                        # 圆点 (仅自定义组)
                         if not use_special_mode:
                             with ui.element('div').classes('flex justify-center w-full'): ui.icon('help_outline', color='grey').props('size=xs')
                         
-                        # 操作
                         with ui.row().classes('gap-2 justify-center w-full'): ui.button(icon='sync', on_click=lambda s=srv: refresh_content('SINGLE', s, force_refresh=True)).props('flat dense size=sm color=primary').tooltip('单独同步')
                     continue
 
@@ -2869,54 +2880,60 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                             ui.label(srv['name']).classes('text-xs text-gray-500 truncate w-full text-left pl-2')
                             ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-2')
                             
-                            # ✨✨✨ Col 3: 状态逻辑 (核心修改) ✨✨✨
+                            # ✨✨✨ Col 3: 状态逻辑 (修复自动更新) ✨✨✨
                             if use_special_mode:
                                 try: ip_display = get_real_ip_display(srv['url'])
                                 except: ip_display = raw_host
                                 
-                                # 创建图标容器
                                 with ui.row().classes('w-full justify-center items-center gap-1'):
-                                    # 默认先给个灰色，等待逻辑判断
-                                    status_icon = ui.icon('bolt').classes('text-gray-300 text-sm')
+                                    # 默认先给个灰色
+                                    status_icon = ui.icon('bolt').classes('text-gray-300 text-sm') 
                                     ui.label(ip_display).classes('text-xs font-mono text-gray-500')
 
-                                # 🟢 逻辑分支：谁来控制颜色？
+                                # 🟢 变色逻辑分支
                                 if show_ping:
-                                    # ---> 区域分组：由 Ping 结果控制颜色
-                                    def update_icon_by_ping(icon=status_icon, k=ping_key):
-                                        val = PING_CACHE.get(k, None)
-                                        if val is None: 
-                                            # 还没测完，保持灰色或闪烁
-                                            icon.classes(replace='text-gray-300')
-                                        elif val == -1:
-                                            # Ping 超时 -> 红色
-                                            icon.classes(replace='text-red-500')
-                                        else:
-                                            # Ping 通了 -> 绿色
-                                            icon.classes(replace='text-green-500')
+                                    # ---> 区域分组：轮询 Ping 结果
+                                    # 我们定义一个函数，每次检查 Ping 缓存
+                                    # 参数通过默认参数捕获（闭包修正）
+                                    def check_ping_result(icon_ref=status_icon, key_ref=ping_key):
+                                        # 检查全局缓存
+                                        val = PING_CACHE.get(key_ref, None)
+                                        
+                                        if val is not None:
+                                            # 拿到结果了！强制更新 UI
+                                            if val == -1: 
+                                                # 先移除可能的颜色，再添加红色
+                                                icon_ref.classes(remove='text-gray-300 text-green-500', add='text-red-500')
+                                            else: 
+                                                # 先移除可能的颜色，再添加绿色
+                                                icon_ref.classes(remove='text-gray-300 text-red-500', add='text-green-500')
+                                            
+                                            # 返回 False，告诉 NiceGUI：“我的任务完成了，请停止这个定时器”
+                                            return False 
+                                        
+                                        # 还没结果？返回 True，告诉 NiceGUI：“过一会再来执行我一次”
+                                        return True
                                     
-                                    # 启动定时器，每秒检查一次 Ping 缓存来更新图标
-                                    ui.timer(1.0, update_icon_by_ping)
+                                    # 启动定时器：间隔 1.0 秒
+                                    # 注意：这里使用 lambda 包裹一下，确保参数传递正确
+                                    ui.timer(1.0, lambda i=status_icon, k=ping_key: check_ping_result(i, k))
                                 
                                 else:
-                                    # ---> 所有服务器：保持原有的 API 状态控制
+                                    # ---> 所有服务器：静态 API 状态
                                     status_code = srv.get('_status', 'online')
                                     if status_code == 'online': status_icon.classes(replace='text-green-500')
                                     elif status_code == 'offline': status_icon.classes(replace='text-red-500')
                                     else: status_icon.classes(replace='text-gray-400')
 
                             else:
-                                # 普通模式显示组名
                                 ui.label(srv.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate')
 
                             # Col 4, 5, 6
                             ui.label(traffic).classes('text-xs text-gray-600 w-full text-center font-mono')
                             ui.label(n.get('protocol', 'unk')).classes('uppercase text-xs font-bold w-full text-center')
                             ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
-                            
-                            # ✨✨✨ 已删除延迟数值显示列 ✨✨✨
 
-                            # Col 状态圆点 (仅非特殊模式)
+                            # Col 状态圆点 (仅自定义组)
                             if not use_special_mode:
                                 with ui.element('div').classes('flex justify-center w-full'): 
                                     ui.icon('circle', color='green' if n.get('enable') else 'red').props('size=xs')
@@ -3198,7 +3215,7 @@ async def load_dashboard_stats():
         # 7. 注册定时器
         ui.timer(3.0, update_dashboard_data)
         
-# ================= 全能批量编辑器 (修复版：带闪电状态 + 真实IP) =================
+# ================= 全能批量编辑器 =================
 class BulkEditor:
     def __init__(self, target_servers, title="批量管理"):
         self.all_servers = target_servers
@@ -3534,7 +3551,7 @@ class BatchSSH:
 batch_ssh_manager = BatchSSH()
 
 
-# ================= [最终修复版2.0] 全能分组管理 (防重复国旗 + 真实IP) =================
+# =================  全能分组管理 (防重复国旗 + 真实IP) =================
 def open_combined_group_management(group_name):
     with ui.dialog() as d, ui.card().classes('w-[95vw] max-w-[600px] h-[80vh] flex flex-col p-0 gap-0 overflow-hidden'):
         
