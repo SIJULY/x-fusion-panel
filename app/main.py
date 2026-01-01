@@ -169,7 +169,7 @@ def get_flag_for_country(country_name):
             return v 
     return f"🏳️ {country_name}"
 
-# ✨✨✨ 自动给名称添加国旗 ✨✨✨
+# ✨✨✨ [逻辑修正] 自动给名称添加国旗 ✨✨✨
 async def auto_prepend_flag(name, url):
     """
     检查名字是否已经包含任意已知国旗。
@@ -895,10 +895,13 @@ async def silent_refresh_all(is_auto_trigger=False):
         elif current_time - last_time < SYNC_COOLDOWN_SECONDS:
             remaining = int(SYNC_COOLDOWN_SECONDS - (current_time - last_time))
             logger.info(f"⏳ [防抖生效] 距离上次同步不足 {SYNC_COOLDOWN_SECONDS}秒，跳过 (剩余: {remaining}s)")
-            try: 
-                render_sidebar_content.refresh()
-                await load_dashboard_stats()
-            except: pass
+            
+            # ❌❌❌ [修复] 这里不要强制刷新页面，否则会导致 UI 闪烁或死循环 ❌❌❌
+            # try: 
+            #     render_sidebar_content.refresh()
+            #     await load_dashboard_stats()
+            # except: pass
+            
             return
 
     # 2. 执行同步流程
@@ -3111,18 +3114,13 @@ async def refresh_dashboard_ui():
             name = s.get('name', '未命名')
             
             # 收集地图数据
-            # 注意：为了性能，这里不再做 IO 请求，只读缓存或 s 里的现有数据
-            # 如果需要更新地理位置，由专门的后台任务去做
+            # 优先使用已保存的精准 IP 坐标
             if 'lat' in s and 'lon' in s:
                  map_markers.append((s['lat'], s['lon'], name))
             else:
-                 # 兼容旧逻辑，尝试从名称获取
-                 coords = None
-                 # 这里假设 get_coords_from_name 在作用域内，或者你需要把它挪出去变成全局函数
-                 # 如果它在 load_dashboard_stats 内部，建议把它移出来放到全局
-                 # coords = get_coords_from_name(name) 
-                 # if coords: map_markers.append((coords[0], coords[1], name))
-                 pass
+                 # ✨✨✨ [修复] 恢复兜底逻辑：从名字猜测坐标 (例如 "🇯🇵 日本") ✨✨✨
+                 coords = get_coords_from_name(name) 
+                 if coords: map_markers.append((coords[0], coords[1], name))
 
             if res:
                 online_servers += 1
@@ -3150,7 +3148,6 @@ async def refresh_dashboard_ui():
             DASHBOARD_REFS['bar_chart'].options['xAxis']['data'] = names
             DASHBOARD_REFS['bar_chart'].options['series'][0]['data'] = values
             DASHBOARD_REFS['bar_chart'].update()
-            # 更新 Top1 文字 (假设你有存 ref，这里略)
 
         if DASHBOARD_REFS['pie_chart']:
             pie_data = [{'name': k, 'value': v} for k, v in protocol_count.items()]
@@ -3162,14 +3159,21 @@ async def refresh_dashboard_ui():
             avg_traffic = total_traffic_bytes / total_nodes if total_nodes > 0 else 0
             if DASHBOARD_REFS['stat_avg']: DASHBOARD_REFS['stat_avg'].set_text(format_bytes(avg_traffic))
 
-        # 更新地图 (只加点，不重绘整个地图)
+        # 更新地图
         m = DASHBOARD_REFS['map']
         if m and map_markers:
             if DASHBOARD_REFS['map_info']: DASHBOARD_REFS['map_info'].set_text(f'已定位 {len(map_markers)} 个节点')
-            # 简单去重逻辑：如果已经画过了就不画了，或者清空重画
-            # 这里简化处理：假设 clear_layers() 可用，或者只在初始化时画一次
-            # 如果需要实时动，可以 m.clear_layers() 然后重画
-            pass 
+            
+            # 简单绘制逻辑：如果地图上还没有标记，或者你想强制刷新，可以在这里处理
+            # 鉴于 Leaflet 的特性，我们只在首次加载时绘制，后续 update 如果坐标变了比较难处理
+            # 这里保持只绘制一次的逻辑，依靠 load_dashboard_stats 初始化
+            if not getattr(m, 'has_drawn_markers', False):
+                for lat, lng, name in map_markers:
+                    # 随机微调防止重叠
+                    lat += (random.random() - 0.5) * 0.1 
+                    lng += (random.random() - 0.5) * 0.1
+                    m.marker(latlng=(lat, lng))
+                m.has_drawn_markers = True
 
     except Exception as e:
         logger.error(f"UI 更新失败: {e}")
@@ -4001,22 +4005,19 @@ def login_page(request: Request):
 # ================= [本地化版] 主页入口 =================
 @ui.page('/')
 def main_page(request: Request):
-    # ✨✨✨ 原有的本地静态文件引用 ✨✨✨
+    # ✨✨✨ 用本地静态文件 (解决网络问题) ✨✨✨
     ui.add_head_html('<link rel="stylesheet" href="/static/xterm.css" />')
     ui.add_head_html('<script src="/static/xterm.js"></script>')
     ui.add_head_html('<script src="/static/xterm-addon-fit.js"></script>')
 
     # ✨✨✨ [新增] 修复 Windows 国旗显示问题 ✨✨✨
-    # 引入 Google Noto Color Emoji 字体
     ui.add_head_html('''
         <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
         <style>
-            /* 强制在全站优先使用 Noto Color Emoji 渲染 Emoji 字符 */
-            body {
-                font-family: "Roboto", "Helvetica", "Arial", sans-serif, "Noto Color Emoji";
-            }
+            body { font-family: "Roboto", "Helvetica", "Arial", sans-serif, "Noto Color Emoji"; }
         </style>
     ''')
+
     # ================= 2. 基础认证检查 =================
     if not app.storage.user.get('authenticated', False):
         return RedirectResponse('/login')
@@ -4027,7 +4028,6 @@ def main_page(request: Request):
         current_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
         recorded_ip = app.storage.user.get('login_ip')
         
-        # IP 变动安全检查
         if recorded_ip and recorded_ip != current_ip:
             app.storage.user.clear()
             ui.notify('环境变动，请重新登录', type='negative')
@@ -4048,11 +4048,9 @@ def main_page(request: Request):
 
             # --- 右侧：密钥 + 登出 ---
             with ui.row().classes('items-center gap-2 mr-2'):
-                # 密钥按钮
                 with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round').tooltip('点击复制通讯密钥'):
                     ui.badge('Key', color='red').props('floating')
                 
-                # 登出按钮
                 ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense').tooltip('退出登录')
 
     # ================= 5. 布局容器 =================
@@ -4061,21 +4059,17 @@ def main_page(request: Request):
     with ui.row().classes('w-full h-screen gap-0 no-wrap items-stretch'):
         
         # 左侧边栏
-        # flex-shrink-0: 禁止边栏被压缩，保持宽度不变
         with ui.column().classes('w-80 h-full border-r pr-0 overflow-hidden flex-shrink-0'):
             render_sidebar_content()
         
         # 右侧内容区
-        # min-w-0: 允许容器宽度压缩到 0 (防止被内部宽元素撑开导致换行)
         content_container = ui.column().classes('flex-grow h-full pl-6 overflow-y-auto p-4 bg-slate-50 min-w-0')
     
     # ================= 6. 启动后台任务 =================
-    # 延迟启动，避免阻塞页面渲染
     
-    # 👇👇👇 [关键修改点] 开启自动触发标记，配合冷却逻辑防止崩溃死循环 👇👇👇
-    ui.timer(2.0, lambda: asyncio.create_task(silent_refresh_all(is_auto_trigger=True)), once=True)
+    # ❌❌❌ [修复] 删除了会导致无限刷新的 silent_refresh_all 定时器 ❌❌❌
     
-    # 启动仪表盘数据刷新
+    # 启动仪表盘数据刷新 (只运行一次，负责画图和填数)
     ui.timer(0.1, lambda: asyncio.create_task(load_dashboard_stats()), once=True)
     
     logger.info("✅ UI 已就绪")
