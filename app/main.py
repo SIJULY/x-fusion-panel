@@ -3678,7 +3678,7 @@ def open_combined_group_management(group_name):
 def render_sidebar_content():
     # 1. 顶部区域
     with ui.column().classes('w-full p-4 border-b bg-gray-50 flex-shrink-0'):
-        ui.label('X-Fusion Panel').classes('text-xl font-bold mb-4 text-slate-800')
+        ui.label('小龙女她爸').classes('text-xl font-bold mb-4 text-slate-800')
         ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes('w-full text-slate-700')
         ui.button('订阅管理', icon='rss_feed', on_click=load_subs_view).props('flat align=left').classes('w-full text-slate-700')
 
