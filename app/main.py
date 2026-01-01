@@ -2022,11 +2022,18 @@ async def open_server_dialog(idx=None):
         with ui.row().classes('w-full justify-end gap-2 mt-2'):
             if is_edit:
                 async def delete():
+                    # 1. 先删数据
                     if idx < len(SERVERS_CACHE): del SERVERS_CACHE[idx]
                     await save_servers()
-                    render_sidebar_content.refresh()
-                    await refresh_content('ALL')
+                    
+                    # 2. 先关窗 (防止弹窗遮挡刷新效果)
                     d.close()
+                    
+                    # 3. 再刷新 UI
+                    render_sidebar_content.refresh() # 刷新左侧
+                    await refresh_content('ALL') # 强制右侧回到“所有服务器”列表
+                    safe_notify('服务器已删除', 'positive')
+                    
                 ui.button('删除', on_click=delete, color='red').props('flat dense')
 
             async def save():
@@ -2448,16 +2455,17 @@ COLS_NO_PING   = 'grid-template-columns: 150px 200px 1fr 100px 80px 80px 50px 15
 # 单个服务器视图直接复用带延迟的样式
 SINGLE_COLS = 'grid-template-columns: 200px 1fr 100px 80px 80px 90px 50px 150px; align-items: center;'
 
-# ================= [修复版] 刷新逻辑 (增加样式重置) =================
+# ================= [修复版] 刷新逻辑 (增加样式重置 & 智能回退) =================
 async def refresh_content(scope='ALL', data=None, force_refresh=False):
-    client = ui.context.client
+    # 1. 安全检查 UI 上下文
+    try:
+        client = ui.context.client
+    except: return # 页面可能已关闭
+
     with client: 
-        # ✨✨✨ 核心修复：强制重置容器样式为“正常列表模式” ✨✨✨
-        # 移除 SSH 的居中 (justify-center) 和 隐藏滚动 (overflow-hidden)
-        # 恢复 顶部对齐 (justify-start) 和 自动滚动 (overflow-y-auto)
-        # 恢复 默认内边距 (p-4 pl-6)
+        # 重置容器样式
+        if not content_container: return
         content_container.classes(remove='justify-center items-center overflow-hidden p-6', add='overflow-y-auto p-4 pl-6 justify-start')
-        
         show_loading(content_container)
     
     targets = []
@@ -2465,36 +2473,47 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
     is_group_view = False
     show_ping = False 
     
-    # A. 所有服务器
-    if scope == 'ALL':
-        targets = list(SERVERS_CACHE)
-        title = f"🌍 所有服务器 ({len(targets)})"
-        show_ping = False 
-    
-    # B. 自定义分组
-    elif scope == 'TAG':
-        targets = [s for s in SERVERS_CACHE if data in s.get('tags', [])]
-        title = f"🏷️ 自定义分组: {data} ({len(targets)})"
-        is_group_view = True
-        show_ping = False 
-        
-    # C. 国家分组
-    elif scope == 'COUNTRY':
-        targets = [s for s in SERVERS_CACHE if detect_country_group(s.get('name', '')) == data]
-        title = f"🏳️ 区域: {data} ({len(targets)})"
-        is_group_view = True
-        show_ping = True 
-        
-    # D. 单个服务器
-    elif scope == 'SINGLE':
-        targets = [data]
-        raw_url = data['url']
-        try:
-            if '://' not in raw_url: raw_url = f'http://{raw_url}'
-            parsed = urlparse(raw_url)
-            host_display = parsed.hostname or raw_url
-        except: host_display = raw_url
-        title = f"🖥️ {data['name']} ({host_display})"
+    # --- 数据筛选逻辑 ---
+    try:
+        # A. 所有服务器
+        if scope == 'ALL':
+            targets = list(SERVERS_CACHE)
+            title = f"🌍 所有服务器 ({len(targets)})"
+            
+        # B. 自定义分组
+        elif scope == 'TAG':
+            targets = [s for s in SERVERS_CACHE if data in s.get('tags', [])]
+            title = f"🏷️ 自定义分组: {data} ({len(targets)})"
+            is_group_view = True
+            
+        # C. 国家分组
+        elif scope == 'COUNTRY':
+            targets = [s for s in SERVERS_CACHE if detect_country_group(s.get('name', '')) == data]
+            title = f"🏳️ 区域: {data} ({len(targets)})"
+            is_group_view = True
+            show_ping = True 
+            
+        # D. 单个服务器
+        elif scope == 'SINGLE':
+            # 检查该服务器是否还存在 (防止删除后报错)
+            if data in SERVERS_CACHE:
+                targets = [data]
+                raw_url = data['url']
+                try:
+                    if '://' not in raw_url: raw_url = f'http://{raw_url}'
+                    parsed = urlparse(raw_url)
+                    host_display = parsed.hostname or raw_url
+                except: host_display = raw_url
+                title = f"🖥️ {data['name']} ({host_display})"
+            else:
+                # 如果单个服务器已被删除，回退到显示所有
+                scope = 'ALL'
+                targets = list(SERVERS_CACHE)
+                title = f"🌍 所有服务器 ({len(targets)})"
+
+    except Exception as e:
+        logger.error(f"Refresh Content Data Error: {e}")
+        targets = []
 
     if scope != 'SINGLE':
         targets.sort(key=smart_sort_key)
@@ -2503,27 +2522,34 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False):
         safe_notify(f'正在同步 {len(targets)} 个服务器...')
 
     async def _render():
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.1) # 让 Loading 先显示出来
         with client:
             content_container.clear()
             SERVER_UI_MAP.clear()
             
             with content_container:
-                # 顶部栏
+                # 1. 顶部栏
                 with ui.row().classes('items-center w-full mb-4 border-b pb-2 justify-between'):
                     with ui.row().classes('items-center gap-4'):
                         ui.label(title).classes('text-2xl font-bold')
                         
-                        if is_group_view:
+                        if is_group_view and targets:
                             with ui.row().classes('gap-1'):
                                 ui.button(icon='content_copy', on_click=lambda: copy_group_link(data)).props('flat dense round size=sm color=grey').tooltip('复制原始链接')
                                 ui.button(icon='bolt', on_click=lambda: copy_group_link(data, target='surge')).props('flat dense round size=sm text-color=orange').tooltip('复制 Surge 订阅')
                                 ui.button(icon='cloud_queue', on_click=lambda: copy_group_link(data, target='clash')).props('flat dense round size=sm text-color=green').tooltip('复制 Clash 订阅')
 
-                    ui.button('同步最新数据', icon='sync', on_click=lambda: refresh_content(scope, data, force_refresh=True)).props('outline color=primary')
+                    # 只有在非 SINGLE 模式，或者 SINGLE 模式下 target 存在时才显示同步按钮
+                    if targets:
+                        ui.button('同步最新数据', icon='sync', on_click=lambda: refresh_content(scope, data, force_refresh=True)).props('outline color=primary')
                 
-                if scope == 'SINGLE': 
-                    await render_single_server_view(data, force_refresh)
+                # 2. 内容渲染
+                if not targets:
+                    with ui.column().classes('w-full h-64 justify-center items-center text-gray-400'):
+                        ui.icon('inbox', size='4rem')
+                        ui.label('列表为空').classes('text-lg')
+                elif scope == 'SINGLE': 
+                    await render_single_server_view(targets[0], force_refresh)
                 else: 
                     await render_aggregated_view(targets, show_ping=show_ping, force_refresh=force_refresh)
 
