@@ -4115,31 +4115,57 @@ async def run_global_ping_task():
 # ✨✨✨ 注册本地静态文件目录 ✨✨✨
 app.add_static_files('/static', 'static')
 
-# ================= 后台常驻任务：定期同步流量 =================
+# ================= 后台常驻任务：定期同步流量 + IP定位补全 =================
 async def traffic_monitor_loop():
     logger.info("🕒 后台流量监控任务已启动")
     
-    # 1. 启动时立即执行一次全量同步
-    # 注意：fetch_inbounds_safe 是耗时操作，这会更新 NODES_DATA
+    # --- 1. 启动时：全量同步流量 + IP定位补全 ---
+    
+    # A. 同步流量 (保持不变)
     tasks = [fetch_inbounds_safe(s, force_refresh=True) for s in SERVERS_CACHE]
     if tasks:
         logger.info("🚀 启动全量同步...")
         await asyncio.gather(*tasks, return_exceptions=True)
         logger.info("✅ 启动全量同步完成")
-        # 同步完数据后，通知 UI 更新
         await refresh_dashboard_ui()
 
-    # 2. 进入长循环 (每 3 小时一次)
+    # B. ✨✨✨ [新增] IP 定位补全 (只在启动时跑一次，不卡顿) ✨✨✨
+    logger.info("🌍 检查服务器地理位置...")
+    geo_updated = False
+    for s in SERVERS_CACHE:
+        # 如果没有坐标，且名字里也没国旗，就去查 IP
+        if 'lat' not in s or 'lon' not in s:
+            # 这里的 get_coords_from_name 只是用来判断名字里有没有现成的国旗
+            if not get_coords_from_name(s.get('name', '')):
+                try:
+                    logger.info(f"🔍 正在定位: {s['name']} ({s['url']})...")
+                    # 放入线程池，防止卡死
+                    geo = await run.io_bound(fetch_geo_from_ip, s['url'])
+                    if geo:
+                        s['lat'] = geo[0]
+                        s['lon'] = geo[1]
+                        # 可选：自动把国旗加到名字里
+                        # country_flag = get_flag_for_country(geo[2]).split(' ')[0]
+                        # if country_flag not in s['name']: s['name'] = f"{country_flag} {s['name']}"
+                        geo_updated = True
+                except: pass
+    
+    if geo_updated:
+        await save_servers() # 保存坐标到文件
+        await refresh_dashboard_ui() # 刷新地图
+        logger.info("✅ 地理位置更新完毕")
+
+
+    # --- 2. 进入长循环 (每 3 小时一次) ---
     while True:
-        await asyncio.sleep(3 * 60 * 60) # 3小时 = 10800 秒
+        await asyncio.sleep(3 * 60 * 60) # 3小时
         
         logger.info("🕒 执行定时流量更新...")
         tasks = [fetch_inbounds_safe(s, force_refresh=True) for s in SERVERS_CACHE]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-            # 数据变了，推送到前端
             await refresh_dashboard_ui()
-
+            
 # 注册到 app 启动事件
 app.on_startup(traffic_monitor_loop)
 
