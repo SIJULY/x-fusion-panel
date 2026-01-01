@@ -16,15 +16,29 @@ import qrcode
 import time
 import io
 import paramiko
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor # ✅ 修正
+from apscheduler.schedulers.asyncio import AsyncIOScheduler # ✅ 修正
 from urllib.parse import urlparse, quote
 from nicegui import ui, run, app, Client
 from fastapi import Response, Request
 from fastapi.responses import RedirectResponse
-from urllib.parse import urlparse, quote 
-from nicegui import ui, app
 
 IP_GEO_CACHE = {}
+
+# ✨✨✨ 定义全局进程池变量 ✨✨✨
+PROCESS_POOL = None 
+
+# ✨✨✨ [新增] 同步 Ping 函数 (将由独立进程执行) ✨✨✨
+def sync_ping_worker(host, port):
+    try:
+        start = time.time()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(3) # 3秒超时
+        sock.connect((host, int(port)))
+        sock.close()
+        return int((time.time() - start) * 1000)
+    except:
+        return -1
 
 # ================= 辅助：全局 GeoIP 和 智能命名逻辑 =================
 
@@ -1101,80 +1115,43 @@ def generate_detail_config(node, server_host):
         return ""
 
 
-# ================= 延迟测试核心逻辑 (自动故障复核版) =================
-# 缓存延迟结果 { 'host:port': {'ping': 120, 'time': 12345678} }
+# ================= 延迟测试核心逻辑 (多进程优化版) =================
 PING_CACHE = {}
 
-async def ping_host(host, port):
-    """
-    智能 Ping 逻辑：
-    1. 首轮探测：3秒超时（快速过筛）。
-    2. 自动复核：若首轮失败，自动进行 3 次重试（每次3秒）。
-    3. 最终判定：救不活则标记为 -1（红色闪电），等待人工处理。
-    """
-    key = f"{host}:{port}"
-    
-    # 基础的单次 TCP 连接函数
-    async def _do_single_connect(timeout_sec):
-        try:
-            start_time = asyncio.get_running_loop().time()
-            _, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port), 
-                timeout=timeout_sec
-            )
-            writer.close()
-            await writer.wait_closed()
-            # 计算延迟 (ms)
-            return int((asyncio.get_running_loop().time() - start_time) * 1000)
-        except:
-            return None
-
-    # --- Phase 1: 首次快速探测 (3秒) ---
-    # 绝大多数正常的节点会在这里直接通过，不消耗额外时间
-    latency = await _do_single_connect(3.0)
-    
-    if latency is not None:
-        # ✅ 一次就通，直接返回
-        PING_CACHE[key] = latency
-        return latency
-
-    # --- Phase 2: 自动故障复核 (3次机会) ---
-    # 只有当第一步失败时，才会走到这里
-    # logger.info(f"⚠️ [{host}] 首测失败，触发自动复核机制 (3次)...")
-    
-    for i in range(3):
-        # 稍微喘口气，避免拥塞，模拟人工点击的间隔
-        await asyncio.sleep(0.5)
-        
-        # 再次尝试连接 (3秒)
-        retry_latency = await _do_single_connect(3.0)
-        
-        if retry_latency is not None:
-            # ✅ 救活了！
-            # logger.info(f"✅ [{host}] 第 {i+1} 次复核成功！")
-            PING_CACHE[key] = retry_latency
-            return retry_latency
-
-    # --- Phase 3: 彻底失败 ---
-    # 3次复核全挂，标记为 -1
-    # 此时 UI 会显示红色闪电 + 红色刷新按钮，交由用户手动进行 15s 强力重连
-    PING_CACHE[key] = -1
-    return -1
-
-# 批量测试函数
 async def batch_ping_nodes(nodes, raw_host):
-    tasks = []
-    for n in nodes:
-        # 获取节点真实地址
-        add = n.get('listen')
-        if not add or add == '0.0.0.0': 
-            add = raw_host # 回退到服务器地址
-        
-        port = n.get('port')
-        tasks.append(ping_host(add, port))
+    """
+    使用多进程池并行 Ping，彻底解放主线程。
+    """
+    # 如果进程池还没启动（比如刚开机），直接返回，防止报错
+    if not PROCESS_POOL: return 
+
+    loop = asyncio.get_running_loop()
     
-    # 并发执行所有 Ping
-    await asyncio.gather(*tasks)
+    # 1. 准备任务列表
+    targets = []
+    for n in nodes:
+        # 获取真实地址
+        host = n.get('listen')
+        if not host or host == '0.0.0.0': host = raw_host
+        port = n.get('port')
+        key = f"{host}:{port}"
+        targets.append((host, port, key))
+
+    # 2. 定义回调处理 (将子进程的结果更新到主进程缓存)
+    async def run_single_ping(t_host, t_port, t_key):
+        try:
+            # ✨ 核心：将同步的 ping 扔给进程池执行
+            # 这行代码会在另一个进程里跑，绝对不会卡住你的网页
+            latency = await loop.run_in_executor(PROCESS_POOL, sync_ping_worker, t_host, t_port)
+            PING_CACHE[t_key] = latency
+        except:
+            PING_CACHE[t_key] = -1
+
+    # 3. 并发分发任务
+    # 虽然这里用了 await gather，但这只是在等待结果，计算压力全在 ProcessPool
+    tasks = [run_single_ping(h, p, k) for h, p, k in targets]
+    if tasks:
+        await asyncio.gather(*tasks)
 
 
 # ================= 接口处理 =================
@@ -4147,62 +4124,62 @@ async def run_global_ping_task():
 
 # ✨✨✨ 注册本地静态文件目录 ✨✨✨
 app.add_static_files('/static', 'static')
+# ================= 优雅的后台任务调度 (APScheduler) =================
 
-# ================= 后台常驻任务：定期同步流量 + IP定位补全 =================
-async def traffic_monitor_loop():
-    logger.info("🕒 后台流量监控任务已启动")
-    
-    # --- 1. 启动时：全量同步流量 + IP定位补全 ---
-    
-    # A. 同步流量 (保持不变)
+# 1. 定义流量同步任务 (单次运行逻辑)
+async def job_sync_all_traffic():
+    logger.info("🕒 [定时任务] 开始全量同步流量...")
     tasks = [fetch_inbounds_safe(s, force_refresh=True) for s in SERVERS_CACHE]
     if tasks:
-        logger.info("🚀 启动全量同步...")
         await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info("✅ 启动全量同步完成")
         await refresh_dashboard_ui()
+    logger.info("✅ [定时任务] 流量同步完成")
 
-    # B. ✨✨✨ [新增] IP 定位补全 (只在启动时跑一次，不卡顿) ✨✨✨
-    logger.info("🌍 检查服务器地理位置...")
+# 2. 定义 IP 补全任务 (单次运行逻辑)
+async def job_check_geo_ip():
+    logger.info("🌍 [定时任务] 检查服务器地理位置...")
     geo_updated = False
     for s in SERVERS_CACHE:
-        # 如果没有坐标，且名字里也没国旗，就去查 IP
         if 'lat' not in s or 'lon' not in s:
-            # 这里的 get_coords_from_name 只是用来判断名字里有没有现成的国旗
             if not get_coords_from_name(s.get('name', '')):
                 try:
-                    logger.info(f"🔍 正在定位: {s['name']} ({s['url']})...")
-                    # 放入线程池，防止卡死
                     geo = await run.io_bound(fetch_geo_from_ip, s['url'])
                     if geo:
                         s['lat'] = geo[0]
                         s['lon'] = geo[1]
-                        # 可选：自动把国旗加到名字里
-                        # country_flag = get_flag_for_country(geo[2]).split(' ')[0]
-                        # if country_flag not in s['name']: s['name'] = f"{country_flag} {s['name']}"
                         geo_updated = True
                 except: pass
-    
     if geo_updated:
-        await save_servers() # 保存坐标到文件
-        await refresh_dashboard_ui() # 刷新地图
+        await save_servers()
+        await refresh_dashboard_ui()
         logger.info("✅ 地理位置更新完毕")
 
+# 3. 初始化调度器
+scheduler = AsyncIOScheduler()
 
-    # --- 2. 进入长循环 (每 3 小时一次) ---
-    while True:
-        await asyncio.sleep(3 * 60 * 60) # 3小时
-        
-        logger.info("🕒 执行定时流量更新...")
-        tasks = [fetch_inbounds_safe(s, force_refresh=True) for s in SERVERS_CACHE]
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-            await refresh_dashboard_ui()
-            
-# 注册到 app 启动事件
-app.on_startup(traffic_monitor_loop)
+# 4. 系统启动序列
+async def startup_sequence():
+    global PROCESS_POOL
+    # ✨ 初始化进程池 (4核) - 专门处理 Ping 等 CPU/阻塞任务
+    PROCESS_POOL = ProcessPoolExecutor(max_workers=4)
+    logger.info("🚀 进程池已启动 (ProcessPoolExecutor)")
+
+    # ✨ 添加定时任务
+    # max_instances=1 保证同一个任务永远不会叠加（防崩关键）
+    scheduler.add_job(job_sync_all_traffic, 'interval', hours=3, id='traffic_sync', replace_existing=True, max_instances=1)
+    scheduler.start()
+    logger.info("🕒 APScheduler 定时任务已启动")
+
+    # ✨ 开机立即执行一次 (作为初始化)
+    asyncio.create_task(job_sync_all_traffic())
+    asyncio.create_task(job_check_geo_ip())
+
+# 注册启动与关闭事件
+app.on_startup(startup_sequence)
+app.on_shutdown(lambda: PROCESS_POOL.shutdown(wait=False) if PROCESS_POOL else None)
+
 
 if __name__ in {"__main__", "__mp_main__"}:
     logger.info("🚀 系统正在初始化...")
-    # 请根据需要修改 host, port, storage_secret
     ui.run(title='X-Fusion Panel', host='0.0.0.0', port=8080, language='zh-CN', storage_secret='sijuly_secret_key', reload=False)
+
