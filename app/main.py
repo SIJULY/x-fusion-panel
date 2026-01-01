@@ -4072,6 +4072,7 @@ def main_page(request: Request):
     # ================= 4. UI 构建 (响应式布局改造) =================
     
     # ✨ 改动 1: 定义左侧抽屉 (Drawer)
+    # value=True: 电脑端默认展开; fixed=False: 推挤模式(不遮挡内容)
     with ui.left_drawer(value=True, fixed=False).classes('bg-gray-50 border-r').props('width=360') as drawer:
         render_sidebar_content()
 
