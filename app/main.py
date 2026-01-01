@@ -716,7 +716,7 @@ async def run_in_bg_executor(func, *args):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(BG_EXECUTOR, func, *args)
 
-# 2. 单个服务器同步逻辑 (核心修改：增加 save_nodes_cache 即时保存)
+# 2. 单个服务器同步逻辑 (修正版：失败时清空缓存)
 async def fetch_inbounds_safe(server_conf, force_refresh=False):
     url = server_conf['url']
     name = server_conf.get('name', '未命名')
@@ -735,19 +735,25 @@ async def fetch_inbounds_safe(server_conf, force_refresh=False):
                 inbounds = await run_in_bg_executor(mgr.get_inbounds)
             
             if inbounds is not None:
-                # 更新内存缓存
+                # ✅ 成功：更新缓存
                 NODES_DATA[url] = inbounds
+                # 标记为在线 (可选，目前通过列表非空来判断即可)
+                server_conf['_status'] = 'online' 
                 
-                # ✨✨✨ [核心修复] 获取成功后，立刻异步保存到硬盘 ✨✨✨
-                # 这样即使下一秒程序崩溃/重启，这份数据也已经落盘了
                 asyncio.create_task(save_nodes_cache())
-                
                 return inbounds
             
-            logger.error(f"❌ [{name}] 连接失败")
+            # ❌ 失败 (登录失败/连接超时)：清空该服务器的节点缓存，确保仪表盘数据归零
+            logger.error(f"❌ [{name}] 连接失败 (清除缓存)")
+            NODES_DATA[url] = [] # ✨ 关键修改：连接失败则清空节点数据
+            server_conf['_status'] = 'offline' # 标记离线
             return []
+            
         except Exception as e: 
             logger.error(f"❌ [{name}] 异常: {e}")
+            # ❌ 异常：同样清空缓存
+            NODES_DATA[url] = [] 
+            server_conf['_status'] = 'error'
             return []
 
 # 3. 批量静默刷新逻辑 (防抖 + 空缓存穿透)
@@ -2345,69 +2351,88 @@ def format_bytes(size):
     return f"{size:.2f} {power_labels[n]}B"
 
 # ================= 智能五段式排序逻辑 =================
+import re
+
+CN_NUM_MAP = {'〇':0, '零':0, '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9}
+
+def cn_to_arabic_str(match):
+    """汉字数字转阿拉伯数字字符串"""
+    s = match.group()
+    if not s: return s
+    if '十' in s:
+        val = 0
+        parts = s.split('十')
+        if parts[0]: val += CN_NUM_MAP.get(parts[0], 0) * 10
+        else: val += 10
+        if len(parts) > 1 and parts[1]: val += CN_NUM_MAP.get(parts[1], 0)
+        return str(val)
+    return "".join(str(CN_NUM_MAP.get(c, 0)) for c in s)
+
 def smart_sort_key(server_info):
     """
-    解析名称格式: Oracle|🇦🇺 悉尼-AMD-1
-    Part1: Oracle (商家)
-    Part2: 🇦🇺 (地区/旗帜)
-    Part3: 悉尼 (城市)
-    Part4: AMD (类型)
-    Part5: 1 (编号)
+    终极融合排序：
+    1. 先尝试按旧逻辑拆分 (Part1..Part5)
+    2. 如果旧逻辑拆不出有效数字 (比如 '七一')，再用正则预处理汉字
+    3. 最后返回一个混合元组，保证各种格式都能正确排序
     """
     name = server_info.get('name', '')
-    if not name: return ('', '', '', '', 0)
+    if not name: return []
 
-    # 初始化默认值: (Part1, Part2, Part3, Part4, Part5)
-    # 保证类型一致: (str, str, str, str, int)
-    p1, p2, p3, p4, p5 = name, '', '', '', 0
+    # --- 阶段 1: 预处理汉字数字 (把 '七一' 变成 '71') ---
+    try:
+        # 只替换那些看起来像数字的汉字，避免误伤
+        name_normalized = re.sub(r'[零一二三四五六七八九十]+', cn_to_arabic_str, name)
+    except:
+        name_normalized = name
+
+    # --- 阶段 2: 尝试旧版逻辑拆分 (Part1|Part2-Part3...) ---
+    # 我们直接对 normalized 后的名字进行拆分
+    p1, p2, p3, p4, p5 = name_normalized, '', '', '', 0
     
     try:
-        # 1. 提取 Part1 (商家) —— 依据 "|"
-        if '|' in name:
-            parts = name.split('|', 1)
+        # 提取 Part1 (商家)
+        if '|' in name_normalized:
+            parts = name_normalized.split('|', 1)
             p1 = parts[0].strip()
             rest = parts[1].strip()
         else:
-            # 没有竖线，直接作为整体排序
-            return (name, '', '', '', 0)
+            rest = name_normalized # 没有商家，整体作为剩余部分
 
-        # 2. 提取 Part2 (旗帜) —— 依据 "空格"
+        # 提取 Part2 (旗帜)
         if ' ' in rest:
             parts = rest.split(' ', 1)
             p2 = parts[0].strip()
             rest = parts[1].strip()
-        else:
-            # 没有空格，说明没旗帜或连在一起，全归为 Part3
-            return (p1, '', rest, '', 0)
-
-        # 3. 提取 Part3, 4, 5 (城市-类型-编号) —— 依据 "-"
+        
+        # 提取 Part3, 4, 5 (城市-类型-编号)
+        # 例如: "东京71-JGW" -> ["东京71", "JGW"]
+        # 或者: "东京-AMD-1"
         sub_parts = rest.split('-')
-        count = len(sub_parts)
+        p3 = sub_parts[0].strip()
         
-        p3 = sub_parts[0].strip() # 城市
-        
-        if count >= 3:
-            # 完美格式: 悉尼-AMD-1
-            p4 = sub_parts[1].strip() # AMD
-            last = sub_parts[-1].strip()
-            if last.isdigit(): p5 = int(last) # 1
-            else: p4 += f"-{last}" # 假如最后不是数字，归到类型里
-            
-        elif count == 2:
-            # 只有两段: "东京-1" 或 "悉尼-AMD"
-            second = sub_parts[1].strip()
-            if second.isdigit():
-                p5 = int(second) # 此时 Part4(类型) 为空，因为有些机器没有类型
-            else:
-                p4 = second      # 此时 Part5(编号) 默认为0
-        
-        # 4. 优化排序体验: 让空类型 (如微软云) 排在有类型 (如AMD) 之前或之后
-        # 这里不做特殊处理，空字符串默认排在字母前
-            
-    except:
-        pass # 解析失败则退化为默认
+        # 尝试从 p3 中提取数字 (例如 "东京71" -> 提取 71)
+        # 这样 "东京7" 和 "东京71" 就能正确排序
+        p3_num_match = re.search(r'(\d+)$', p3)
+        p3_num = int(p3_num_match.group(1)) if p3_num_match else 0
+        if p3_num_match:
+            p3_text = p3[:p3_num_match.start()]
+        else:
+            p3_text = p3
 
-    return (p1, p2, p3, p4, p5)
+        if len(sub_parts) >= 2:
+            p4 = sub_parts[1].strip()
+        if len(sub_parts) >= 3:
+            # 尝试提取末尾数字
+            last = sub_parts[-1].strip()
+            if last.isdigit(): p5 = int(last)
+            else: p4 += f"-{last}"
+
+        # 返回元组: (商家, 旗帜, 城市文本, 城市数字, 类型, 编号)
+        return (p1, p2, p3_text, p3_num, p4, p5)
+        
+    except:
+        # 如果拆分失败，退化为自然排序
+        return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', name_normalized)]
     
 
 # ================= 表格布局定义 (定义两种模式) =================
@@ -3144,14 +3169,14 @@ async def load_dashboard_stats():
         
         # 7. 注册定时器
         ui.timer(3.0, update_dashboard_data)
-
+        
 # ================= 全能批量编辑器 (搜索/管理/删除) =================
 class BulkEditor:
     def __init__(self, target_servers, title="批量管理"):
-        self.all_servers = target_servers # 传入的源数据列表
+        self.all_servers = target_servers
         self.title = title
         self.selected_urls = set()
-        self.ui_rows = {} # 存储 {url: (row_element, name_label)} 用于搜索过滤
+        self.ui_rows = {} 
         self.dialog = None
 
     def open(self):
@@ -3165,11 +3190,11 @@ class BulkEditor:
                     ui.label(self.title).classes('text-lg font-bold')
                 ui.button(icon='close', on_click=d.close).props('flat round dense color=grey')
 
-            # --- 2. 工具栏 (搜索 & 全选) ---
+            # --- 2. 工具栏 ---
             with ui.column().classes('w-full p-4 gap-3 border-b bg-white flex-shrink-0'):
-                # 搜索框
-                self.search_input = ui.input(placeholder='🔍 搜索服务器名称、IP 或 备注...').props('outlined dense clearable').classes('w-full')
-                self.search_input.on('input', self.on_search) # 绑定实时搜索
+                # 搜索框 (修复版: 使用 on_value_change)
+                self.search_input = ui.input(placeholder='🔍 搜索服务器名称...').props('outlined dense clearable').classes('w-full')
+                self.search_input.on_value_change(self.on_search) # ✨ 关键修改：用 on_value_change 响应更快
                 
                 with ui.row().classes('w-full justify-between items-center'):
                     with ui.row().classes('gap-2'):
@@ -3177,30 +3202,23 @@ class BulkEditor:
                         ui.button('全不选', on_click=lambda: self.toggle_all(False)).props('flat dense size=sm color=grey')
                         self.count_label = ui.label('已选: 0').classes('text-xs font-bold text-gray-500 self-center ml-2')
             
-            # --- 3. 列表区域 (可滚动) ---
+            # --- 3. 列表区域 ---
             with ui.scroll_area().classes('w-full flex-grow p-2 bg-gray-50'):
                 with ui.column().classes('w-full gap-1') as self.list_container:
                     if not self.all_servers:
                         ui.label('当前组无服务器').classes('w-full text-center text-gray-400 mt-10')
                     
-                    # 渲染列表
                     for s in self.all_servers:
-                        # 使用 card 渲染每一行，方便隐藏
                         with ui.row().classes('w-full items-center p-2 bg-white rounded border border-gray-200 hover:border-blue-400 transition') as row:
                             chk = ui.checkbox(value=False).props('dense').classes('mr-2')
-                            # 绑定勾选事件
                             chk.on_value_change(lambda e, u=s['url']: self.on_check(u, e.value))
                             
                             with ui.column().classes('gap-0 flex-grow overflow-hidden'):
-                                # 标题行 (加粗)
-                                name_lbl = ui.label(s['name']).classes('text-sm font-bold text-gray-800 truncate')
-                                # 副标题 (URL/IP)
+                                ui.label(s['name']).classes('text-sm font-bold text-gray-800 truncate')
                                 ui.label(s['url']).classes('text-xs text-gray-400 font-mono truncate')
                             
-                            # 状态小圆点 (装饰)
                             ui.icon('circle', color='green' if '1' in str(s.get('ssh_port','')) else 'grey').props('size=xs')
 
-                        # 存入索引以便搜索时操作显隐
                         self.ui_rows[s['url']] = {
                             'el': row, 
                             'search_text': f"{s['name']} {s['url']}".lower(),
@@ -3212,12 +3230,10 @@ class BulkEditor:
                 with ui.row().classes('gap-2'):
                     ui.label('批量操作:').classes('text-sm font-bold text-gray-600 self-center')
                     
-                    # 操作 1: 移动分组
                     async def move_group():
                         if not self.selected_urls: return safe_notify('未选择服务器', 'warning')
                         with ui.dialog() as sub_d, ui.card().classes('w-80'):
                             ui.label('移动到分组').classes('font-bold mb-2')
-                            # 获取所有现有分组
                             groups = sorted(list(get_all_groups_set()))
                             sel = ui.select(groups, label='选择分组', new_value_mode='add-unique').classes('w-full')
                             ui.button('确定移动', on_click=lambda: do_move(sel.value)).classes('w-full mt-4 bg-blue-600 text-white')
@@ -3232,23 +3248,20 @@ class BulkEditor:
                                 await save_servers()
                                 sub_d.close(); d.close()
                                 render_sidebar_content.refresh()
-                                await refresh_content('ALL') # 刷新右侧
-                                safe_notify(f'已移动 {count} 个服务器到 [{target_group}]', 'positive')
+                                await refresh_content('ALL')
+                                safe_notify(f'已移动 {count} 个服务器', 'positive')
                         sub_d.open()
 
                     ui.button('移动分组', icon='folder_open', on_click=move_group).props('flat dense color=blue')
 
-                    # 操作 2: 删除
                     async def delete_servers():
                         if not self.selected_urls: return safe_notify('未选择服务器', 'warning')
                         with ui.dialog() as sub_d, ui.card():
-                            ui.label(f'确定删除选中的 {len(self.selected_urls)} 个服务器?').classes('font-bold text-red-600')
-                            ui.label('此操作不可恢复！').classes('text-xs text-gray-400')
+                            ui.label(f'确定删除 {len(self.selected_urls)} 个服务器?').classes('font-bold text-red-600')
                             with ui.row().classes('w-full justify-end mt-4'):
                                 ui.button('取消', on_click=sub_d.close).props('flat')
                                 async def confirm_del():
                                     global SERVERS_CACHE
-                                    # 过滤掉选中的
                                     SERVERS_CACHE = [s for s in SERVERS_CACHE if s['url'] not in self.selected_urls]
                                     await save_servers()
                                     sub_d.close(); d.close()
@@ -3265,12 +3278,10 @@ class BulkEditor:
         d.open()
 
     def on_search(self, e):
-        keyword = e.value.lower().strip()
+        keyword = str(e.value).lower().strip()
         for url, item in self.ui_rows.items():
-            # 搜索匹配逻辑
             visible = keyword in item['search_text']
             item['el'].set_visibility(visible)
-            # 如果被隐藏了，是否要自动取消勾选？这里暂时保留勾选状态，更符合直觉
 
     def on_check(self, url, value):
         if value: self.selected_urls.add(url)
@@ -3278,17 +3289,11 @@ class BulkEditor:
         self.count_label.set_text(f'已选: {len(self.selected_urls)}')
 
     def toggle_all(self, state):
-        # 只对当前“可见”的行生效 (搜索过滤后的)
         visible_urls = [u for u, item in self.ui_rows.items() if item['el'].visible]
-        
         for url in visible_urls:
             self.ui_rows[url]['checkbox'].value = state
-            # on_check 会自动被触发
-        
-        # 如果是全选，selected_urls 会增加；如果是全不选，只移除可见的
         if not state:
             for url in visible_urls: self.selected_urls.discard(url)
-        
         self.count_label.set_text(f'已选: {len(self.selected_urls)}')
 
 def open_bulk_edit_dialog(servers, title="管理"):
@@ -3471,6 +3476,77 @@ class BatchSSH:
 
 batch_ssh_manager = BatchSSH()
 
+
+# ================= 分组设置弹窗 (改名/删除) =================
+def open_group_settings_dialog(current_name):
+    with ui.dialog() as d, ui.card().classes('w-80 p-4'):
+        ui.label(f'分组设置: {current_name}').classes('text-lg font-bold mb-2')
+        
+        # 改名输入框
+        name_input = ui.input('分组名称', value=current_name).classes('w-full').props('outlined dense')
+        
+        # --- 删除逻辑 ---
+        async def delete_group():
+            # 1. 二次确认
+            with ui.dialog() as confirm_d, ui.card():
+                ui.label(f'确定永久删除分组 "{current_name}"?').classes('font-bold text-red-600')
+                ui.label('组内的服务器不会被删除，仅移除标签。').classes('text-xs text-gray-500')
+                with ui.row().classes('w-full justify-end mt-4 gap-2'):
+                    ui.button('取消', on_click=confirm_d.close).props('flat dense')
+                    async def do_del():
+                        # 从配置移除
+                        if current_name in ADMIN_CONFIG.get('custom_groups', []):
+                            ADMIN_CONFIG['custom_groups'].remove(current_name)
+                        # 从所有服务器移除该 Tag
+                        for s in SERVERS_CACHE:
+                            if current_name in s.get('tags', []):
+                                s['tags'].remove(current_name)
+                        
+                        await save_admin_config()
+                        await save_servers()
+                        
+                        confirm_d.close()
+                        d.close()
+                        render_sidebar_content.refresh()
+                        # 如果当前正看着这个组，清空右侧
+                        if content_container: content_container.clear()
+                        safe_notify(f'分组 "{current_name}" 已删除', 'positive')
+                        
+                    ui.button('确认删除', color='red', on_click=do_del)
+            confirm_d.open()
+
+        # --- 保存改名逻辑 ---
+        async def save_rename():
+            new_name = name_input.value.strip()
+            if not new_name or new_name == current_name: return
+            
+            # 1. 更新配置文件列表
+            if 'custom_groups' in ADMIN_CONFIG:
+                groups = ADMIN_CONFIG['custom_groups']
+                if current_name in groups:
+                    idx = groups.index(current_name)
+                    groups[idx] = new_name
+            
+            # 2. 更新所有服务器的 Tag
+            for s in SERVERS_CACHE:
+                if 'tags' in s and current_name in s['tags']:
+                    s['tags'].remove(current_name)
+                    if new_name not in s['tags']:
+                        s['tags'].append(new_name)
+            
+            await save_admin_config()
+            await save_servers()
+            d.close()
+            render_sidebar_content.refresh()
+            await refresh_content('TAG', new_name) # 刷新右侧视图到新名字
+            safe_notify('分组重命名成功', 'positive')
+
+        # 按钮布局
+        with ui.column().classes('w-full gap-2 mt-4'):
+            ui.button('保存名称修改', on_click=save_rename).classes('w-full bg-blue-600 text-white')
+            ui.button('删除此分组', on_click=delete_group, color='red').props('flat').classes('w-full')
+
+    d.open()
         
 @ui.refreshable
 def render_sidebar_content():
@@ -3512,9 +3588,17 @@ def render_sidebar_content():
                     with exp.add_slot('header'):
                         with ui.row().classes('w-full h-full items-center justify-between no-wrap cursor-pointer').on('click', lambda _, g=tag_group: refresh_content('TAG', g)):
                             ui.label(tag_group).classes('flex-grow font-bold truncate')
-                            # 批量编辑按钮
-                            ui.button(icon='edit', on_click=lambda _, s=tag_servers, t=tag_group: open_bulk_edit_dialog(s, f"分组: {t}")).props('flat dense round size=xs color=grey').on('click.stop')
-                            ui.badge(str(len(tag_servers)), color='orange' if not tag_servers else 'grey')
+                            
+                            with ui.row().classes('items-center gap-0'):
+                                # ✨✨✨ [新增] 设置按钮 (改名/删除分组) ✨✨✨
+                                ui.button(icon='settings', on_click=lambda _, g=tag_group: open_group_settings_dialog(g)) \
+                                    .props('flat dense round size=xs color=grey-6').on('click.stop').tooltip('分组设置 (改名/删除)')
+                                
+                                # ✨ 批量管理按钮 (管理服务器)
+                                ui.button(icon='edit_note', on_click=lambda _, s=tag_servers, t=tag_group: open_bulk_edit_dialog(s, f"分组: {t}")) \
+                                    .props('flat dense round size=xs color=blue-6').on('click.stop').tooltip('批量管理组内服务器')
+                                
+                                ui.badge(str(len(tag_servers)), color='orange' if not tag_servers else 'grey')
                     
                     with ui.column().classes('w-full gap-0 bg-gray-50'):
                         if not tag_servers:
@@ -3550,9 +3634,11 @@ def render_sidebar_content():
                  with exp.add_slot('header'):
                     with ui.row().classes('w-full h-full items-center justify-between no-wrap cursor-pointer').on('click', lambda _, g=c_name: refresh_content('COUNTRY', g)):
                         ui.label(c_name).classes('flex-grow font-bold truncate')
+                        
                         # 批量编辑按钮
                         ui.button(icon='edit_note', on_click=lambda _, s=c_servers, t=c_name: open_bulk_edit_dialog(s, f"区域: {t}")) \
                             .props('flat dense round size=xs color=grey').on('click.stop').tooltip('批量管理此区域')
+                        
                         ui.badge(str(len(c_servers)), color='green')
                  
                  with ui.column().classes('w-full gap-0 bg-gray-50'):
