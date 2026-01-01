@@ -101,7 +101,7 @@ def get_flag_for_country(country_name):
             return v 
     return f"🏳️ {country_name}"
 
-# ✨✨✨ 自动给名称添加国旗 ✨✨✨
+# ✨✨✨ [逻辑修正] 自动给名称添加国旗 ✨✨✨
 async def auto_prepend_flag(name, url):
     """
     检查名字是否已经包含任意已知国旗。
@@ -2783,6 +2783,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
 # 结构: { 'server_url': { 'row_el': row_element, 'status_icon': icon, 'status_label': label, ... } }
 UI_ROW_REFS = {} 
 
+# =================  聚合视图  =================
 async def render_aggregated_view(server_list, show_ping=False, force_refresh=False):
     list_container = ui.column().classes('w-full gap-4')
     
@@ -2799,25 +2800,52 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
     # 模式判断
     is_all_servers = (server_list == SERVERS_CACHE) or (len(server_list) == len(SERVERS_CACHE) and not show_ping)
     use_special_mode = is_all_servers or show_ping
-    
-    # 确定 CSS
     current_css = COLS_SPECIAL_WITH_PING if use_special_mode else COLS_NO_PING
+
+    # --- 定义强力重连函数 (放在循环外复用) ---
+    async def force_retry_ping(btn, icon, host, port, key):
+        if not btn: return # 防止空指针
+        
+        # 1. UI 反馈：转圈，图标变灰
+        btn.props('loading') 
+        icon.classes(remove='text-red-500 text-green-500', add='text-gray-300') 
+        
+        try:
+            # 2. 发起超长超时 Ping (15秒)
+            start = asyncio.get_running_loop().time()
+            # ✨ 这里专门设置了 15.0 秒超时，比全局的更久
+            _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=15.0)
+            writer.close()
+            await writer.wait_closed()
+            
+            # 3. 成功：计算延迟，变绿，隐藏按钮
+            latency = int((asyncio.get_running_loop().time() - start) * 1000)
+            PING_CACHE[key] = latency
+            
+            icon.classes(remove='text-gray-300 text-red-500', add='text-green-500')
+            btn.set_visibility(False) # 救活了，隐藏急救按钮
+            safe_notify(f'✅ 重连成功: {latency}ms', 'positive')
+            
+        except:
+            # 4. 失败：变红，保持按钮显示
+            PING_CACHE[key] = -1
+            icon.classes(remove='text-gray-300 text-green-500', add='text-red-500')
+            safe_notify('❌ 依然无法连接 (15s超时)', 'negative')
+        
+        # 5. 停止转圈
+        btn.props(remove='loading')
 
     with list_container:
         # --- 表头 ---
         with ui.element('div').classes('grid w-full gap-4 font-bold text-gray-500 border-b pb-2 px-2 bg-gray-50').style(current_css):
             ui.label('服务器').classes('text-left pl-2')
             ui.label('备注名称').classes('text-left pl-2')
-            
             if use_special_mode: ui.label('在线状态').classes('text-center')
             else: ui.label('所在组').classes('text-center')
-            
             ui.label('已用流量').classes('text-center')
             ui.label('协议').classes('text-center')
             ui.label('端口').classes('text-center')
-            
             if not use_special_mode: ui.label('状态').classes('text-center')
-            
             ui.label('操作').classes('text-center')
         
         # --- 数据行 ---
@@ -2833,15 +2861,14 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                 p = urlparse(raw_host); raw_host = p.hostname or raw_host.split('://')[-1].split(':')[0]
             except: pass
 
-            # 触发后台 Ping 任务 (只管发，不等待)
+            # 触发后台 Ping
             if show_ping and res:
                  asyncio.create_task(batch_ping_nodes(res, raw_host))
 
             row_wrapper = ui.element('div').classes('w-full')
-            SERVER_UI_MAP[srv['url']] = row_wrapper
             
             with row_wrapper:
-                # --- 情况 A: 无数据 / 连接失败 ---
+                # --- 情况 A: 无数据 ---
                 if not res:
                     with ui.element('div').classes('grid w-full gap-4 py-3 border-b bg-gray-50 px-2 items-center').style(current_css):
                         ui.label(srv['name']).classes('text-xs text-gray-500 truncate w-full text-left pl-2')
@@ -2849,7 +2876,6 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                         color = 'text-red-500' if force_refresh else 'text-gray-400'
                         ui.label(msg).classes(f'{color} font-bold w-full text-left pl-2')
                         
-                        # Col 3
                         if use_special_mode:
                             try: ip_display = get_real_ip_display(srv['url'])
                             except: ip_display = raw_host
@@ -2860,7 +2886,6 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                             ui.label(srv.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate')
                         
                         for _ in range(3): ui.label('-').classes('w-full text-center')
-                        
                         if not use_special_mode:
                             with ui.element('div').classes('flex justify-center w-full'): ui.icon('help_outline', color='grey').props('size=xs')
                         
@@ -2880,46 +2905,40 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                             ui.label(srv['name']).classes('text-xs text-gray-500 truncate w-full text-left pl-2')
                             ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-2')
                             
-                            # ✨✨✨ Col 3: 状态逻辑 (修复自动更新) ✨✨✨
+                            # ✨✨✨ Col 3: 状态逻辑 (修复按钮崩溃 bug) ✨✨✨
                             if use_special_mode:
                                 try: ip_display = get_real_ip_display(srv['url'])
                                 except: ip_display = raw_host
                                 
                                 with ui.row().classes('w-full justify-center items-center gap-1'):
-                                    # 默认先给个灰色
-                                    status_icon = ui.icon('bolt').classes('text-gray-300 text-sm') 
+                                    status_icon = ui.icon('bolt').classes('text-gray-300 text-sm')
                                     ui.label(ip_display).classes('text-xs font-mono text-gray-500')
-
-                                # 🟢 变色逻辑分支
-                                if show_ping:
-                                    # ---> 区域分组：轮询 Ping 结果
-                                    # 我们定义一个函数，每次检查 Ping 缓存
-                                    # 参数通过默认参数捕获（闭包修正）
-                                    def check_ping_result(icon_ref=status_icon, key_ref=ping_key):
-                                        # 检查全局缓存
-                                        val = PING_CACHE.get(key_ref, None)
-                                        
-                                        if val is not None:
-                                            # 拿到结果了！强制更新 UI
-                                            if val == -1: 
-                                                # 先移除可能的颜色，再添加红色
-                                                icon_ref.classes(remove='text-gray-300 text-green-500', add='text-red-500')
-                                            else: 
-                                                # 先移除可能的颜色，再添加绿色
-                                                icon_ref.classes(remove='text-gray-300 text-red-500', add='text-green-500')
-                                            
-                                            # 返回 False，告诉 NiceGUI：“我的任务完成了，请停止这个定时器”
-                                            return False 
-                                        
-                                        # 还没结果？返回 True，告诉 NiceGUI：“过一会再来执行我一次”
-                                        return True
                                     
-                                    # 启动定时器：间隔 1.0 秒
-                                    # 注意：这里使用 lambda 包裹一下，确保参数传递正确
-                                    ui.timer(1.0, lambda i=status_icon, k=ping_key: check_ping_result(i, k))
-                                
+                                    # ✨ 1. 先创建按钮对象 (此时不要绑定复杂 lambda)
+                                    retry_btn = ui.button(icon='refresh').props('flat dense round size=xs text-color=red')
+                                    retry_btn.tooltip('尝试强力重连 (15s超时)')
+                                    retry_btn.set_visibility(False) # 默认隐藏
+
+                                    # ✨ 2. 再绑定事件，利用默认参数捕获刚才创建的 retry_btn 对象
+                                    # 这样 b=retry_btn 就绝对不会是 None 了
+                                    retry_btn.on_click(lambda e, b=retry_btn, i=status_icon, h=target_host, p=target_port, k=ping_key: force_retry_ping(b, i, h, p, k))
+
+                                # 自动更新状态的定时器
+                                if show_ping:
+                                    def check_ping_result(icon_ref=status_icon, key_ref=ping_key, btn_ref=retry_btn):
+                                        val = PING_CACHE.get(key_ref, None)
+                                        if val is not None:
+                                            if val == -1: 
+                                                icon_ref.classes(remove='text-gray-300 text-green-500', add='text-red-500')
+                                                btn_ref.set_visibility(True) # 失败显示按钮
+                                            else: 
+                                                icon_ref.classes(remove='text-gray-300 text-red-500', add='text-green-500')
+                                                btn_ref.set_visibility(False) # 成功隐藏按钮
+                                            return False 
+                                        return True
+                                    ui.timer(1.0, lambda i=status_icon, k=ping_key, b=retry_btn: check_ping_result(i, k, b))
                                 else:
-                                    # ---> 所有服务器：静态 API 状态
+                                    # 非区域分组模式，读 API 状态
                                     status_code = srv.get('_status', 'online')
                                     if status_code == 'online': status_icon.classes(replace='text-green-500')
                                     elif status_code == 'offline': status_icon.classes(replace='text-red-500')
@@ -2933,12 +2952,12 @@ async def render_aggregated_view(server_list, show_ping=False, force_refresh=Fal
                             ui.label(n.get('protocol', 'unk')).classes('uppercase text-xs font-bold w-full text-center')
                             ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
 
-                            # Col 状态圆点 (仅自定义组)
+                            # Col Status Dot
                             if not use_special_mode:
                                 with ui.element('div').classes('flex justify-center w-full'): 
                                     ui.icon('circle', color='green' if n.get('enable') else 'red').props('size=xs')
                             
-                            # Col 操作
+                            # Col Actions
                             with ui.row().classes('gap-2 justify-center w-full no-wrap'):
                                 link = generate_node_link(n, raw_host)
                                 if link: ui.button(icon='content_copy', on_click=lambda l=link: safe_copy_to_clipboard(l)).props('flat dense size=sm').tooltip('复制链接')
@@ -3691,28 +3710,42 @@ def open_combined_group_management(group_name):
 
     d.open()
         
+# =================侧边栏渲染 =====================
 @ui.refreshable
 def render_sidebar_content():
     # 1. 顶部区域
     with ui.column().classes('w-full p-4 border-b bg-gray-50 flex-shrink-0'):
-        ui.label('小龙女她爸').classes('text-xl font-bold mb-4 text-slate-800')
-        ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes('w-full text-slate-700')
-        ui.button('订阅管理', icon='rss_feed', on_click=load_subs_view).props('flat align=left').classes('w-full text-slate-700')
+        ui.label('X-Fusion Panel').classes('text-xl font-bold mb-4 text-slate-800')
+        
+        # 定义顶部按钮的通用样式 (带按压反馈)
+        btn_cls = 'w-full text-slate-700 active:scale-95 transition-transform duration-150'
+        
+        ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes(btn_cls)
+        ui.button('订阅管理', icon='rss_feed', on_click=load_subs_view).props('flat align=left').classes(btn_cls)
 
     # 2. 列表区域
     with ui.column().classes('w-full flex-grow overflow-y-auto p-2 gap-1'):
         
         with ui.row().classes('w-full gap-2 px-1 mb-4'):
-            ui.button('新建分组', icon='create_new_folder', on_click=open_create_group_dialog).props('dense unelevated').classes('flex-grow bg-blue-600 text-white text-xs')
-            ui.button('添加服务器', icon='add', color='green', on_click=lambda: open_server_dialog(None)).props('dense unelevated').classes('flex-grow text-xs')
+            # 功能按钮增加按压反馈
+            func_btn_cls = 'flex-grow text-xs active:scale-95 transition-transform duration-150'
+            ui.button('新建分组', icon='create_new_folder', on_click=open_create_group_dialog).props('dense unelevated').classes(f'bg-blue-600 text-white {func_btn_cls}')
+            ui.button('添加服务器', icon='add', color='green', on_click=lambda: open_server_dialog(None)).props('dense unelevated').classes(func_btn_cls)
+
+        # --- 定义列表项通用样式 ---
+        # clickable: 鼠标指针变手型
+        # v-ripple: 开启水波纹效果
+        # active:scale-95: 点击时整体缩小 5%
+        # transition-transform: 平滑过渡
+        list_item_props = 'clickable v-ripple'
+        list_item_cls = 'w-full items-center justify-between p-3 border rounded mb-2 bg-slate-100 hover:bg-slate-200 cursor-pointer group active:scale-95 transition-transform duration-150'
 
         # --- A. 全部节点 ---
         all_count = len(SERVERS_CACHE)
-        with ui.row().classes('w-full items-center justify-between p-3 border rounded mb-2 bg-slate-100 hover:bg-slate-200 cursor-pointer group').on('click', lambda _: refresh_content('ALL')):
+        with ui.row().classes(list_item_cls).props(list_item_props).on('click', lambda _: refresh_content('ALL')):
             with ui.row().classes('items-center gap-2'):
                 ui.icon('dns', color='primary')
                 ui.label('所有服务器').classes('font-bold')
-            
             with ui.row().classes('items-center gap-1'):
                 ui.badge(str(all_count), color='blue')
 
@@ -3721,25 +3754,25 @@ def render_sidebar_content():
             ui.label('自定义分组').classes('text-xs font-bold text-gray-400 mt-2 mb-1 px-2')
             for tag_group in ADMIN_CONFIG['custom_groups']:
                 tag_servers = [s for s in SERVERS_CACHE if tag_group in s.get('tags', [])]
-                
                 is_open = tag_group in EXPANDED_GROUPS
                 
                 with ui.expansion('', icon='label', value=is_open).classes('w-full border rounded mb-1 bg-white shadow-sm').props('expand-icon-toggle').on_value_change(lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                     with exp.add_slot('header'):
-                        with ui.row().classes('w-full h-full items-center justify-between no-wrap cursor-pointer').on('click', lambda _, g=tag_group: refresh_content('TAG', g)):
+                        # 头部增加点击反馈
+                        header_cls = 'w-full h-full items-center justify-between no-wrap cursor-pointer active:scale-95 transition-transform duration-150'
+                        with ui.row().classes(header_cls).props('clickable v-ripple').on('click', lambda _, g=tag_group: refresh_content('TAG', g)):
                             ui.label(tag_group).classes('flex-grow font-bold truncate')
-                            
-                            # ✨✨✨ [核心修改点] 齿轮按钮: 调用 open_combined_group_management ✨✨✨
                             ui.button(icon='settings', on_click=lambda _, g=tag_group: open_combined_group_management(g)) \
                                 .props('flat dense round size=xs color=grey-6').on('click.stop').tooltip('管理分组与成员')
-                            
                             ui.badge(str(len(tag_servers)), color='orange' if not tag_servers else 'grey')
                     
                     with ui.column().classes('w-full gap-0 bg-gray-50'):
                         if not tag_servers:
                             ui.label('空分组').classes('text-xs text-gray-400 p-2 italic')
                         for s in tag_servers:
-                            with ui.row().classes('w-full justify-between items-center p-2 pl-4 border-b border-gray-100 hover:bg-blue-100 cursor-pointer group').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
+                            # 子项增加点击反馈
+                            sub_row_cls = 'w-full justify-between items-center p-2 pl-4 border-b border-gray-100 hover:bg-blue-100 cursor-pointer group active:scale-95 transition-transform duration-150'
+                            with ui.row().classes(sub_row_cls).props('clickable v-ripple').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
                                 ui.label(s['name']).classes('text-sm truncate flex-grow')
                                 with ui.row().classes('gap-1 items-center'):
                                     ui.button(icon='terminal', on_click=lambda _, s=s: open_ssh_interface(s)).props('flat dense round size=xs color=grey-8').on('click.stop')
@@ -3762,23 +3795,23 @@ def render_sidebar_content():
         for c_name in sorted(country_buckets.keys()):
             c_servers = country_buckets[c_name]
             c_servers.sort(key=smart_sort_key)
-            
             is_open = c_name in EXPANDED_GROUPS
             
             with ui.expansion('', icon='public', value=is_open).classes('w-full border rounded mb-1 bg-white shadow-sm').props('expand-icon-toggle').on_value_change(lambda e, g=c_name: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                  with exp.add_slot('header'):
-                    with ui.row().classes('w-full h-full items-center justify-between no-wrap cursor-pointer').on('click', lambda _, g=c_name: refresh_content('COUNTRY', g)):
+                    # 头部增加点击反馈
+                    header_cls = 'w-full h-full items-center justify-between no-wrap cursor-pointer active:scale-95 transition-transform duration-150'
+                    with ui.row().classes(header_cls).props('clickable v-ripple').on('click', lambda _, g=c_name: refresh_content('COUNTRY', g)):
                         ui.label(c_name).classes('flex-grow font-bold truncate')
-                        
-                        # 区域分组依然使用批量编辑器 (因为区域是自动的，不需要"改名")
                         ui.button(icon='edit_note', on_click=lambda _, s=c_servers, t=c_name: open_bulk_edit_dialog(s, f"区域: {t}")) \
                             .props('flat dense round size=xs color=grey').on('click.stop').tooltip('批量管理此区域')
-                        
                         ui.badge(str(len(c_servers)), color='green')
                  
                  with ui.column().classes('w-full gap-0 bg-gray-50'):
                     for s in c_servers:
-                         with ui.row().classes('w-full justify-between items-center p-2 pl-4 border-b border-gray-100 hover:bg-blue-100 cursor-pointer group').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
+                         # 子项增加点击反馈
+                         sub_row_cls = 'w-full justify-between items-center p-2 pl-4 border-b border-gray-100 hover:bg-blue-100 cursor-pointer group active:scale-95 transition-transform duration-150'
+                         with ui.row().classes(sub_row_cls).props('clickable v-ripple').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
                                 ui.label(s['name']).classes('text-sm truncate flex-grow')
                                 with ui.row().classes('gap-1 items-center'):
                                     ui.button(icon='terminal', on_click=lambda _, s=s: open_ssh_interface(s)).props('flat dense round size=xs color=grey-8').on('click.stop')
@@ -3786,10 +3819,13 @@ def render_sidebar_content():
 
     # 3. 底部功能区
     with ui.column().classes('w-full p-2 border-t mt-auto mb-15 gap-2 bg-white z-10'):
+        # 底部按钮也加上反馈
+        bottom_btn_cls = 'w-full font-bold mb-1 active:scale-95 transition-transform duration-150'
         ui.button('批量 SSH 执行', icon='playlist_play', on_click=batch_ssh_manager.open_dialog) \
-            .props('flat align=left').classes('w-full text-slate-800 font-bold mb-1 bg-blue-50 hover:bg-blue-100')
-        ui.button('全局 SSH 设置', icon='vpn_key', on_click=open_global_settings_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm')
-        ui.button('数据备份 / 恢复', icon='save', on_click=open_data_mgmt_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm')
+            .props('flat align=left').classes(f'text-slate-800 bg-blue-50 hover:bg-blue-100 {bottom_btn_cls}')
+        
+        ui.button('全局 SSH 设置', icon='vpn_key', on_click=open_global_settings_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm active:scale-95 transition-transform duration-150')
+        ui.button('数据备份 / 恢复', icon='save', on_click=open_data_mgmt_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm active:scale-95 transition-transform duration-150')
         
 # ================== 登录与 MFA 逻辑 ==================
 @ui.page('/login')
