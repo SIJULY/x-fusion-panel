@@ -16,8 +16,8 @@ import qrcode
 import time
 import io
 import paramiko
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-from apscheduler.schedulers.asyncio import AsyncIOScheduler 
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor # ✅ 修正
+from apscheduler.schedulers.asyncio import AsyncIOScheduler # ✅ 修正
 from urllib.parse import urlparse, quote
 from nicegui import ui, run, app, Client
 from fastapi import Response, Request
@@ -402,8 +402,8 @@ ADMIN_CONFIG_FILE = 'data/admin_config.json'
 # ✨✨✨ 自动注册密钥 (优先从环境变量获取) ✨✨✨
 AUTO_REGISTER_SECRET = os.getenv('XUI_SECRET_KEY', 'sijuly_secret_key_default')
 
-ADMIN_USER = os.getenv('XUI_USERNAME', 'sijuly')
-ADMIN_PASS = os.getenv('XUI_PASSWORD', '050148Sq$')
+ADMIN_USER = os.getenv('XUI_USERNAME', 'admin')
+ADMIN_PASS = os.getenv('XUI_PASSWORD', 'admin')
 
 SERVERS_CACHE = []
 SUBS_CACHE = []
@@ -1133,6 +1133,26 @@ async def install_probe_on_server(server_conf):
         logger.error(f"❌ [AutoInstall] {name} 安装失败:\n{msg}")
         
     return success
+
+
+# =================  批量安装所有探针 =================
+async def batch_install_all_probes():
+    if not SERVERS_CACHE:
+        safe_notify("没有服务器可安装", "warning")
+        return
+
+    safe_notify(f"正在后台为 {len(SERVERS_CACHE)} 台服务器安装/更新探针...", "ongoing")
+    
+    # 创建所有安装任务
+    tasks = []
+    for s in SERVERS_CACHE:
+        tasks.append(install_probe_on_server(s))
+    
+    # 并发执行所有任务 (不阻塞主界面)
+    if tasks:
+        await asyncio.gather(*tasks)
+    
+    safe_notify("✅ 所有探针安装/更新任务已完成", "positive")
 
 # ================= 探针核心逻辑 (强制直连版：解决 Docker 代理干扰) =================
 async def get_server_status(server_conf):
