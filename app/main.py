@@ -16,8 +16,8 @@ import qrcode
 import time
 import io
 import paramiko
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor # ✅ 修正
-from apscheduler.schedulers.asyncio import AsyncIOScheduler # ✅ 修正
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from urllib.parse import urlparse, quote
 from nicegui import ui, run, app, Client
 from fastapi import Response, Request
@@ -301,6 +301,73 @@ def open_global_settings_dialog():
         ui.button('保存全局密钥', on_click=lambda: [save_global_key(key_input.value), d.close(), safe_notify('全局密钥已保存', 'positive')]).classes('w-full bg-slate-900 text-white')
     d.open()
 
+# ================= 探针安装脚本 (引号修复版) =================
+PROBE_INSTALL_SCRIPT = r"""
+bash -c '
+# 1. 智能判断 Root
+if [ "$(id -u)" -eq 0 ]; then
+    CMD_PREFIX=""
+else
+    if command -v sudo >/dev/null 2>&1; then
+        CMD_PREFIX="sudo -i"
+    else
+        echo "Root required"
+        exit 1
+    fi
+fi
+
+$CMD_PREFIX bash -s << "EOF"
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # 2. 安装 Python3
+    if ! command -v python3 >/dev/null 2>&1; then
+        if [ -f /etc/debian_version ]; then
+            apt-get update -y --allow-releaseinfo-change || true
+            apt-get install -y python3 || true
+        elif [ -f /etc/redhat-release ]; then
+            yum install -y python3 || true
+        elif [ -f /etc/alpine-release ]; then
+            apk add python3 || true
+        fi
+    fi
+
+    # 3. 写入探针 (✨关键修改：TOKEN 使用双引号，避免与外层单引号冲突✨)
+    cat > /root/mini_probe.py << 'PYTHON_EOF'
+import http.server,json,subprocess,sys
+PORT=54322; TOKEN="sijuly_probe_token"
+class H(http.server.BaseHTTPRequestHandler):
+ def do_GET(s):
+  if s.path!=f"/status?token={TOKEN}": s.send_response(403); s.end_headers(); return
+  try:
+   with open("/proc/loadavg") as f: l=f.read().split()[0]
+   with open("/proc/meminfo") as f: m=f.readlines(); mt=int(m[0].split()[1]); ma=int(m[2].split()[1]); mu=round((mt-ma)/mt*100,1)
+   try: d=int(subprocess.check_output(["df","-h","/"]).decode().split("\n")[1].split()[-2].strip("%"))
+   except: d=0
+   with open("/proc/uptime") as f: u=float(f.read().split()[0]); dy=int(u//86400); hr=int((u%86400)//3600)
+   dat={"status":"online","load":l,"mem":mu,"disk":d,"uptime":f"{dy}d {hr}h"}
+   s.send_response(200); s.send_header("Content-type","application/json"); s.end_headers(); s.wfile.write(json.dumps(dat).encode())
+  except: s.send_response(500)
+ def log_message(s,f,*a): pass
+if __name__=="__main__":
+ try: http.server.HTTPServer(("0.0.0.0",PORT),H).serve_forever()
+ except: pass
+PYTHON_EOF
+
+    # 4. 重启进程
+    pkill -f mini_probe.py || true
+    nohup python3 /root/mini_probe.py >/dev/null 2>&1 &
+
+    # 5. 防火墙
+    if command -v iptables >/dev/null; then iptables -I INPUT -p tcp --dport 54322 -j ACCEPT || true; fi
+    if command -v ufw >/dev/null; then ufw allow 54322/tcp || true; fi
+    if command -v firewall-cmd >/dev/null; then firewall-cmd --zone=public --add-port=54322/tcp --permanent && firewall-cmd --reload || true; fi
+    
+    echo "Install sequence completed"
+    exit 0
+EOF
+'
+"""
+
 # ================= 强制日志实时输出 =================
 sys.stdout.reconfigure(line_buffering=True)
 logging.basicConfig(
@@ -372,19 +439,31 @@ AUTO_COUNTRY_MAP = {
     '🇷🇺': '🇷🇺 俄罗斯', 'RU': '🇷🇺 俄罗斯',
 }
 
-def detect_country_group(name):
+def detect_country_group(name, server_config=None):
+    # ✨✨✨ 修复：优先尊重手动设置的 Group 字段 ✨✨✨
+    if server_config:
+        saved_group = server_config.get('group')
+        # 如果手动设置的分组不是默认那几个，说明用户想强制归类
+        if saved_group and saved_group not in ['默认分组', '自动注册', '未分组', '自动导入', '🏳️ 其他地区']:
+            return saved_group
+
+    # 否则才通过名字猜
     name_upper = name.upper()
     for key, val in AUTO_COUNTRY_MAP.items():
         if key in name_upper:
             return val
+            
     return '🏳️ 其他地区'
 
+
+
+# ==========================================
+# 👇全局变量定义 👇
+# ==========================================
 FILE_LOCK = asyncio.Lock()
 EXPANDED_GROUPS = set()
 SERVER_UI_MAP = {}
-content_container = None
-
-
+# ==========================================
 
 
 def init_data():
@@ -969,7 +1048,93 @@ async def silent_refresh_all(is_auto_trigger=False):
         render_sidebar_content.refresh()
         await load_dashboard_stats() 
     except: pass
+
     
+async def install_probe_on_server(server_conf):
+    """给单个服务器安装探针 (智能宽容版)"""
+    name = server_conf.get('name', 'Unknown')
+    
+    def _do_install():
+        client = None
+        try:
+            client, msg = get_ssh_client(server_conf)
+            if not client: return False, f"连接失败: {msg}"
+            
+            # 执行安装 (300秒超时)
+            stdin, stdout, stderr = client.exec_command(PROBE_INSTALL_SCRIPT, timeout=300)
+            
+            # 获取结果
+            exit_status = stdout.channel.recv_exit_status() 
+            out_log = stdout.read().decode('utf-8', errors='ignore').strip()
+            err_log = stderr.read().decode('utf-8', errors='ignore').strip()
+            
+            client.close()
+            
+            # ✨✨✨ 核心修改：智能判定 ✨✨✨
+            # 1. 正常退出 (0) -> 成功
+            # 2. 意外断开 (-1) 但看到了防火墙日志 (Skipping/rule) -> 视为成功 (说明脚本跑完了)
+            if exit_status == 0:
+                return True, "安装成功"
+            elif exit_status == -1 and ("Skipping" in out_log or "rule" in out_log or "allow" in out_log):
+                return True, "安装成功 (连接重置)"
+            else:
+                debug_info = f"Exit Code: {exit_status}\n[STDERR]: {err_log}\n[STDOUT]: {out_log}"
+                return False, debug_info
+                
+        except Exception as e:
+            return False, f"执行异常: {str(e)}"
+        finally:
+            if client: 
+                try: client.close()
+                except: pass
+
+    success, msg = await run.io_bound(_do_install)
+    if success:
+        logger.info(f"✅ [AutoInstall] {name} 安装成功")
+    else:
+        logger.error(f"❌ [AutoInstall] {name} 安装失败:\n{msg}")
+        
+    return success
+
+# ================= 探针核心逻辑 (强制直连版：解决 Docker 代理干扰) =================
+async def get_server_status(server_conf):
+    """
+    仅通过 HTTP 探针获取状态。
+    关键点：强制不走系统代理 (proxies=None)，防止 Docker 环境变量导致连接失败。
+    """
+    def _try_http_probe():
+        try:
+            # 提取主机名/IP
+            raw = server_conf['url']
+            host = raw.split('://')[-1].split(':')[0]
+            
+            # 构造请求 (3秒超时)
+            target_url = f"http://{host}:54322/status?token=sijuly_probe_token"
+            
+            # ✨✨✨ 核心修复：proxies={"http": None, "https": None} ✨✨✨
+            # 这句代码的意思是：无视系统代理，必须直连！
+            with requests.get(target_url, timeout=3, proxies={"http": None, "https": None}) as r:
+                if r.status_code == 200:
+                    data = r.json()
+                    return {
+                        'status': 'online',
+                        'load': data.get('load', 0),
+                        'mem': data.get('mem', 0),
+                        'disk': data.get('disk', 0),
+                        'uptime': data.get('uptime', '')
+                    }
+        except:
+            return None 
+
+    # 在后台线程执行
+    http_result = await run.io_bound(_try_http_probe)
+    
+    if http_result: 
+        return http_result
+    
+    # ❌ 如果直连也失败，才报离线
+    return {'status': 'offline', 'msg': '探针未连接'}
+
 # ================= 使用 URL 安全的 Base64 =================
 def safe_base64(s): 
     # 使用 urlsafe_b64encode 避免出现 + 和 /
@@ -1848,6 +2013,209 @@ class SubEditor:
 
 def open_sub_editor(d):
     with ui.dialog() as dlg: SubEditor(d).ui(dlg); dlg.open()
+
+
+# ================= 探针页面渲染 (60秒刷新版) =================
+async def render_probe_page():
+    global CURRENT_VIEW_STATE
+    CURRENT_VIEW_STATE['scope'] = 'PROBE'
+    CURRENT_VIEW_STATE['data'] = None
+
+    content_container.clear()
+    
+    # 检查是否已开启探针功能 (默认为 False)
+    is_probe_enabled = ADMIN_CONFIG.get('probe_enabled', False)
+    
+    # 如果没开启，显示空状态 + 弹窗引导
+    if not is_probe_enabled:
+        with content_container:
+            with ui.column().classes('w-full h-[60vh] justify-center items-center opacity-50'):
+                ui.icon('monitor_heart', size='6rem', color='grey-4')
+                ui.label('探针功能未初始化').classes('text-2xl font-bold text-gray-400')
+
+            with ui.dialog() as d, ui.card().classes('w-full max-w-md p-6'):
+                with ui.column().classes('w-full items-center gap-4'):
+                    ui.icon('rocket_launch', size='4rem').classes('text-blue-500 animate-bounce')
+                    ui.label('开启实时监控系统').classes('text-xl font-bold text-slate-800')
+                    ui.label('为了实现秒级监控，系统将自动为您的服务器配置轻量级探针。').classes('text-sm text-gray-500 text-center')
+                    ui.label('是否立即开始配置？').classes('text-sm font-bold text-slate-700 mt-2')
+                    
+                    with ui.row().classes('w-full gap-4 mt-2'):
+                        ui.button('暂不开启', on_click=lambda: [d.close(), ui.navigate.to('/')]).props('flat color=grey').classes('flex-1')
+                        async def confirm_enable():
+                            d.close()
+                            ADMIN_CONFIG['probe_enabled'] = True
+                            await save_admin_config()
+                            await render_probe_page()
+                            await batch_install_all_probes()
+                        ui.button('确认并安装', on_click=confirm_enable).props('unelevated color=blue').classes('flex-1 shadow-lg')
+            d.open()
+        return
+
+    # === 正常渲染逻辑 ===
+    global card_refs 
+    card_refs = {}
+
+    with content_container:
+        # --- 顶部标题栏 ---
+        with ui.row().classes('w-full items-center justify-between mb-4'):
+            with ui.row().classes('items-center gap-2'):
+                ui.icon('dns', color='primary').classes('text-2xl')
+                ui.label('服务器监控墙 (Live Status)').classes('text-2xl font-bold text-slate-800')
+                ui.badge(f'{len(SERVERS_CACHE)} 台', color='blue').props('outline')
+            
+            # 手动刷新按钮 (is_manual=True 会有弹窗提示)
+            ui.button('刷新状态', icon='refresh', on_click=lambda: update_probe_stats(card_refs, is_manual=True)).props('color=primary unelevated')
+
+        # --- 卡片网格 ---
+        with ui.grid().classes('w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'):
+            sorted_servers = sorted(SERVERS_CACHE, key=lambda x: smart_sort_key(x))
+            for s in sorted_servers:
+                url = s['url']
+                refs = {} 
+                with ui.card().classes('w-full p-3 shadow-sm hover:shadow-md transition border border-gray-200 bg-white gap-1'):
+                    # 1. 头部
+                    with ui.row().classes('w-full justify-between items-center mb-2 border-b border-gray-100 pb-2'):
+                        with ui.row().classes('items-center gap-2 overflow-hidden'):
+                            flag = "🏳️"
+                            try: flag = detect_country_group(s['name']).split(' ')[0]
+                            except: pass
+                            ui.label(flag).classes('text-lg')
+                            ui.label(s['name']).classes('font-bold text-slate-700 truncate text-sm')
+                        refs['badge'] = ui.badge('Wait', color='grey').classes('text-xs')
+
+                    # 2. 系统
+                    with ui.row().classes('w-full justify-between text-xs text-gray-400 mb-2'):
+                        with ui.row().classes('items-center gap-1'):
+                            ui.icon('terminal', size='xs'); refs['os'] = ui.label('Linux')
+                        with ui.row().classes('items-center gap-1'):
+                            ui.icon('schedule', size='xs'); refs['uptime'] = ui.label('--')
+
+                    # 3. 进度条
+                    with ui.row().classes('w-full items-center gap-2 text-xs mb-1'):
+                        ui.label('CPU').classes('w-8 font-bold text-slate-500')
+                        refs['cpu_bar'] = ui.linear_progress(0, size='6px', color='blue').classes('flex-grow rounded')
+                        refs['cpu_val'] = ui.label('0%').classes('w-8 text-right font-mono')
+                    with ui.row().classes('w-full items-center gap-2 text-xs mb-1'):
+                        ui.label('MEM').classes('w-8 font-bold text-slate-500')
+                        refs['mem_bar'] = ui.linear_progress(0, size='6px', color='green').classes('flex-grow rounded')
+                        refs['mem_val'] = ui.label('0%').classes('w-8 text-right font-mono')
+                    with ui.row().classes('w-full items-center gap-2 text-xs mb-1'):
+                        ui.label('DSK').classes('w-8 font-bold text-slate-500')
+                        refs['disk_bar'] = ui.linear_progress(0, size='6px', color='purple').classes('flex-grow rounded')
+                        refs['disk_val'] = ui.label('0%').classes('w-8 text-right font-mono')
+
+                    # 4. 负载
+                    with ui.row().classes('w-full justify-between items-center mt-2 pt-2 border-t border-dashed border-gray-100'):
+                        ui.label('Load Avg').classes('text-[10px] text-gray-400 font-bold')
+                        refs['load'] = ui.label('- / - / -').classes('text-[10px] text-slate-600 font-mono bg-slate-100 px-1 rounded')
+
+                card_refs[url] = refs
+
+        # ✅✅✅ [关键修改] 设置定时器为 60.0 秒 (即 1 分钟) ✅✅✅
+        ui.timer(60.0, lambda: update_probe_stats(card_refs))
+        
+        # 首次进入页面立即执行一次，让用户不用干等 1 分钟
+        asyncio.create_task(update_probe_stats(card_refs))
+
+        
+# ================= 批量刷新卡片数据 (无闪烁/静默更新版) =================
+# 全局锁，防止定时器重叠执行
+PROBE_LOCK = False
+
+async def update_probe_stats(card_refs, is_manual=False):
+    global PROBE_LOCK
+    
+    # 1. 只有当页面还在显示时才执行
+    if CURRENT_VIEW_STATE.get('scope') != 'PROBE': return
+
+    # 2. 如果正在运行，且不是手动强制刷新，则跳过本次定时任务
+    if PROBE_LOCK and not is_manual:
+        # logger.info("⏳ 上次探针任务未完成，跳过本次定时刷新")
+        return
+
+    PROBE_LOCK = True
+    
+    # 仅手动点击时，在右上角给一个轻微提示，但不改动卡片状态
+    if is_manual:
+        safe_notify('正在刷新服务器状态...', 'ongoing')
+
+    # ❌❌❌ [已删除] 不再将所有卡片重置为橙色，保持现有状态直到新数据到来 ❌❌❌
+    # for refs in card_refs.values():
+    #     try: refs['badge'].props('color=orange') ...
+    #     except: pass
+
+    # 3. 定义并发限制
+    sema = asyncio.Semaphore(15) 
+
+    async def check_one(srv):
+        url = srv['url']
+        refs = card_refs.get(url)
+        if not refs: return 
+
+        async with sema:
+            # 获取数据 (优先HTTP，回退SSH)
+            res = await get_server_status(srv)
+            
+            # --- 更新 UI ---
+            try:
+                # 再次检查页面元素是否存在
+                if refs['badge'].is_deleted: return
+
+                if res and res['status'] == 'online':
+                    # === 在线处理 ===
+                    # 只有当之前不是 Online 或者由红变绿时，这里才会产生视觉变化
+                    # 如果本来就是绿的，用户感觉不到闪烁，只会看到数字跳动
+                    refs['badge'].set_text('Online')
+                    refs['badge'].props('color=green')
+                    
+                    # 更新数值
+                    try:
+                        load_val = float(res['load'])
+                        refs['cpu_val'].set_text(f"{load_val}")
+                        load_pct = min(load_val * 20, 100)
+                        refs['cpu_bar'].set_value(load_pct / 100)
+                        refs['cpu_bar'].props(f'color={"red" if load_val > 4 else "blue"}')
+                    except: pass
+
+                    mem_p = res['mem']
+                    refs['mem_bar'].set_value(mem_p / 100)
+                    refs['mem_bar'].props(f'color={"red" if mem_p > 90 else ("orange" if mem_p > 75 else "green")}')
+                    refs['mem_val'].set_text(f"{int(mem_p)}%")
+
+                    disk_p = res['disk']
+                    refs['disk_bar'].set_value(disk_p / 100)
+                    refs['disk_bar'].props(f'color={"red" if disk_p > 90 else "purple"}')
+                    refs['disk_val'].set_text(f"{int(disk_p)}%")
+
+                    refs['uptime'].set_text(res['uptime'])
+                    refs['load'].set_text(f"Load: {res['load']}")
+
+                else:
+                    # === 离线处理 ===
+                    # 只有真的检测失败了，才变红
+                    refs['badge'].set_text('Offline')
+                    refs['badge'].props('color=red')
+                    
+                    # 离线时，可以选择清空进度条，或者保持最后一次的数值
+                    # 这里选择清零，直观显示断连
+                    refs['cpu_bar'].set_value(0)
+                    refs['mem_bar'].set_value(0)
+                    refs['disk_bar'].set_value(0)
+                    
+            except: 
+                pass
+
+    # 4. 执行任务
+    try:
+        tasks = [check_one(s) for s in SERVERS_CACHE]
+        await asyncio.gather(*tasks)
+    finally:
+        PROBE_LOCK = False # 释放锁
+        if is_manual:
+            safe_notify('✅ 状态刷新完毕', 'positive')
+
+
     
 # ================= 订阅管理视图 (极简模式：只显在线) =================
 async def load_subs_view():
@@ -2142,7 +2510,7 @@ def open_process_editor(sub_data):
     with ui.dialog() as d: SubscriptionProcessEditor(sub_data).ui(d); d.open()
 
                         
-# ================= 小巧卡片式弹窗 (带切换功能) =================
+# ================= 小巧卡片式弹窗 (带切换功能 & 自动探针安装) =================
 async def open_server_dialog(idx=None):
     is_edit = idx is not None
     data = SERVERS_CACHE[idx] if is_edit else {}
@@ -2219,14 +2587,23 @@ async def open_server_dialog(idx=None):
                     'ssh_port': ssh_port.value, 'ssh_user': ssh_user.value,
                     'ssh_auth_type': auth_type.value, 'ssh_password': ssh_pwd.value, 'ssh_key': ssh_key.value
                 }
+                
+                # 3. 更新数据到内存
                 if is_edit: SERVERS_CACHE[idx].update(new_data)
                 else: SERVERS_CACHE.append(new_data)
                 
+                # 4. 保存并刷新界面
                 await save_servers()
                 render_sidebar_content.refresh()
                 await refresh_content('SINGLE', SERVERS_CACHE[idx] if is_edit else SERVERS_CACHE[-1], force_refresh=True)
                 d.close()
                 safe_notify(f'保存成功: {final_name}', 'positive')
+
+                # ✨✨✨ [新增] 如果已启用探针，自动为新/修改的服务器安装探针 ✨✨✨
+                if ADMIN_CONFIG.get('probe_enabled', False):
+                    # 异步后台执行，不阻塞 UI
+                    asyncio.create_task(install_probe_on_server(new_data))
+                    safe_notify(f"正在后台为 {final_name} 配置探针...", "info")
             
             ui.button('保存配置', on_click=save).classes('bg-slate-900 text-white shadow-lg')
     d.open()
@@ -2374,6 +2751,9 @@ async def open_data_mgmt_dialog():
                             count = 0
                             existing_urls = {s['url'] for s in SERVERS_CACHE}
                             
+                            # ✨✨✨ 准备后台自动安装任务列表 ✨✨✨
+                            install_tasks = []
+                            
                             for line in lines:
                                 target_ssh_port = def_ssh_port.value
                                 target_xui_port = def_xui_port.value
@@ -2408,11 +2788,21 @@ async def open_data_mgmt_dialog():
                                 SERVERS_CACHE.append(new_server)
                                 existing_urls.add(final_url)
                                 count += 1
+                                
+                                # ✨✨✨ 如果开启了探针，将安装任务加入队列 ✨✨✨
+                                if ADMIN_CONFIG.get('probe_enabled', False):
+                                    install_tasks.append(install_probe_on_server(new_server))
 
                             if count > 0:
                                 await save_servers()
                                 render_sidebar_content.refresh()
-                                safe_notify(f"成功添加 {count} 台服务器", 'positive'); d.close()
+                                safe_notify(f"成功添加 {count} 台服务器", 'positive')
+                                d.close()
+                                
+                                # ✨✨✨ 在后台并发执行所有探针安装任务 ✨✨✨
+                                if install_tasks:
+                                    safe_notify(f"正在后台为 {len(install_tasks)} 台新服务器配置探针...", "ongoing")
+                                    asyncio.create_task(asyncio.gather(*install_tasks))
                             else: safe_notify("未添加任何服务器 (可能已存在)", 'warning')
 
                         ui.button('确认批量添加', icon='add_box', on_click=run_batch_import).classes('w-full bg-blue-600 text-white h-10')
@@ -3416,7 +3806,10 @@ class BulkEditor:
                         with ui.dialog() as sub_d, ui.card().classes('w-80'):
                             ui.label('移动到分组').classes('font-bold mb-2')
                             groups = sorted(list(get_all_groups_set()))
-                            sel = ui.select(groups, label='选择分组', new_value_mode='add-unique').classes('w-full')
+                            
+                            # ✨✨✨ 关键修改：new_value_mode='add-unique' 允许用户手打新分组 ✨✨✨
+                            sel = ui.select(groups, label='选择或输入分组', with_input=True, new_value_mode='add-unique').classes('w-full')
+                            
                             ui.button('确定移动', on_click=lambda: do_move(sel.value)).classes('w-full mt-4 bg-blue-600 text-white')
                             
                             async def do_move(target_group):
@@ -3426,11 +3819,18 @@ class BulkEditor:
                                     if s['url'] in self.selected_urls:
                                         s['group'] = target_group
                                         count += 1
+                                
+                                # 同时也更新一下自定义分组列表
+                                if 'custom_groups' not in ADMIN_CONFIG: ADMIN_CONFIG['custom_groups'] = []
+                                if target_group not in ADMIN_CONFIG['custom_groups']:
+                                    ADMIN_CONFIG['custom_groups'].append(target_group)
+                                    await save_admin_config()
+
                                 await save_servers()
-                                sub_d.close(); d.close()
+                                sub_d.close(); self.dialog.close() # 关闭所有弹窗
                                 render_sidebar_content.refresh()
                                 await refresh_content('ALL')
-                                safe_notify(f'已移动 {count} 个服务器', 'positive')
+                                safe_notify(f'已移动 {count} 个服务器到 [{target_group}]', 'positive')
                         sub_d.open()
 
                     ui.button('移动分组', icon='folder_open', on_click=move_group).props('flat dense color=blue')
@@ -3704,7 +4104,7 @@ class BatchSSH:
                         if not client: return False, msg
                         try:
                             # 设置超时 30秒
-                            stdin, stdout, stderr = client.exec_command(cmd, timeout=30)
+                            stdin, stdout, stderr = client.exec_command(cmd, timeout=60)
                             out = stdout.read().decode().strip()
                             err = stderr.read().decode().strip()
                             client.close()
@@ -3893,6 +4293,10 @@ def render_sidebar_content():
         btn_cls = 'w-full text-slate-700 active:scale-95 transition-transform duration-150'
         
         ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes(btn_cls)
+        
+        # ✅✅✅ [修复点] 改回 ui.button，并应用 btn_cls 样式，确保支持 icon 参数 ✅✅✅
+        ui.button('服务器探针', icon='monitor_heart', on_click=render_probe_page).props('flat align=left').classes(btn_cls)
+        
         ui.button('订阅管理', icon='rss_feed', on_click=load_subs_view).props('flat align=left').classes(btn_cls)
 
     # 2. 列表区域
@@ -3905,10 +4309,6 @@ def render_sidebar_content():
             ui.button('添加服务器', icon='add', color='green', on_click=lambda: open_server_dialog(None)).props('dense unelevated').classes(func_btn_cls)
 
         # --- 定义列表项通用样式 ---
-        # clickable: 鼠标指针变手型
-        # v-ripple: 开启水波纹效果
-        # active:scale-95: 点击时整体缩小 5%
-        # transition-transform: 平滑过渡
         list_item_props = 'clickable v-ripple'
         list_item_cls = 'w-full items-center justify-between p-3 border rounded mb-2 bg-slate-100 hover:bg-slate-200 cursor-pointer group active:scale-95 transition-transform duration-150'
 
@@ -3930,7 +4330,6 @@ def render_sidebar_content():
                 
                 with ui.expansion('', icon='label', value=is_open).classes('w-full border rounded mb-1 bg-white shadow-sm').props('expand-icon-toggle').on_value_change(lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                     with exp.add_slot('header'):
-                        # 头部增加点击反馈
                         header_cls = 'w-full h-full items-center justify-between no-wrap cursor-pointer active:scale-95 transition-transform duration-150'
                         with ui.row().classes(header_cls).props('clickable v-ripple').on('click', lambda _, g=tag_group: refresh_content('TAG', g)):
                             ui.label(tag_group).classes('flex-grow font-bold truncate')
@@ -3942,7 +4341,6 @@ def render_sidebar_content():
                         if not tag_servers:
                             ui.label('空分组').classes('text-xs text-gray-400 p-2 italic')
                         for s in tag_servers:
-                            # 子项增加点击反馈
                             sub_row_cls = 'w-full justify-between items-center p-2 pl-4 border-b border-gray-100 hover:bg-blue-100 cursor-pointer group active:scale-95 transition-transform duration-150'
                             with ui.row().classes(sub_row_cls).props('clickable v-ripple').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
                                 ui.label(s['name']).classes('text-sm truncate flex-grow')
@@ -3959,7 +4357,8 @@ def render_sidebar_content():
             if saved_group and saved_group not in ['默认分组', '自动注册', '未分组', '自动导入', '🏳️ 其他地区']:
                 c_group = saved_group
             else:
-                c_group = detect_country_group(s.get('name', ''))
+                # 把整个 server 对象传进去，让它能读取 group 字段
+                c_group = detect_country_group(s.get('name', ''), s)
             
             if c_group not in country_buckets: country_buckets[c_group] = []
             country_buckets[c_group].append(s)
@@ -3971,7 +4370,6 @@ def render_sidebar_content():
             
             with ui.expansion('', icon='public', value=is_open).classes('w-full border rounded mb-1 bg-white shadow-sm').props('expand-icon-toggle').on_value_change(lambda e, g=c_name: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                  with exp.add_slot('header'):
-                    # 头部增加点击反馈
                     header_cls = 'w-full h-full items-center justify-between no-wrap cursor-pointer active:scale-95 transition-transform duration-150'
                     with ui.row().classes(header_cls).props('clickable v-ripple').on('click', lambda _, g=c_name: refresh_content('COUNTRY', g)):
                         ui.label(c_name).classes('flex-grow font-bold truncate')
@@ -3981,7 +4379,6 @@ def render_sidebar_content():
                  
                  with ui.column().classes('w-full gap-0 bg-gray-50'):
                     for s in c_servers:
-                         # 子项增加点击反馈
                          sub_row_cls = 'w-full justify-between items-center p-2 pl-4 border-b border-gray-100 hover:bg-blue-100 cursor-pointer group active:scale-95 transition-transform duration-150'
                          with ui.row().classes(sub_row_cls).props('clickable v-ripple').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
                                 ui.label(s['name']).classes('text-sm truncate flex-grow')
@@ -3991,7 +4388,6 @@ def render_sidebar_content():
 
     # 3. 底部功能区
     with ui.column().classes('w-full p-2 border-t mt-auto mb-15 gap-2 bg-white z-10'):
-        # 底部按钮也加上反馈
         bottom_btn_cls = 'w-full font-bold mb-1 active:scale-95 transition-transform duration-150'
         ui.button('批量 SSH 执行', icon='playlist_play', on_click=batch_ssh_manager.open_dialog) \
             .props('flat align=left').classes(f'text-slate-800 bg-blue-50 hover:bg-blue-100 {bottom_btn_cls}')
@@ -4245,24 +4641,63 @@ async def job_sync_all_traffic():
         await refresh_dashboard_ui()
     logger.info("✅ [定时任务] 流量同步完成")
 
-# 2. 定义 IP 补全任务 (单次运行逻辑)
+# 2.================= 定时任务：IP 地理位置检查 & 自动修正名称 =================
 async def job_check_geo_ip():
-    logger.info("🌍 [定时任务] 检查服务器地理位置...")
+    logger.info("🌍 [定时任务] 检查服务器地理位置并修正国旗...")
     geo_updated = False
+    
     for s in SERVERS_CACHE:
-        if 'lat' not in s or 'lon' not in s:
-            if not get_coords_from_name(s.get('name', '')):
-                try:
-                    geo = await run.io_bound(fetch_geo_from_ip, s['url'])
-                    if geo:
-                        s['lat'] = geo[0]
-                        s['lon'] = geo[1]
-                        geo_updated = True
-                except: pass
+        # 1. 获取当前信息
+        current_name = s.get('name', '')
+        url = s['url']
+        
+        # 2. 只有当名字里没有国旗时，才尝试修复
+        # (避免反复查询已经有国旗的节点)
+        has_flag = False
+        for flag in AUTO_COUNTRY_MAP.keys():
+            # 这里的 keys 包含 '🇺🇸', 'US', '美国' 等，我们主要判断 Emoji
+            if len(flag) == 2 and flag not in ['HK','TW','JP','SG','KR','UK','DE','FR','AU','CA','IN','ID','BR','NL','SE','CH','AE','TR','IT','ES','MX','IL','RU'] and flag in current_name:
+                has_flag = True
+                break
+        
+        # 如果已经有国旗了，且有坐标了，就跳过
+        if has_flag and 'lat' in s and 'lon' in s:
+            continue
+
+        # 3. 开始查询
+        try:
+            # 这是一个 IO 操作，可能有延迟
+            geo = await run.io_bound(fetch_geo_from_ip, url)
+            if geo:
+                # 更新坐标
+                s['lat'] = geo[0]
+                s['lon'] = geo[1]
+                
+                # ✨✨✨ 核心修复：自动给名字补全中英文国旗 ✨✨✨
+                country_name = geo[2] # 例如 "United States" 或 "China"
+                
+                # 获取对应的国旗图标+名称，例如 "🇺🇸 美国"
+                flag_prefix = get_flag_for_country(country_name)
+                flag_icon = flag_prefix.split(' ')[0] # 只取 Emoji "🇺🇸"
+                
+                # 如果名字里真的没这个国旗，就加上去
+                if flag_icon not in current_name:
+                    s['name'] = f"{flag_icon} {current_name}"
+                    logger.info(f"✨ [自动修正] {current_name} -> {s['name']}")
+                    geo_updated = True
+                else:
+                    # 虽然名字没变，但坐标更新了，也要保存
+                    geo_updated = True
+        except Exception as e:
+            # logger.error(f"GeoIP Error for {url}: {e}")
+            pass
+            
     if geo_updated:
         await save_servers()
         await refresh_dashboard_ui()
-        logger.info("✅ 地理位置更新完毕")
+        # 刷新侧边栏，让分组立即生效
+        render_sidebar_content.refresh()
+        logger.info("✅ 地理位置与名称修正完毕，列表已刷新")
 
 # 3. 初始化调度器
 scheduler = AsyncIOScheduler()
