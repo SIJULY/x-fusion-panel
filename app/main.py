@@ -134,6 +134,7 @@ DASHBOARD_REFS = {
     'map': None, 'map_info': None
 }
 
+
 # ================= 全局 DNS 缓存 (支持静默更新) ======================
 DNS_CACHE = {}
 DNS_WAITING_LABELS = {} # ✨ 新增：存储等待 DNS 结果的 UI 标签引用
@@ -205,11 +206,22 @@ def bind_ip_label(url, label):
         DNS_WAITING_LABELS[host].append(label)
     except: pass
 
-# ================= 获取国旗  =====================
+# ================= 获取国旗 (升级版：支持中文反向匹配) =================
 def get_flag_for_country(country_name):
+    if not country_name: return "🏳️ 未知"
+    
+    # 1. 正向匹配：检查 Key (例如 API返回 'Singapore', Key 有 'Singapore')
     for k, v in AUTO_COUNTRY_MAP.items():
-        if k in country_name:
+        if k.upper() == country_name.upper() or k in country_name:
             return v 
+    
+    # 2. ✨✨✨ 反向匹配：检查 Value (解决中文匹配问题) ✨✨✨
+    # API返回 '新加坡'，虽然 Key 里没有，但 Value '🇸🇬 新加坡' 里包含它！
+    for v in AUTO_COUNTRY_MAP.values():
+        if country_name in v:
+            return v
+
+    # 3. 实在找不到，返回白旗
     return f"🏳️ {country_name}"
 
 # ✨✨✨ [逻辑修正] 自动给名称添加国旗 ✨✨✨
@@ -300,67 +312,111 @@ def open_global_settings_dialog():
         key_input = ui.textarea(placeholder='-----BEGIN OPENSSH PRIVATE KEY-----', value=load_global_key()).classes('w-full h-64 font-mono text-xs').props('outlined')
         ui.button('保存全局密钥', on_click=lambda: [save_global_key(key_input.value), d.close(), safe_notify('全局密钥已保存', 'positive')]).classes('w-full bg-slate-900 text-white')
     d.open()
-
-# ================= 探针安装脚本 =================
+    
+# ================= 全局变量区 (新增缓存) =================
+PROBE_DATA_CACHE = {} # ✨ 新增：全局探针数据缓存 {url: data_dict}
+# ================= 探针安装脚本 (回退稳定版：只读资源，极速安装) =================
 PROBE_INSTALL_SCRIPT = r"""
 bash -c '
-# 1. 智能判断 Root
-if [ "$(id -u)" -eq 0 ]; then
-    CMD_PREFIX=""
-else
-    if command -v sudo >/dev/null 2>&1; then
-        CMD_PREFIX="sudo -i"
-    else
-        echo "Root required"
-        exit 1
-    fi
+if [ "$(id -u)" -eq 0 ]; then CMD_PREFIX=""; else 
+  if command -v sudo >/dev/null 2>&1; then CMD_PREFIX="sudo -i"; else echo "Root required"; exit 1; fi
 fi
-
 $CMD_PREFIX bash -s << "EOF"
     export DEBIAN_FRONTEND=noninteractive
-    
-    # 2. 安装 Python3
     if ! command -v python3 >/dev/null 2>&1; then
-        if [ -f /etc/debian_version ]; then
-            apt-get update -y --allow-releaseinfo-change || true
-            apt-get install -y python3 || true
-        elif [ -f /etc/redhat-release ]; then
-            yum install -y python3 || true
-        elif [ -f /etc/alpine-release ]; then
-            apk add python3 || true
-        fi
+        if [ -f /etc/debian_version ]; then apt-get update -y && apt-get install -y python3;
+        elif [ -f /etc/redhat-release ]; then yum install -y python3;
+        elif [ -f /etc/alpine-release ]; then apk add python3; fi
     fi
 
-    # 3. 写入探针 (✨TOKEN 使用占位符，稍后动态替换✨)
     cat > /root/mini_probe.py << 'PYTHON_EOF'
-import http.server,json,subprocess,sys
-PORT=54322; TOKEN="__REPLACE_ME__"
+import http.server, json, subprocess, sys, os, time, socketserver
+
+PORT = 54322
+TOKEN = "__REPLACE_ME__"
+
+def get_cpu():
+    try:
+        with open("/proc/stat") as f: fields = [float(x) for x in f.readline().split()[1:5]]
+        t1, i1 = sum(fields), fields[3]
+        time.sleep(0.5)
+        with open("/proc/stat") as f: fields = [float(x) for x in f.readline().split()[1:5]]
+        t2, i2 = sum(fields), fields[3]
+        return round((1 - (i2-i1)/(t2-t1)) * 100, 1)
+    except: return 0.0
+
 class H(http.server.BaseHTTPRequestHandler):
- def do_GET(s):
-  if s.path!=f"/status?token={TOKEN}": s.send_response(403); s.end_headers(); return
-  try:
-   with open("/proc/loadavg") as f: l=f.read().split()[0]
-   with open("/proc/meminfo") as f: m=f.readlines(); mt=int(m[0].split()[1]); ma=int(m[2].split()[1]); mu=round((mt-ma)/mt*100,1)
-   try: d=int(subprocess.check_output(["df","-h","/"]).decode().split("\n")[1].split()[-2].strip("%"))
-   except: d=0
-   with open("/proc/uptime") as f: u=float(f.read().split()[0]); dy=int(u//86400); hr=int((u%86400)//3600)
-   dat={"status":"online","load":l,"mem":mu,"disk":d,"uptime":f"{dy}d {hr}h"}
-   s.send_response(200); s.send_header("Content-type","application/json"); s.end_headers(); s.wfile.write(json.dumps(dat).encode())
-  except: s.send_response(500)
- def log_message(s,f,*a): pass
-if __name__=="__main__":
- try: http.server.HTTPServer(("0.0.0.0",PORT),H).serve_forever()
- except: pass
+    def do_GET(s):
+        if s.path != "/status?token=" + TOKEN: 
+            s.send_response(403); s.end_headers(); return
+        try:
+            # 1. CPU
+            cpu_u = get_cpu()
+            try: cores = os.cpu_count() or 1
+            except: cores = 1
+
+            # 2. Load
+            try:
+                with open("/proc/loadavg") as f: l = float(f.read().split()[0])
+            except: l = 0.0
+
+            # 3. Memory
+            mem_u = 0; mem_t = 0
+            try:
+                with open("/proc/meminfo") as f: lines = f.readlines()
+                m = {}
+                for line in lines[:5]:
+                    parts = line.split()
+                    if len(parts) >= 2: m[parts[0].rstrip(":")] = int(parts[1])
+                total_kb = m.get("MemTotal", 1)
+                avail_kb = m.get("MemAvailable", m.get("MemFree", 0))
+                mem_u = round(((total_kb - avail_kb) / total_kb) * 100, 1)
+                mem_t = round(total_kb / 1024 / 1024, 2)
+            except: pass
+
+            # 4. Disk
+            disk_u = 0; disk_t = 0
+            try:
+                out = subprocess.check_output(["df", "-k", "/"]).decode().splitlines()[1].split()
+                total_kb = int(out[1])
+                disk_t = round(total_kb / 1024 / 1024, 2)
+                disk_u = int(out[-2].strip("%"))
+            except: pass
+
+            # 5. Uptime
+            uptime_str = "-"
+            try:
+                with open("/proc/uptime") as f: u = float(f.read().split()[0])
+                dy = int(u // 86400); hr = int((u % 86400) // 3600)
+                uptime_str = f"{dy}d {hr}h"
+            except: pass
+
+            data = {
+                "status": "online",
+                "load": l,
+                "cpu_usage": cpu_u, "cpu_cores": cores,
+                "mem_usage": mem_u, "mem_total": mem_t,
+                "disk_usage": disk_u, "disk_total": disk_t,
+                "uptime": uptime_str
+            }
+            s.send_response(200); s.send_header("Content-Type", "application/json"); s.end_headers()
+            s.wfile.write(json.dumps(data).encode())
+        except: s.send_response(500)
+    def log_message(s,f,*a): pass
+
+if __name__ == "__main__":
+    try: 
+        socketserver.TCPServer.allow_reuse_address = True
+        http.server.HTTPServer(("0.0.0.0", PORT), H).serve_forever()
+    except: pass
 PYTHON_EOF
 
-    # 4. 重启进程
     pkill -f mini_probe.py || true
     nohup python3 /root/mini_probe.py >/dev/null 2>&1 &
 
-    # 5. 防火墙
+    # 简单放行端口
     if command -v iptables >/dev/null; then iptables -I INPUT -p tcp --dport 54322 -j ACCEPT || true; fi
     if command -v ufw >/dev/null; then ufw allow 54322/tcp || true; fi
-    if command -v firewall-cmd >/dev/null; then firewall-cmd --zone=public --add-port=54322/tcp --permanent && firewall-cmd --reload || true; fi
     
     echo "Install sequence completed"
     exit 0
@@ -409,34 +465,52 @@ SERVERS_CACHE = []
 SUBS_CACHE = []
 NODES_DATA = {}
 ADMIN_CONFIG = {}
-# ================= 智能分组配置  =================
-# 移除了容易与单词冲突的2字母缩写 (如 CL 冲突 Oracle)
+# ================= 智能分组配置 (终极完整版) =================
 AUTO_COUNTRY_MAP = {
-    '🇭🇰': '🇭🇰 香港', 'HK': '🇭🇰 香港', '香港': '🇭🇰 香港',
-    '🇹🇼': '🇹🇼 台湾', 'TW': '🇹🇼 台湾', '台湾': '🇹🇼 台湾',
-    '🇯🇵': '🇯🇵 日本', 'JP': '🇯🇵 日本', '日本': '🇯🇵 日本',
-    '🇸🇬': '🇸🇬 新加坡', 'SG': '🇸🇬 新加坡', '新加坡': '🇸🇬 新加坡',
-    '🇺🇸': '🇺🇸 美国', '美国': '🇺🇸 美国', # 移除 US 防止冲突
-    '🇰🇷': '🇰🇷 韩国', 'KR': '🇰🇷 韩国', '首尔': '🇰🇷 韩国', '春川': '🇰🇷 韩国',
-    '🇬🇧': '🇬🇧 英国', 'UK': '🇬🇧 英国', '伦敦': '🇬🇧 英国',
-    '🇩🇪': '🇩🇪 德国', 'DE': '🇩🇪 德国', '法兰克福': '🇩🇪 德国',
-    '🇫🇷': '🇫🇷 法国', 'FR': '🇫🇷 法国', '巴黎': '🇫🇷 法国',
-    '🇦🇺': '🇦🇺 澳大利亚', 'AU': '🇦🇺 澳大利亚', '悉尼': '🇦🇺 澳大利亚',
-    '🇨🇦': '🇨🇦 加拿大', '加拿大': '🇨🇦 加拿大', # 移除 CA
-    '🇮🇳': '🇮🇳 印度', 'IN': '🇮🇳 印度', '海得拉巴': '🇮🇳 印度',
-    '🇮🇩': '🇮🇩 印尼', 'ID': '🇮🇩 印尼', '巴淡': '🇮🇩 印尼',
-    '🇧🇷': '🇧🇷 巴西', 'BR': '🇧🇷 巴西',
-    '🇳🇱': '🇳🇱 荷兰', 'NL': '🇳🇱 荷兰', '阿姆斯特丹': '🇳🇱 荷兰',
-    '🇸🇪': '🇸🇪 瑞典', 'SE': '🇸🇪 瑞典', '斯德哥尔摩': '🇸🇪 瑞典',
-    '🇨🇭': '🇨🇭 瑞士', 'CH': '🇨🇭 瑞士', '苏黎世': '🇨🇭 瑞士',
-    '🇦🇪': '🇦🇪 阿联酋', '迪拜': '🇦🇪 阿联酋', '阿布扎比': '🇦🇪 阿联酋',
-    '🇹🇷': '🇹🇷 土耳其', 'TR': '🇹🇷 土耳其',
-    '🇮🇹': '🇮🇹 意大利', 'IT': '🇮🇹 意大利', '米兰': '🇮🇹 意大利',
-    '🇨🇱': '🇨🇱 智利', '智利': '🇨🇱 智利', # 移除 CL (冲突 Oracle)
-    '🇪🇸': '🇪🇸 西班牙', 'ES': '🇪🇸 西班牙', '马德里': '🇪🇸 西班牙',
-    '🇲🇽': '🇲🇽 墨西哥', 'MX': '🇲🇽 墨西哥',
-    '🇮🇱': '🇮🇱 以色列', 'IL': '🇮🇱 以色列',
-    '🇷🇺': '🇷🇺 俄罗斯', 'RU': '🇷🇺 俄罗斯',
+    # --- 亚太地区 ---
+    '🇨🇳': '🇨🇳 中国', 'China': '🇨🇳 中国', '中国': '🇨🇳 中国', 'CN': '🇨🇳 中国',
+    '🇭🇰': '🇭🇰 香港', 'HK': '🇭🇰 香港', 'Hong Kong': '🇭🇰 香港',
+    '🇹🇼': '🇹🇼 台湾', 'TW': '🇹🇼 台湾', 'Taiwan': '🇹🇼 台湾',
+    '🇯🇵': '🇯🇵 日本', 'JP': '🇯🇵 日本', 'Japan': '🇯🇵 日本', 'Tokyo': '🇯🇵 日本', 'Osaka': '🇯🇵 日本',
+    '🇸🇬': '🇸🇬 新加坡', 'SG': '🇸🇬 新加坡', 'Singapore': '🇸🇬 新加坡',
+    '🇰🇷': '🇰🇷 韩国', 'KR': '🇰🇷 韩国', 'Korea': '🇰🇷 韩国', 'Seoul': '🇰🇷 韩国', 'Chuncheon': '🇰🇷 韩国',
+    '🇮🇳': '🇮🇳 印度', 'IN': '🇮🇳 印度', 'India': '🇮🇳 印度', 'Mumbai': '🇮🇳 印度', 'Hyderabad': '🇮🇳 印度',
+    '🇮🇩': '🇮🇩 印尼', 'ID': '🇮🇩 印尼', 'Indonesia': '🇮🇩 印尼', 'Jakarta': '🇮🇩 印尼',
+    '🇲🇾': '🇲🇾 马来西亚', 'MY': '🇲🇾 马来西亚', 'Malaysia': '🇲🇾 马来西亚',
+    '🇹🇭': '🇹🇭 泰国', 'TH': '🇹🇭 泰国', 'Thailand': '🇹🇭 泰国', 'Bangkok': '🇹🇭 泰国',
+    '🇻🇳': '🇻🇳 越南', 'VN': '🇻🇳 越南', 'Vietnam': '🇻🇳 越南',
+    '🇵🇭': '🇵🇭 菲律宾', 'PH': '🇵🇭 菲律宾', 'Philippines': '🇵🇭 菲律宾',
+    '🇦🇺': '🇦🇺 澳大利亚', 'AU': '🇦🇺 澳大利亚', 'Australia': '🇦🇺 澳大利亚', 'Sydney': '🇦🇺 澳大利亚', 'Melbourne': '🇦🇺 澳大利亚',
+
+    # --- 北美地区 ---
+    '🇺🇸': '🇺🇸 美国', 'USA': '🇺🇸 美国', 'United States': '🇺🇸 美国', 'America': '🇺🇸 美国',
+    '🇨🇦': '🇨🇦 加拿大', 'CA': '🇨🇦 加拿大', 'Canada': '🇨🇦 加拿大', 'Toronto': '🇨🇦 加拿大', 'Montreal': '🇨🇦 加拿大',
+    '🇲🇽': '🇲🇽 墨西哥', 'MX': '🇲🇽 墨西哥', 'Mexico': '🇲🇽 墨西哥', 'Queretaro': '🇲🇽 墨西哥',
+
+    # --- 南美地区 ---
+    '🇧🇷': '🇧🇷 巴西', 'BR': '🇧🇷 巴西', 'Brazil': '🇧🇷 巴西', 'Sao Paulo': '🇧🇷 巴西',
+    '🇨🇱': '🇨🇱 智利', 'CL': '🇨🇱 智利', 'Chile': '🇨🇱 智利', 'Santiago': '🇨🇱 智利',
+    '🇦🇷': '🇦🇷 阿根廷', 'AR': '🇦🇷 阿根廷', 'Argentina': '🇦🇷 阿根廷',
+
+    # --- 欧洲地区 ---
+    '🇬🇧': '🇬🇧 英国', 'UK': '🇬🇧 英国', 'United Kingdom': '🇬🇧 英国', 'London': '🇬🇧 英国',
+    '🇩🇪': '🇩🇪 德国', 'DE': '🇩🇪 德国', 'Germany': '🇩🇪 德国', 'Frankfurt': '🇩🇪 德国',
+    '🇫🇷': '🇫🇷 法国', 'FR': '🇫🇷 法国', 'France': '🇫🇷 法国', 'Paris': '🇫🇷 法国', 'Marseille': '🇫🇷 法国',
+    '🇳🇱': '🇳🇱 荷兰', 'NL': '🇳🇱 荷兰', 'Netherlands': '🇳🇱 荷兰', 'Amsterdam': '🇳🇱 荷兰',
+    '🇷🇺': '🇷🇺 俄罗斯', 'RU': '🇷🇺 俄罗斯', 'Russia': '🇷🇺 俄罗斯', 'Moscow': '🇷🇺 俄罗斯',
+    '🇮🇹': '🇮🇹 意大利', 'IT': '🇮🇹 意大利', 'Italy': '🇮🇹 意大利', 'Milan': '🇮🇹 意大利',
+    '🇪🇸': '🇪🇸 西班牙', 'ES': '🇪🇸 西班牙', 'Spain': '🇪🇸 西班牙', 'Madrid': '🇪🇸 西班牙',
+    '🇸🇪': '🇸🇪 瑞典', 'SE': '🇸🇪 瑞典', 'Sweden': '🇸🇪 瑞典', 'Stockholm': '🇸🇪 瑞典',
+    '🇨🇭': '🇨🇭 瑞士', 'CH': '🇨🇭 瑞士', 'Switzerland': '🇨🇭 瑞士', 'Zurich': '🇨🇭 瑞士',
+    '🇵🇱': '🇵🇱 波兰', 'PL': '🇵🇱 波兰', 'Poland': '🇵🇱 波兰', 'Warsaw': '🇵🇱 波兰',
+    '🇮🇪': '🇮🇪 爱尔兰', 'IE': '🇮🇪 爱尔兰', 'Ireland': '🇮🇪 爱尔兰',
+
+    # --- 中东与非洲 ---
+    '🇦🇪': '🇦🇪 阿联酋', 'AE': '🇦🇪 阿联酋', 'UAE': '🇦🇪 阿联酋', 'Dubai': '🇦🇪 阿联酋',
+    '🇹🇷': '🇹🇷 土耳其', 'TR': '🇹🇷 土耳其', 'Turkey': '🇹🇷 土耳其', 'Istanbul': '🇹🇷 土耳其',
+    '🇮🇱': '🇮🇱 以色列', 'IL': '🇮🇱 以色列', 'Israel': '🇮🇱 以色列', 'Jerusalem': '🇮🇱 以色列',
+    '🇿🇦': '🇿🇦 南非', 'ZA': '🇿🇦 南非', 'South Africa': '🇿🇦 南非', 'Johannesburg': '🇿🇦 南非',
+    '🇸🇦': '🇸🇦 沙特', 'SA': '🇸🇦 沙特', 'Saudi Arabia': '🇸🇦 沙特',
 }
 
 def detect_country_group(name, server_config=None):
@@ -1081,61 +1155,78 @@ async def silent_refresh_all(is_auto_trigger=False):
         await load_dashboard_stats() 
     except: pass
 
-    
-# =================  单台安装探针 =================   
+ 
+# =================  单台安装探针 (智能跳过 + 30秒超时 + 稳定版) =================
 async def install_probe_on_server(server_conf):
-    """给单个服务器安装探针 (智能宽容版)"""
+    """给单个服务器安装探针"""
     name = server_conf.get('name', 'Unknown')
     
-    # 获取动态 Token 并替换脚本中的占位符
+    # --- 1. ✨ 智能预检：如果没填 SSH 信息，直接跳过，不报错 ---
+    auth_type = server_conf.get('ssh_auth_type', '全局密钥')
+    ssh_pwd = server_conf.get('ssh_password', '').strip()
+    ssh_key = server_conf.get('ssh_key', '').strip()
+    
+    # 情况 A: 选了独立密码，但没填 -> 跳过
+    if auth_type == '独立密码' and not ssh_pwd:
+        logger.info(f"⏭️ [AutoInstall] {name} (纯面板模式) 跳过探针安装")
+        return False
+
+    # 情况 B: 选了独立密钥，但没填 -> 跳过
+    if auth_type == '独立密钥' and not ssh_key:
+        logger.info(f"⏭️ [AutoInstall] {name} (无私钥) 跳过探针安装")
+        return False
+        
+    # 情况 C: 选了全局密钥，但全局文件为空 -> 跳过 (静默)
+    if auth_type == '全局密钥' and not load_global_key().strip():
+        return False
+    # -----------------------------------------------------
+
+    # 2. 准备脚本与 Token
     my_token = ADMIN_CONFIG.get('probe_token', 'default_token')
     real_script = PROBE_INSTALL_SCRIPT.replace("__REPLACE_ME__", my_token)
     
+    # 3. 定义实际执行的同步函数
     def _do_install():
         client = None
         try:
-            client, msg = get_ssh_client(server_conf)
+            # 建立 SSH 连接
+            client, msg = get_ssh_client_sync(server_conf)
             if not client: return False, f"连接失败: {msg}"
             
-            # 执行安装 (300秒超时)
-            stdin, stdout, stderr = client.exec_command(real_script, timeout=300)
+            # ✨ 关键优化：执行命令设置 30秒 超时
+            # 如果服务器卡顿超过 30秒，直接断开，把机会让给下一个
+            stdin, stdout, stderr = client.exec_command(real_script, timeout=30)
             
-            # 获取结果
+            # 获取退出状态
             exit_status = stdout.channel.recv_exit_status() 
             out_log = stdout.read().decode('utf-8', errors='ignore').strip()
-            err_log = stderr.read().decode('utf-8', errors='ignore').strip()
             
-            client.close()
-            
-            # ✨✨✨ 核心修改：判定逻辑升级 ✨✨✨
-            # 只要看到 "Install sequence completed"，无论 Exit Code 是多少，都算成功！
-            if "Install sequence completed" in out_log:
-                return True, "安装成功 (日志确认)"
-            
-            if exit_status == 0:
+            # 判断成功标志
+            if "Install sequence completed" in out_log or exit_status == 0:
                 return True, "安装成功"
-            elif exit_status == -1 and ("Skipping" in out_log or "rule" in out_log or "allow" in out_log):
-                return True, "安装成功 (连接重置)"
-            else:
-                debug_info = f"Exit Code: {exit_status}\n[STDERR]: {err_log}\n[STDOUT]: {out_log}"
-                return False, debug_info
-                
+            
+            return False, f"未完成 (Exit {exit_status})"
+            
         except Exception as e:
-            return False, f"执行异常: {str(e)}"
+            return False, f"超时或异常: {str(e)}"
         finally:
-            if client: 
+            if client:
                 try: client.close()
                 except: pass
 
+    # 4. 在后台线程池执行 (不阻塞主界面)
     success, msg = await run.io_bound(_do_install)
+    
     if success:
         logger.info(f"✅ [AutoInstall] {name} 安装成功")
     else:
-        logger.error(f"❌ [AutoInstall] {name} 安装失败:\n{msg}")
+        # 失败使用 warning 级别，避免红色的 ERROR 刷屏吓人
+        logger.warning(f"⚠️ [AutoInstall] {name} 跳过/失败: {msg}")
         
     return success
+        
 
-# =================  批量安装所有探针 =================
+# ================= 批量安装所有探针 (优化版：带并发控制) =================
 async def batch_install_all_probes():
     if not SERVERS_CACHE:
         safe_notify("没有服务器可安装", "warning")
@@ -1143,58 +1234,68 @@ async def batch_install_all_probes():
 
     safe_notify(f"正在后台为 {len(SERVERS_CACHE)} 台服务器安装/更新探针...", "ongoing")
     
-    # 创建所有安装任务
-    tasks = []
-    for s in SERVERS_CACHE:
-        tasks.append(install_probe_on_server(s))
+    # ✨ 限制并发数：同时只允许 10 台服务器进行 SSH 连接，防止卡死
+    sema = asyncio.Semaphore(10)
+
+    async def _worker(server_conf):
+        name = server_conf.get('name', 'Unknown')
+        async with sema:
+            # 1. 打印开始日志
+            logger.info(f"🚀 [AutoInstall] {name} 开始安装...")
+            
+            # 2. 执行安装 (复用已有的单台安装函数)
+            success = await install_probe_on_server(server_conf)
+            
+            # 3. 这里的日志会在 install_probe_on_server 内部打印，或者我们可以补充
+            # (原函数 install_probe_on_server 内部已经有成功/失败的日志了)
+
+    # 创建任务列表
+    tasks = [_worker(s) for s in SERVERS_CACHE]
     
-    # 并发执行所有任务 (不阻塞主界面)
+    # 并发执行
     if tasks:
         await asyncio.gather(*tasks)
     
     safe_notify("✅ 所有探针安装/更新任务已完成", "positive")
-
-# ================= 探针核心逻辑 (强制直连版：解决 Docker 代理干扰) =================
+    
+# ================= [修改] 获取服务器状态 (带缓存 + 移除OS) =================
 async def get_server_status(server_conf):
-    """
-    仅通过 HTTP 探针获取状态。
-    关键点：强制不走系统代理 (proxies=None)，防止 Docker 环境变量导致连接失败。
-    """
+    """仅通过 HTTP 探针获取状态 (写入全局缓存版)"""
     def _try_http_probe():
         try:
-            # 提取主机名/IP
             raw = server_conf['url']
             host = raw.split('://')[-1].split(':')[0]
+            token = ADMIN_CONFIG.get('probe_token', '')
+            target_url = f"http://{host}:54322/status?token={token}"
             
-            # ✨✨✨ [新增] 获取动态 Token ✨✨✨
-            my_token = ADMIN_CONFIG.get('probe_token', 'default_token')
-            
-            # 构造请求 (3秒超时)
-            target_url = f"http://{host}:54322/status?token={my_token}"
-            
-            # ✨✨✨ 核心修复：proxies={"http": None, "https": None} ✨✨✨
-            # 这句代码的意思是：无视系统代理，必须直连！
             with requests.get(target_url, timeout=3, proxies={"http": None, "https": None}) as r:
                 if r.status_code == 200:
                     data = r.json()
-                    return {
-                        'status': 'online',
-                        'load': data.get('load', 0),
-                        'mem': data.get('mem', 0),
-                        'disk': data.get('disk', 0),
-                        'uptime': data.get('uptime', '')
-                    }
-        except:
-            return None 
+                    
+                    data['cpu_usage'] = float(data.get('cpu_usage', 0))
+                    data['mem_usage'] = float(data.get('mem_usage', 0))
+                    data['disk_usage'] = float(data.get('disk_usage', 0))
+                    data['load_1'] = data.get('load', 0)
+                    
+                    data.setdefault('cpu_cores', 1)
+                    data.setdefault('mem_total', 0)
+                    data.setdefault('disk_total', 0)
+                    
+                    up_str = str(data.get('uptime', ''))
+                    up_str = up_str.replace('d', '天').replace('h', '时').replace('m', '分')
+                    data['uptime'] = up_str
+                    
+                    # ✨ 依然写入缓存，保证秒开
+                    PROBE_DATA_CACHE[raw] = data
+                    
+                    return data
+        except: pass
+        return None 
 
-    # 在后台线程执行
     http_result = await run.io_bound(_try_http_probe)
-    
-    if http_result: 
-        return http_result
-    
-    # ❌ 如果直连也失败，才报离线
+    if http_result: return http_result
     return {'status': 'offline', 'msg': '探针未连接'}
+
 
 # ================= 使用 URL 安全的 Base64 =================
 def safe_base64(s): 
@@ -1527,6 +1628,148 @@ async def short_sub_handler(target: str, token: str):
         else:
             return Response(f"Backend Error: {response.status_code if response else 'Timeout'}", status_code=502)
     except Exception as e: return Response(f"Error: {str(e)}", status_code=500)
+
+
+
+# ================= 探针主动注册接口 (新增) =================
+# ================= 探针主动注册接口 (修正版：去除自动注册组) =================
+@app.post('/api/probe/register')
+async def probe_register(request: Request):
+    try:
+        data = await request.json()
+        
+        # 1. 安全校验
+        submitted_token = data.get('token')
+        correct_token = ADMIN_CONFIG.get('probe_token')
+        
+        if not submitted_token or submitted_token != correct_token:
+            return Response(json.dumps({"success": False, "msg": "Token 错误"}), status_code=403)
+
+        # 2. 获取客户端 IP
+        client_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
+        
+        # 3. 查重逻辑
+        for s in SERVERS_CACHE:
+            if client_ip in s['url']:
+                return Response(json.dumps({"success": True, "msg": "已存在"}), status_code=200)
+
+        # 4. 构建新服务器
+        new_server = {
+            'name': f"🏳️ {client_ip}",  # 初始白旗
+            'group': '',                 # ✨✨✨ 重点修改：留空！不要写"自动注册" ✨✨✨
+            'url': f"http://{client_ip}:54322",
+            'user': 'probe',
+            'pass': 'probe',
+            'ssh_auth_type': '全局密钥',
+            '_status': 'online'
+        }
+        
+        # 5. 保存数据
+        SERVERS_CACHE.append(new_server)
+        await save_servers()
+        
+        # 6. 立即触发极速修正 (查 IP 变国旗)
+        asyncio.create_task(fast_resolve_single_server(new_server))
+        
+        # 7. 刷新 UI
+        await refresh_dashboard_ui()
+        try: render_sidebar_content.refresh()
+        except: pass
+        
+        logger.info(f"✨ [主动注册] 新服务器上线: {client_ip} (等待 GeoIP 修正...)")
+        return Response(json.dumps({"success": True, "msg": "注册成功"}), status_code=200)
+
+    except Exception as e:
+        logger.error(f"❌ 注册接口异常: {e}")
+        return Response(json.dumps({"success": False, "msg": str(e)}), status_code=500)
+        
+# ================= 辅助：单机极速修正 (修复重复国旗问题) =================
+async def fast_resolve_single_server(s):
+    """
+    后台全自动修正流程：
+    1. 尝试连接面板，读取第一个节点的备注名 (Smart Name)
+    2. 尝试查询 IP 归属地，获取国旗 (GeoIP)
+    3. 自动组合名字 (防止国旗重复)
+    4. 自动归类分组
+    """
+    await asyncio.sleep(1.5) # 稍微错峰
+    
+    raw_ip = s['url'].split('://')[-1].split(':')[0]
+    logger.info(f"🔍 [智能修正] 正在处理: {raw_ip} ...")
+    
+    data_changed = False
+    
+    try:
+        # --- 步骤 1: 尝试从面板获取真实备注 ---
+        # 只有当名字看起来像默认 IP (或带白旗的IP) 时，才去面板读取
+        # 这样防止覆盖用户手动修改过的名字
+        current_pure_name = s['name'].replace('🏳️', '').strip()
+        
+        if current_pure_name == raw_ip:
+            try:
+                smart_name = await generate_smart_name(s)
+                # 如果获取到了有效名字 (不是 IP，也不是默认的 Server-X)
+                if smart_name and smart_name != raw_ip and not smart_name.startswith('Server-'):
+                    s['name'] = smart_name
+                    data_changed = True
+                    logger.info(f"🏷️ [获取备注] 成功: {smart_name}")
+            except Exception as e:
+                logger.warning(f"⚠️ [获取备注] 失败: {e}")
+
+        # --- 步骤 2: 查 IP 归属地并修正国旗/分组 ---
+        geo = await run.io_bound(fetch_geo_from_ip, s['url'])
+        
+        if geo:
+            # geo: (lat, lon, "CountryName")
+            country_name = geo[2]
+            s['lat'] = geo[0]; s['lon'] = geo[1]; s['_detected_region'] = country_name
+            
+            # 获取正确的国旗
+            flag_group = get_flag_for_country(country_name)
+            flag_icon = flag_group.split(' ')[0] # 提取 "🇸🇬"
+            
+            # ✨✨✨ [核心修复] 国旗防重复逻辑 ✨✨✨
+            # 1. 先把白旗去掉，拿到干净的名字
+            temp_name = s['name'].replace('🏳️', '').strip()
+            
+            # 2. 检查名字里是否已经包含了正确的国旗 (无论在什么位置)
+            if flag_icon in temp_name:
+                # 如果包含了 (例如 "微软云|🇸🇬新加坡")，我们只更新去掉白旗后的样子
+                # 绝不强行加前缀
+                if s['name'] != temp_name:
+                    s['name'] = temp_name
+                    data_changed = True
+            else:
+                # 3. 如果完全没包含，才加到最前面
+                s['name'] = f"{flag_icon} {temp_name}"
+                data_changed = True
+
+            # --- 步骤 3: 强制自动分组 ---
+            target_group = flag_group 
+            
+            # 尝试在配置里找精确匹配
+            for k, v in AUTO_COUNTRY_MAP.items():
+                if flag_icon in k or flag_icon in v:
+                    target_group = v
+                    break
+            
+            if s.get('group') != target_group:
+                s['group'] = target_group
+                data_changed = True
+                
+        else:
+            logger.warning(f"⚠️ [GeoIP] 未获取到地理位置: {raw_ip}")
+
+        # --- 步骤 4: 保存变更 ---
+        if data_changed:
+            await save_servers()
+            await refresh_dashboard_ui()
+            try: render_sidebar_content.refresh()
+            except: pass
+            logger.info(f"✅ [智能修正] 完毕: {s['name']} -> [{s['group']}]")
+            
+    except Exception as e:
+        logger.error(f"❌ [智能修正] 严重错误: {e}")
     
 # ================= 自动注册接口 (带鉴权) =================
 @app.post('/api/auto_register_node')
@@ -2020,7 +2263,7 @@ class SubEditor:
         
         self.groups_data = {}
         self.all_node_keys = set()
-
+        
         for i, srv in enumerate(SERVERS_CACHE):
             nodes = results[i]
             if not nodes or isinstance(nodes, Exception): nodes = NODES_DATA.get(srv['url'], [])
@@ -2074,110 +2317,275 @@ class SubEditor:
 
 def open_sub_editor(d):
     with ui.dialog() as dlg: SubEditor(d).ui(dlg); dlg.open()
-
-
-# ================= 探针页面渲染 (60秒刷新版) =================
+    
+# ================= 探针页面渲染 (最终完整版：GitHub短命令 + 自动注册 + 秒开缓存) =================
 async def render_probe_page():
     global CURRENT_VIEW_STATE
     CURRENT_VIEW_STATE['scope'] = 'PROBE'
-    CURRENT_VIEW_STATE['data'] = None
-
     content_container.clear()
     
-    # 检查是否已开启探针功能 (默认为 False)
-    is_probe_enabled = ADMIN_CONFIG.get('probe_enabled', False)
-    
-    # 如果没开启，显示空状态 + 弹窗引导
-    if not is_probe_enabled:
+    # 1. 检查功能是否启用
+    if not ADMIN_CONFIG.get('probe_enabled', False):
         with content_container:
             with ui.column().classes('w-full h-[60vh] justify-center items-center opacity-50'):
-                ui.icon('monitor_heart', size='6rem', color='grey-4')
                 ui.label('探针功能未初始化').classes('text-2xl font-bold text-gray-400')
-
-            with ui.dialog() as d, ui.card().classes('w-full max-w-md p-6'):
-                with ui.column().classes('w-full items-center gap-4'):
-                    ui.icon('rocket_launch', size='4rem').classes('text-blue-500 animate-bounce')
-                    ui.label('开启实时监控系统').classes('text-xl font-bold text-slate-800')
-                    ui.label('为了实现秒级监控，系统将自动为您的服务器配置轻量级探针。').classes('text-sm text-gray-500 text-center')
-                    ui.label('是否立即开始配置？').classes('text-sm font-bold text-slate-700 mt-2')
-                    
-                    with ui.row().classes('w-full gap-4 mt-2'):
-                        ui.button('暂不开启', on_click=lambda: [d.close(), ui.navigate.to('/')]).props('flat color=grey').classes('flex-1')
-                        async def confirm_enable():
-                            d.close()
-                            ADMIN_CONFIG['probe_enabled'] = True
-                            await save_admin_config()
-                            await render_probe_page()
-                            await batch_install_all_probes()
-                        ui.button('确认并安装', on_click=confirm_enable).props('unelevated color=blue').classes('flex-1 shadow-lg')
-            d.open()
+                ui.button('初始化并重装', on_click=lambda: open_global_settings_dialog()).props('outline')
         return
 
-    # === 正常渲染逻辑 ===
-    global card_refs 
-    card_refs = {}
+    monitor_refs = {}
+
+    # --- UI 辅助函数 ---
+    def create_progress_row(label, color_class, initial_val=0):
+        with ui.row().classes('w-full items-center gap-2 mb-1'):
+            ui.label(label).classes('text-xs font-bold text-gray-500 w-8')
+            with ui.element('div').classes('flex-grow h-2 bg-gray-200 rounded-full overflow-hidden relative'):
+                bar = ui.element('div').classes(f'h-full {color_class} transition-all duration-500').style(f'width: {initial_val}%')
+            val = ui.label(f'{int(initial_val)}%').classes('text-xs font-mono font-bold text-gray-600 w-10 text-right')
+        return bar, val
+
+    def create_stat_block(label, value_ref_key, refs_dict, initial_text='--'):
+        with ui.column().classes('items-center gap-0 flex-1'):
+            ui.label(label).classes('text-[10px] text-gray-400 transform scale-90')
+            refs_dict[value_ref_key] = ui.label(initial_text).classes('text-xs font-bold text-slate-700')
 
     with content_container:
         # --- 顶部标题栏 ---
-        with ui.row().classes('w-full items-center justify-between mb-4'):
+        with ui.row().classes('w-full items-center justify-between mb-4 px-2'):
+            # 左侧标题
             with ui.row().classes('items-center gap-2'):
                 ui.icon('dns', color='primary').classes('text-2xl')
-                ui.label('服务器监控墙 (Live Status)').classes('text-2xl font-bold text-slate-800')
-                ui.badge(f'{len(SERVERS_CACHE)} 台', color='blue').props('outline')
+                ui.label('实时监控墙').classes('text-2xl font-bold text-slate-800 tracking-tight')
+                ui.element('div').classes('w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_#22c55e] animate-pulse')
             
-            # 手动刷新按钮 (is_manual=True 会有弹窗提示)
-            ui.button('刷新状态', icon='refresh', on_click=lambda: update_probe_stats(card_refs, is_manual=True)).props('color=primary unelevated')
+            # 右侧按钮组
+            with ui.row().classes('items-center gap-2'):
+                
+                # --- 功能 A: 复制极简 GitHub 安装命令 ---
+                async def copy_auto_register_cmd():
+                    try:
+                        # 1. 动态获取面板地址
+                        origin = await ui.run_javascript('return window.location.origin', timeout=3.0)
+                    except:
+                        safe_notify("无法获取面板地址，请检查浏览器环境", "negative")
+                        return
 
-        # --- 卡片网格 ---
-        with ui.grid().classes('w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'):
-            sorted_servers = sorted(SERVERS_CACHE, key=lambda x: smart_sort_key(x))
+                    # 2. 准备参数
+                    token = ADMIN_CONFIG.get('probe_token', 'default_token')
+                    register_api = f"{origin}/api/probe/register"
+                    
+                    # 3. 你的 GitHub 脚本 Raw 地址
+                    github_script_url = "https://raw.githubusercontent.com/SIJULY/x-fusion-panel/main/x-install.sh"
+                    
+                    # 4. 生成短命令 (curl 下载 | bash 执行，带参数)
+                    cmd = f'curl -sL {github_script_url} | bash -s -- "{token}" "{register_api}"'
+                    
+                    # 5. 复制
+                    await safe_copy_to_clipboard(cmd)
+                    safe_notify("📋 极简安装命令已复制！", "positive")
+
+                # --- 功能 B: 重置所有探针 (后台批量安装) ---
+                async def reinstall_all_btn():
+                    safe_notify("正在后台为所有服务器重置探针...", "ongoing")
+                    await batch_install_all_probes()
+
+                # --- 渲染按钮 ---
+                # 1. 复制单机命令 (蓝色)
+                ui.button('复制单机命令', icon='content_copy', on_click=copy_auto_register_cmd).props('flat dense color=blue-6').tooltip('复制 GitHub 极简安装脚本')
+                
+                # 2. 重置所有探针 (橙色)
+                ui.button('重置所有探针', icon='restart_alt', on_click=reinstall_all_btn).props('flat dense color=orange').tooltip('为列表内所有服务器重新安装探针')
+                
+                # 3. 刷新页面 (灰色)
+                ui.button(icon='refresh', on_click=lambda: manual_refresh()).props('flat round dense color=grey').tooltip('刷新状态')
+
+        # --- 渲染卡片网格 (带缓存秒开逻辑) ---
+        with ui.grid().classes('w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10'):
+            sorted_servers = sorted(SERVERS_CACHE, key=lambda x: (x.get('_status') != 'online', smart_sort_key(x)))
+
             for s in sorted_servers:
                 url = s['url']
-                refs = {} 
-                with ui.card().classes('w-full p-3 shadow-sm hover:shadow-md transition border border-gray-200 bg-white gap-1'):
-                    # 1. 头部
-                    with ui.row().classes('w-full justify-between items-center mb-2 border-b border-gray-100 pb-2'):
-                        with ui.row().classes('items-center gap-2 overflow-hidden'):
+                refs = {}
+                
+                # 优先读取缓存实现秒开
+                cache = PROBE_DATA_CACHE.get(url, {})
+                has_cache = bool(cache)
+                
+                card = ui.card().classes('w-full p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300 flex flex-col gap-3 relative overflow-hidden')
+                
+                with card:
+                    # 1. 标题行
+                    with ui.row().classes('w-full justify-between items-start'):
+                        with ui.row().classes('items-center gap-2'):
                             flag = "🏳️"
                             try: flag = detect_country_group(s['name']).split(' ')[0]
                             except: pass
-                            ui.label(flag).classes('text-lg')
-                            ui.label(s['name']).classes('font-bold text-slate-700 truncate text-sm')
-                        refs['badge'] = ui.badge('Wait', color='grey').classes('text-xs')
+                            ui.label(flag).classes('text-2xl filter drop-shadow-sm')
+                            with ui.column().classes('gap-0'):
+                                ui.label(s['name']).classes('font-bold text-slate-700 text-sm leading-tight line-clamp-1')
+                                ip_disp = get_real_ip_display(s['url'])
+                                refs['ip_label'] = ui.label(ip_disp).classes('text-[10px] text-gray-400 font-mono')
+                                bind_ip_label(s['url'], refs['ip_label'])
+                        
+                        init_status = '运行中' if has_cache and cache.get('status')=='online' else '连接中...'
+                        init_cls = 'bg-green-100 text-green-600' if has_cache and cache.get('status')=='online' else 'bg-gray-100 text-gray-500'
+                        refs['status_badge'] = ui.label(init_status).classes(f'text-[10px] px-2 py-0.5 rounded-full font-bold {init_cls}')
 
-                    # 2. 系统
-                    with ui.row().classes('w-full justify-between text-xs text-gray-400 mb-2'):
+                    # (已移除 OS/Port 显示行，保持清爽)
+                    ui.separator().classes('opacity-50')
+
+                    # 2. 硬件数据
+                    c_cores = f"{cache.get('cpu_cores', '-')} Cores" if has_cache else '-- Cores'
+                    c_mem = f"{cache.get('mem_total', '-')} GB" if has_cache else '-- GB'
+                    c_disk = f"{cache.get('disk_total', '-')} GB" if has_cache else '-- GB'
+
+                    with ui.row().classes('w-full justify-between items-center px-1'):
                         with ui.row().classes('items-center gap-1'):
-                            ui.icon('terminal', size='xs'); refs['os'] = ui.label('Linux')
+                            ui.icon('memory', size='xs').classes('text-blue-400')
+                            refs['cpu_cores'] = ui.label(c_cores).classes('text-xs font-bold text-slate-600')
                         with ui.row().classes('items-center gap-1'):
-                            ui.icon('schedule', size='xs'); refs['uptime'] = ui.label('--')
+                            ui.icon('storage', size='xs').classes('text-green-500')
+                            refs['mem_total'] = ui.label(c_mem).classes('text-xs font-bold text-slate-600')
+                        with ui.row().classes('items-center gap-1'):
+                            ui.icon('hard_drive', size='xs').classes('text-purple-500')
+                            refs['disk_total'] = ui.label(c_disk).classes('text-xs font-bold text-slate-600')
 
                     # 3. 进度条
-                    with ui.row().classes('w-full items-center gap-2 text-xs mb-1'):
-                        ui.label('CPU').classes('w-8 font-bold text-slate-500')
-                        refs['cpu_bar'] = ui.linear_progress(0, size='6px', color='blue').classes('flex-grow rounded')
-                        refs['cpu_val'] = ui.label('0%').classes('w-8 text-right font-mono')
-                    with ui.row().classes('w-full items-center gap-2 text-xs mb-1'):
-                        ui.label('MEM').classes('w-8 font-bold text-slate-500')
-                        refs['mem_bar'] = ui.linear_progress(0, size='6px', color='green').classes('flex-grow rounded')
-                        refs['mem_val'] = ui.label('0%').classes('w-8 text-right font-mono')
-                    with ui.row().classes('w-full items-center gap-2 text-xs mb-1'):
-                        ui.label('DSK').classes('w-8 font-bold text-slate-500')
-                        refs['disk_bar'] = ui.linear_progress(0, size='6px', color='purple').classes('flex-grow rounded')
-                        refs['disk_val'] = ui.label('0%').classes('w-8 text-right font-mono')
+                    with ui.column().classes('w-full gap-2 mt-1'):
+                        bar_cpu, val_cpu = create_progress_row('CPU', 'bg-blue-500', cache.get('cpu_usage', 0) if has_cache else 0)
+                        refs['cpu_bar'] = bar_cpu; refs['cpu_val'] = val_cpu
+                        
+                        bar_mem, val_mem = create_progress_row('内存', 'bg-indigo-500', cache.get('mem_usage', 0) if has_cache else 0)
+                        refs['mem_bar'] = bar_mem; refs['mem_val'] = val_mem
+                        
+                        bar_disk, val_disk = create_progress_row('硬盘', 'bg-indigo-500', cache.get('disk_usage', 0) if has_cache else 0)
+                        refs['disk_bar'] = bar_disk; refs['disk_val'] = val_disk
 
-                    # 4. 负载
-                    with ui.row().classes('w-full justify-between items-center mt-2 pt-2 border-t border-dashed border-gray-100'):
-                        ui.label('Load Avg').classes('text-[10px] text-gray-400 font-bold')
-                        refs['load'] = ui.label('- / - / -').classes('text-[10px] text-slate-600 font-mono bg-slate-100 px-1 rounded')
+                    ui.separator().classes('opacity-50')
 
-                card_refs[url] = refs
+                    # 4. 底部统计
+                    with ui.row().classes('w-full justify-between items-center bg-gray-50/50 p-2 rounded-lg'):
+                        create_stat_block('负载 (1m)', 'load_val', refs, str(cache.get('load_1', 0)) if has_cache else '--')
+                        ui.element('div').classes('w-px h-6 bg-gray-200')
+                        create_stat_block('在线时间', 'uptime_val', refs, str(cache.get('uptime', '-')) if has_cache else '-')
 
-        # ✅✅✅ [关键修改] 设置定时器为 60.0 秒 (即 1 分钟) ✅✅✅
-        ui.timer(60.0, lambda: update_probe_stats(card_refs))
-        
-        # 首次进入页面立即执行一次，让用户不用干等 1 分钟
-        asyncio.create_task(update_probe_stats(card_refs))
+                monitor_refs[url] = refs
+
+    # --- 自动刷新任务 (自动更新缓存) ---
+    async def refresh_task():
+        if CURRENT_VIEW_STATE['scope'] != 'PROBE': return
+
+        sema = asyncio.Semaphore(20)
+        async def check_one(srv):
+            url = srv['url']
+            refs = monitor_refs.get(url)
+            if not refs: return
+            async with sema:
+                res = await get_server_status(srv) # 这里会自动写入全局缓存
+                
+                # 防止页面元素销毁报错
+                if refs['cpu_bar'].is_deleted: return
+
+                if res and res.get('status') == 'online':
+                    refs['status_badge'].set_text('运行中')
+                    refs['status_badge'].classes(replace='bg-green-100 text-green-600', remove='bg-gray-100 bg-red-100 text-gray-500 text-red-500')
+                    
+                    if 'cpu_cores' in res: refs['cpu_cores'].set_text(f"{res['cpu_cores']} Cores")
+                    if 'mem_total' in res: refs['mem_total'].set_text(f"{res['mem_total']} GB")
+                    if 'disk_total' in res: refs['disk_total'].set_text(f"{res['disk_total']} GB")
+
+                    cpu_p = res.get('cpu_usage', 0)
+                    refs['cpu_bar'].style(f'width: {cpu_p}%')
+                    refs['cpu_val'].set_text(f'{int(cpu_p)}%')
+                    
+                    mem_p = res.get('mem_usage', 0)
+                    refs['mem_bar'].style(f'width: {mem_p}%')
+                    refs['mem_val'].set_text(f'{int(mem_p)}%')
+
+                    disk_p = res.get('disk_usage', 0)
+                    refs['disk_bar'].style(f'width: {disk_p}%')
+                    refs['disk_val'].set_text(f'{int(disk_p)}%')
+
+                    refs['load_val'].set_text(str(res.get('load_1', 0)))
+                    refs['uptime_val'].set_text(res.get('uptime', ''))
+                else:
+                    refs['status_badge'].set_text('已离线')
+                    refs['status_badge'].classes(replace='bg-red-100 text-red-500', remove='bg-green-100 bg-gray-100')
+                    refs['cpu_bar'].style('width: 0%'); refs['mem_bar'].style('width: 0%'); refs['disk_bar'].style('width: 0%')
+
+        tasks = [check_one(s) for s in SERVERS_CACHE]
+        await asyncio.gather(*tasks)
+
+    def manual_refresh():
+        safe_notify('正在刷新...', 'ongoing')
+        asyncio.create_task(refresh_task())
+
+    asyncio.create_task(refresh_task())
+    refresh_timer = ui.timer(2.0, refresh_task)
+    
+# ================= [UI 修复] 刷新逻辑 =================
+async def update_probe_stats(card_refs, is_manual=False):
+    # 如果页面已销毁，停止
+    if CURRENT_VIEW_STATE.get('scope') != 'PROBE': return
+
+    sema = asyncio.Semaphore(15)
+
+    async def check_one(srv):
+        url = srv['url']
+        refs = card_refs.get(url)
+        if not refs: return
+
+        async with sema:
+            res = await get_server_status(srv)
+            if not refs['status_badge'].client: return # 页面元素已销毁
+
+            if res and res.get('status') == 'online':
+                # 状态标签
+                refs['status_badge'].set_text('运行中')
+                refs['status_badge'].classes(replace='bg-green-100 text-green-600', remove='bg-gray-100 bg-red-100 text-gray-500 text-red-500')
+                
+                # --- A. 硬件参数填充 (修复 -- GB 问题) ---
+                if 'cpu_cores' in res: refs['cpu_cores'].set_text(f"{res['cpu_cores']} Cores")
+                if 'mem_total' in res: refs['mem_total'].set_text(f"{res['mem_total']} GB")
+                if 'disk_total' in res: refs['disk_total'].set_text(f"{res['disk_total']} GB")
+
+                # --- B. 进度条更新 (修复 0% 问题) ---
+                # CPU
+                cpu = float(res.get('cpu', 0))
+                refs['cpu_bar'].set_value(cpu / 100.0)
+                refs['cpu_val'].set_text(f'{int(cpu)}%')
+                
+                # MEM (使用 Hex 颜色代码，避免 Quasar 颜色名冲突)
+                mem = float(res.get('mem', 0))
+                refs['mem_bar'].set_value(mem / 100.0)
+                mem_color = '#ef4444' if mem > 90 else ('#f97316' if mem > 75 else '#22c55e') # Red/Orange/Green
+                refs['mem_bar'].props(f'color="{mem_color}"') # 强制使用引号包裹 hex
+                refs['mem_val'].set_text(f'{int(mem)}%')
+
+                # DISK
+                disk = float(res.get('disk', 0))
+                refs['disk_bar'].set_value(disk / 100.0)
+                disk_color = '#ef4444' if disk > 90 else '#a855f7' # Red / Purple
+                refs['disk_bar'].props(f'color="{disk_color}"')
+                refs['disk_val'].set_text(f'{int(disk)}%')
+
+                # --- C. 在线时间 (修复中文闪烁) ---
+                # 强制替换英文单位为中文
+                uptime_raw = str(res.get('uptime', ''))
+                uptime_cn = uptime_raw.replace('d', '天').replace('h', '时').replace('m', '分')
+                refs['uptime_val'].set_text(uptime_cn)
+                
+                refs['load_val'].set_text(str(res.get('load', 0)))
+
+            else:
+                # 离线处理
+                refs['status_badge'].set_text('已离线')
+                refs['status_badge'].classes(replace='bg-red-100 text-red-500', remove='bg-green-100 bg-gray-100')
+                refs['cpu_bar'].set_value(0); refs['mem_bar'].set_value(0); refs['disk_bar'].set_value(0)
+
+    tasks = [check_one(s) for s in SERVERS_CACHE]
+    await asyncio.gather(*tasks)
+    
+    if is_manual: safe_notify('✅ 刷新完毕', 'positive')
 
         
 # ================= 批量刷新卡片数据 (无闪烁/静默更新版) =================
@@ -2570,6 +2978,82 @@ class SubscriptionProcessEditor:
 def open_process_editor(sub_data):
     with ui.dialog() as d: SubscriptionProcessEditor(sub_data).ui(d); d.open()
 
+# ================= 通用服务器保存函数 (集成极速修正 + 自动探针) =================
+async def save_server_config(server_data, is_add=True, idx=None):
+    """
+    统一处理服务器的保存逻辑（新增或编辑）
+    1. 查重
+    2. 写入缓存
+    3. 触发后台极速修正 (GeoIP)
+    4. 触发后台探针安装
+    """
+    # 1. 基础校验
+    if not server_data.get('name') or not server_data.get('url'):
+        safe_notify("名称和地址不能为空", "negative")
+        return False
+
+    # 2. 逻辑处理
+    if is_add:
+        # --- 新增模式 ---
+        # 查重
+        for s in SERVERS_CACHE:
+            if s['url'] == server_data['url']:
+                safe_notify(f"服务器地址 {server_data['url']} 已存在！", "warning")
+                return False
+        
+        # 初始处理：如果没有国旗，先给白旗占位
+        # (check 1: 名字里没国旗; check 2: 名字里也没白旗)
+        has_flag = False
+        for v in AUTO_COUNTRY_MAP.values():
+            if v.split(' ')[0] in server_data['name']:
+                has_flag = True
+                break
+        
+        if not has_flag and '🏳️' not in server_data['name']:
+             server_data['name'] = f"🏳️ {server_data['name']}"
+
+        # 写入列表
+        SERVERS_CACHE.append(server_data)
+        safe_notify(f"已添加服务器: {server_data['name']}", "positive")
+
+    else:
+        # --- 编辑模式 ---
+        if idx is not None and 0 <= idx < len(SERVERS_CACHE):
+            SERVERS_CACHE[idx].update(server_data)
+            safe_notify(f"已更新服务器: {server_data['name']}", "positive")
+        else:
+            safe_notify("编辑目标不存在", "negative")
+            return False
+
+    # 3. 保存到硬盘
+    await save_servers()
+
+    # 4. 刷新左侧列表
+    render_sidebar_content.refresh()
+    
+    # 5. 如果当前正在看这台服务器，刷新右侧详情
+    try:
+        # 这里的 refresh_content 使用 force_refresh=True 会顺便同步一下节点
+        if is_add:
+            # 新增的显示最后一个
+            await refresh_content('SINGLE', SERVERS_CACHE[-1], force_refresh=True)
+        else:
+            # 编辑的显示当前这个
+            await refresh_content('SINGLE', SERVERS_CACHE[idx], force_refresh=True)
+    except: pass
+
+    # ================= ✨ 核心：触发后台自动化任务 ✨ =================
+    
+    # 任务 1: 极速 GeoIP 修正 (2秒后自动变国旗、自动归类分组)
+    asyncio.create_task(fast_resolve_single_server(server_data))
+    
+    # 任务 2: 自动安装探针 (如果配置了SSH)
+    if ADMIN_CONFIG.get('probe_enabled', False):
+        asyncio.create_task(install_probe_on_server(server_data))
+        
+    return True
+
+
                         
 # ================= 小巧卡片式弹窗 (带切换功能 & 自动探针安装) =================
 async def open_server_dialog(idx=None):
@@ -2587,11 +3071,13 @@ async def open_server_dialog(idx=None):
                 t_ssh = ui.tab('SSH', icon='terminal')
 
         # 2. 变量绑定
+        # 注意：这里的 new_value_mode='add-unique' 允许用户手动输入新分组
         name = ui.input(value=data.get('name',''), label='备注名称 (留空自动获取)').classes('w-full').props('outlined dense')
         group = ui.select(options=get_all_groups(), value=data.get('group','默认分组'), new_value_mode='add-unique', label='分组').classes('w-full').props('outlined dense')
         
         # 3. 内容面板区域
         with ui.tab_panels(tabs, value=t_xui).classes('w-full animated fadeIn'):
+            # --- 面板设置 ---
             with ui.tab_panel(t_xui).classes('p-0 flex flex-col gap-3'):
                 url = ui.input(value=data.get('url',''), label='面板 URL (http://ip:port)').classes('w-full').props('outlined dense')
                 with ui.row().classes('w-full gap-2'):
@@ -2599,72 +3085,67 @@ async def open_server_dialog(idx=None):
                     pwd = ui.input(value=data.get('pass',''), label='密码', password=True).classes('flex-1').props('outlined dense')
                 prefix = ui.input(value=data.get('prefix',''), label='API 前缀 (选填)').classes('w-full').props('outlined dense')
 
+            # --- SSH 设置 ---
             with ui.tab_panel(t_ssh).classes('p-0 flex flex-col gap-3'):
                 with ui.row().classes('w-full gap-2'):
                     ssh_user = ui.input(value=data.get('ssh_user','root'), label='SSH 用户').classes('flex-1').props('outlined dense')
                     ssh_port = ui.input(value=data.get('ssh_port','22'), label='端口').classes('w-1/3').props('outlined dense')
                 
                 auth_type = ui.select(['全局密钥', '独立密码', '独立密钥'], value=data.get('ssh_auth_type', '全局密钥'), label='认证方式').classes('w-full').props('outlined dense options-dense')
-                ssh_pwd = ui.input(label='SSH 密码', password=True, value=data.get('ssh_password','')).classes('w-full').props('outlined dense')
-                ssh_key = ui.textarea(label='SSH 私钥', value=data.get('ssh_key','')).classes('w-full').props('outlined dense rows=3 input-class=font-mono text-xs')
                 
+                # 显隐控制
+                ssh_pwd = ui.input(label='SSH 密码', password=True, value=data.get('ssh_password','')).classes('w-full').props('outlined dense')
                 ssh_pwd.bind_visibility_from(auth_type, 'value', value='独立密码')
+                
+                ssh_key = ui.textarea(label='SSH 私钥', value=data.get('ssh_key','')).classes('w-full').props('outlined dense rows=3 input-class=font-mono text-xs')
                 ssh_key.bind_visibility_from(auth_type, 'value', value='独立密钥')
+                
                 ui.label('✅ 将自动使用全局私钥连接').bind_visibility_from(auth_type, 'value', value='全局密钥').classes('text-green-600 text-xs text-center mt-2')
 
         # 4. 底部按钮
         with ui.row().classes('w-full justify-end gap-2 mt-2'):
+            # --- 删除按钮 (仅编辑模式) ---
             if is_edit:
                 async def delete():
-                    # 1. 先删数据
                     if idx < len(SERVERS_CACHE): del SERVERS_CACHE[idx]
                     await save_servers()
-                    
-                    # 2. 先关窗 (防止弹窗遮挡刷新效果)
                     d.close()
-                    
-                    # 3. 再刷新 UI
-                    render_sidebar_content.refresh() # 刷新左侧
-                    await refresh_content('ALL') # 强制右侧回到“所有服务器”列表
+                    render_sidebar_content.refresh()
+                    await refresh_content('ALL') # 强制回到首页
                     safe_notify('服务器已删除', 'positive')
                     
                 ui.button('删除', on_click=delete, color='red').props('flat dense')
 
+            # --- 保存按钮 ---
             async def save():
-                # 1. 自动命名逻辑 (如果为空)
+                # A. 自动命名逻辑 (如果用户没填名字)
                 final_name = name.value.strip()
-                temp_conf = {'url': url.value, 'user': user.value, 'pass': pwd.value, 'prefix': prefix.value}
-                
                 if not final_name:
                     safe_notify("正在智能获取名称...", "ongoing")
+                    temp_conf = {'url': url.value, 'user': user.value, 'pass': pwd.value, 'prefix': prefix.value}
+                    # 尝试从面板获取，或者用 GeoIP
                     final_name = await generate_smart_name(temp_conf)
                 
-                # 2. 自动补全国旗逻辑
-                final_name = await auto_prepend_flag(final_name, url.value)
-
-                new_data = {
-                    'name': final_name, 'group': group.value,
-                    'url': url.value, 'user': user.value, 'pass': pwd.value, 'prefix': prefix.value,
-                    'ssh_port': ssh_port.value, 'ssh_user': ssh_user.value,
-                    'ssh_auth_type': auth_type.value, 'ssh_password': ssh_pwd.value, 'ssh_key': ssh_key.value
+                # B. 构建数据对象
+                server_data = {
+                    'name': final_name, 
+                    'group': group.value,
+                    'url': url.value, 
+                    'user': user.value, 
+                    'pass': pwd.value, 
+                    'prefix': prefix.value,
+                    'ssh_port': ssh_port.value, 
+                    'ssh_user': ssh_user.value,
+                    'ssh_auth_type': auth_type.value, 
+                    'ssh_password': ssh_pwd.value, 
+                    'ssh_key': ssh_key.value
                 }
                 
-                # 3. 更新数据到内存
-                if is_edit: SERVERS_CACHE[idx].update(new_data)
-                else: SERVERS_CACHE.append(new_data)
+                # C. 调用通用保存函数 (处理所有脏活累活)
+                success = await save_server_config(server_data, is_add=not is_edit, idx=idx)
                 
-                # 4. 保存并刷新界面
-                await save_servers()
-                render_sidebar_content.refresh()
-                await refresh_content('SINGLE', SERVERS_CACHE[idx] if is_edit else SERVERS_CACHE[-1], force_refresh=True)
-                d.close()
-                safe_notify(f'保存成功: {final_name}', 'positive')
-
-                # ✨✨✨ [新增] 如果已启用探针，自动为新/修改的服务器安装探针 ✨✨✨
-                if ADMIN_CONFIG.get('probe_enabled', False):
-                    # 异步后台执行，不阻塞 UI
-                    asyncio.create_task(install_probe_on_server(new_data))
-                    safe_notify(f"正在后台为 {final_name} 配置探针...", "info")
+                if success:
+                    d.close()
             
             ui.button('保存配置', on_click=save).classes('bg-slate-900 text-white shadow-lg')
     d.open()
@@ -2812,48 +3293,66 @@ async def open_data_mgmt_dialog():
                             count = 0
                             existing_urls = {s['url'] for s in SERVERS_CACHE}
                             
-                            # 准备后台自动安装任务
-                            install_tasks = []
+                            # 准备后台任务列表 (修正队列 + 探针队列)
+                            post_tasks = []
                             
                             for line in lines:
                                 target_ssh_port = def_ssh_port.value
                                 target_xui_port = def_xui_port.value
+                                
+                                # 智能解析输入行
                                 if '://' in line:
                                     final_url = line
-                                    try: parsed = urlparse(line); name = parsed.hostname or line
+                                    # 如果输入的是完整URL，尝试从中提取主机名暂作名字
+                                    try: 
+                                        parsed = urlparse(line)
+                                        name = parsed.hostname or line
                                     except: name = line
                                 else:
+                                    # 处理 ip:port 格式
                                     if ':' in line and not line.startswith('['): 
-                                        parts = line.split(':'); host_ip = parts[0]; target_ssh_port = parts[1]
-                                    else: host_ip = line
-                                    final_url = f"http://{host_ip}:{target_xui_port}"; name = host_ip
+                                        parts = line.split(':')
+                                        host_ip = parts[0]
+                                        # 如果用户输入了端口，优先使用输入的端口作为面板端口
+                                        target_xui_port = parts[1] 
+                                    else: 
+                                        host_ip = line
+                                        target_xui_port = def_xui_port.value # 用底部默认值
+                                    
+                                    # 默认拼 HTTP，如果是 HTTPS 面板，用户最好直接粘贴 https://...
+                                    final_url = f"http://{host_ip}:{target_xui_port}"
+                                    name = host_ip
 
                                 if final_url in existing_urls: continue
+                                
                                 auth_type = '独立密码' if def_ssh_pwd.value.strip() else '全局密钥'
                                 
-                                # ✨✨✨ 核心修改：Group 留空，不设为“默认分组” ✨✨✨
-                                # 这样可以让 GeoIP 任务后续自动接管并分类
+                                # 1. 构建配置 (Group 留空，等待后台自动识别归类)
                                 new_server = {
                                     'name': name, 
                                     'group': '',  # <--- 关键：留空！
                                     'url': final_url,
-                                    'user': def_xui_user.value, 'pass': def_xui_pass.value, 'prefix': '',
-                                    'ssh_user': def_ssh_user.value, 'ssh_port': target_ssh_port,
-                                    'ssh_auth_type': auth_type, 'ssh_password': def_ssh_pwd.value, 'ssh_key': ''
+                                    'user': def_xui_user.value, 
+                                    'pass': def_xui_pass.value, 
+                                    'prefix': '',
+                                    'ssh_user': def_ssh_user.value, 
+                                    'ssh_port': target_ssh_port, # 这里使用默认 SSH 端口
+                                    'ssh_auth_type': auth_type, 
+                                    'ssh_password': def_ssh_pwd.value, 
+                                    'ssh_key': ''
                                 }
-
-                                # 简单的自动命名 (IP -> Name)
-                                if name == host_ip or name == final_url:
-                                    # 尝试保留原始 IP 作为名字，等待后台 GeoIP 任务来修正加国旗
-                                    new_server['name'] = name 
 
                                 SERVERS_CACHE.append(new_server)
                                 existing_urls.add(final_url)
                                 count += 1
                                 
-                                # 如果开启了探针，加入安装队列
+                                # 2. 加入后台修正队列 (这是关键！让它去读名字、查国旗)
+                                # 必须加这个任务，否则它永远只是 IP
+                                post_tasks.append(fast_resolve_single_server(new_server))
+                                
+                                # 3. 如果开启了探针，加入安装队列
                                 if ADMIN_CONFIG.get('probe_enabled', False):
-                                    install_tasks.append(install_probe_on_server(new_server))
+                                    post_tasks.append(install_probe_on_server(new_server))
 
                             if count > 0:
                                 await save_servers()
@@ -2861,10 +3360,19 @@ async def open_data_mgmt_dialog():
                                 safe_notify(f"成功添加 {count} 台服务器", 'positive')
                                 d.close()
                                 
-                                # 后台并发安装探针
-                                if install_tasks:
-                                    safe_notify(f"正在后台为 {len(install_tasks)} 台新服务器配置探针...", "ongoing")
-                                    asyncio.create_task(asyncio.gather(*install_tasks))
+                                # ✨✨✨ [修复报错核心]：正确执行后台任务列表 ✨✨✨
+                                # 之前的写法会导致 TypeError，这里改用包装函数
+                                if post_tasks:
+                                    safe_notify(f"正在后台处理 {len(post_tasks)} 个初始化任务...", "ongoing")
+                                    
+                                    # 定义一个包装协程来执行 gather
+                                    async def _run_bg_tasks():
+                                        # 加上 return_exceptions=True 防止单个任务报错中断整体
+                                        await asyncio.gather(*post_tasks, return_exceptions=True)
+                                    
+                                    # 正确的提交方式：提交包装后的协程
+                                    asyncio.create_task(_run_bg_tasks())
+                                    
                             else: safe_notify("未添加任何服务器 (可能已存在)", 'warning')
 
                         ui.button('确认批量添加', icon='add_box', on_click=run_batch_import).classes('w-full bg-blue-600 text-white h-10')
@@ -4706,46 +5214,64 @@ async def job_sync_all_traffic():
         await refresh_dashboard_ui()
     logger.info("✅ [定时任务] 流量同步完成")
 
-# 2.================= 定时任务：IP 地理位置检查 & 自动修正名称 =================
+# 2.================= 定时任务：IP 地理位置检查 & 自动修正名称 (修复版) =================
 async def job_check_geo_ip():
     logger.info("🌍 [定时任务] 开始全量 IP 归属地检测与名称修正...")
-    geo_updated = False
+    data_changed = False
+    
+    # 1. ✨ 动态生成所有已知国旗列表 (防止漏判)
+    known_flags = []
+    for val in AUTO_COUNTRY_MAP.values():
+        icon = val.split(' ')[0] # 提取 "🇺🇸", "🇯🇵" 等
+        if icon and icon not in known_flags:
+            known_flags.append(icon)
     
     for s in SERVERS_CACHE:
-        # 如果名字里已经有 emoji 国旗了 (比如 "🇯🇵")，就跳过，避免重复请求
-        # 我们检测常见的国旗 Emoji 范围，或者简单的判断
-        current_name = s.get('name', '')
-        if any(c in current_name for c in ['🇯🇵','🇺🇸','🇸🇬','🇭🇰','🇰🇷','🇩🇪','🇬🇧','🇹🇼','🇨🇳']):
-            continue
+        old_name = s.get('name', '')
+        new_name = old_name
 
-        try:
-            # 请求 API 获取地理位置
-            geo = await run.io_bound(fetch_geo_from_ip, s['url'])
-            if geo:
-                # geo = (lat, lon, country_name)
-                s['lat'] = geo[0]
-                s['lon'] = geo[1]
-                s['_detected_region'] = geo[2] 
-                
-                # ✨✨✨ 核心改变：强制重命名 (加国旗) ✨✨✨
-                # 获取 "🇯🇵 日本" 这样的字符串
-                flag_prefix = get_flag_for_country(geo[2]) 
-                flag_icon = flag_prefix.split(' ')[0] # 只取 "🇯🇵"
-                
-                # 如果名字开头不是这个国旗，就强行加上去
-                if not current_name.startswith(flag_icon):
-                    s['name'] = f"{flag_icon} {current_name}"
-                    logger.info(f"✨ [自动修正] {current_name} -> {s['name']}")
-                    geo_updated = True
-        except Exception as e:
-            pass
-            
-    if geo_updated:
+        # --- 🧹 步骤 A: 强力清洗白旗 (修复之前的 Bug) ---
+        # 如果名字以 "🏳️ " 开头，且后面还有内容，直接把白旗切掉
+        if new_name.startswith('🏳️ ') or new_name.startswith('🏳️'):
+            # 只有当名字里除了白旗还有别的东西时才删，防止名字被删空
+            if len(new_name) > 2:
+                new_name = new_name.replace('🏳️', '').strip()
+                logger.info(f"🧹 [清洗白旗] {old_name} -> {new_name}")
+
+        # --- 🔍 步骤 B: 正常的 GeoIP 修正逻辑 ---
+        # 检查现在的名字里有没有国旗
+        has_flag = any(flag in new_name for flag in known_flags)
+        
+        if not has_flag:
+            try:
+                # 只有没国旗的时候，才去查 IP
+                geo = await run.io_bound(fetch_geo_from_ip, s['url'])
+                if geo:
+                    s['lat'] = geo[0]; s['lon'] = geo[1]; s['_detected_region'] = geo[2]
+                    
+                    flag_prefix = get_flag_for_country(geo[2])
+                    flag_icon = flag_prefix.split(' ')[0]
+                    
+                    # 加上正确的国旗
+                    if flag_icon and flag_icon not in new_name:
+                        new_name = f"{flag_icon} {new_name}"
+                        logger.info(f"✨ [自动修正] {old_name} -> {new_name}")
+            except: pass
+        
+        # 如果名字变了，标记需要保存
+        if new_name != old_name:
+            s['name'] = new_name
+            data_changed = True
+
+    if data_changed:
         await save_servers()
         await refresh_dashboard_ui()
-        render_sidebar_content.refresh()
-        safe_notify("已完成所有服务器的地理位置修正", "positive")
-
+        try: render_sidebar_content.refresh()
+        except: pass
+        safe_notify("✅ 已清理白旗并修正服务器名称", "positive")
+    else:
+        logger.info("✅ 名称检查完毕，无需修正")
+        
 # 3. 初始化调度器
 scheduler = AsyncIOScheduler()
 
