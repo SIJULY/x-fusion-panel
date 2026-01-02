@@ -4304,20 +4304,20 @@ def open_combined_group_management(group_name):
 
     d.open()
         
-# =================侧边栏渲染 =====================
-# ================= [侧边栏渲染：修复完整版] =================
+# ================= [侧边栏渲染：终极完整版] =================
 @ui.refreshable
 def render_sidebar_content():
-    # 1. 顶部
+    # 1. 顶部区域
     with ui.column().classes('w-full p-4 border-b bg-gray-50 flex-shrink-0'):
-        ui.label('X-Fusion Panel').classes('text-xl font-bold mb-4 text-slate-800')
+        ui.label('小龙女她爸').classes('text-xl font-bold mb-4 text-slate-800')
         btn_cls = 'w-full text-slate-700 active:scale-95 transition-transform duration-150'
         ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes(btn_cls)
         ui.button('服务器探针', icon='monitor_heart', on_click=render_probe_page).props('flat align=left').classes(btn_cls)
         ui.button('订阅管理', icon='rss_feed', on_click=load_subs_view).props('flat align=left').classes(btn_cls)
 
-    # 2. 列表区域
+    # 2. 列表区域 (可滚动)
     with ui.column().classes('w-full flex-grow overflow-y-auto p-2 gap-1'):
+        # 功能按钮栏
         with ui.row().classes('w-full gap-2 px-1 mb-4'):
             func_btn_cls = 'flex-grow text-xs active:scale-95 transition-transform duration-150'
             ui.button('新建分组', icon='create_new_folder', on_click=open_create_group_dialog).props('dense unelevated').classes(f'bg-blue-600 text-white {func_btn_cls}')
@@ -4331,16 +4331,20 @@ def render_sidebar_content():
                 ui.label('所有服务器').classes('font-bold')
             ui.badge(str(len(SERVERS_CACHE)), color='blue')
 
-        # --- B. ✨✨✨ 找回：自定义分组 (Tags) ✨✨✨ ---
+        # --- B. 自定义分组 (Tags/Group) ---
         if 'custom_groups' in ADMIN_CONFIG and ADMIN_CONFIG['custom_groups']:
             ui.label('自定义分组').classes('text-xs font-bold text-gray-400 mt-2 mb-1 px-2')
             for tag_group in ADMIN_CONFIG['custom_groups']:
-                # 统计逻辑：包含 Tag 或者 Group 名字匹配
+                # 统计逻辑：包含 Tag 或者 主Group 名字匹配
                 tag_servers = [
                     s for s in SERVERS_CACHE 
                     if tag_group in s.get('tags', []) or s.get('group') == tag_group
                 ]
                 
+                # 排序：使用智能排序
+                try: tag_servers.sort(key=smart_sort_key)
+                except: tag_servers.sort(key=lambda x: x.get('name', ''))
+
                 is_open = tag_group in EXPANDED_GROUPS
                 with ui.expansion('', icon='label', value=is_open).classes('w-full border rounded mb-1 bg-white shadow-sm').props('expand-icon-toggle').on_value_change(lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                     with exp.add_slot('header'):
@@ -4358,6 +4362,7 @@ def render_sidebar_content():
                             with ui.row().classes(sub_row_cls).props('clickable v-ripple').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
                                 ui.label(s['name']).classes('text-sm truncate flex-grow')
                                 with ui.row().classes('gap-1 items-center'):
+                                    ui.button(icon='terminal', on_click=lambda _, s=s: open_ssh_interface(s)).props('flat dense round size=xs color=grey-8').on('click.stop')
                                     ui.button(icon='edit', on_click=lambda _, idx=SERVERS_CACHE.index(s): open_server_dialog(idx)).props('flat dense round size=xs color=grey').on('click.stop')
 
         # --- C. 智能区域分组 ---
@@ -4365,16 +4370,27 @@ def render_sidebar_content():
         
         country_buckets = {}
         for s in SERVERS_CACHE:
+            # 调用升级后的识别逻辑 (传入 s 对象以读取隐藏 GeoIP 字段)
             c_group = detect_country_group(s.get('name', ''), s)
-            # 过滤垃圾分组
-            if c_group in ['默认分组', '自动注册', '自动导入', '未分组', '']:
+            
+            # 过滤无效/默认分组，统一归入“其他地区”
+            if c_group in ['默认分组', '自动注册', '自动导入', '未分组', '', None]:
                 c_group = '🏳️ 其他地区'
+                
             if c_group not in country_buckets: country_buckets[c_group] = []
             country_buckets[c_group].append(s)
         
+        # 渲染区域列表
         for c_name in sorted(country_buckets.keys()):
             c_servers = country_buckets[c_name]
-            c_servers.sort(key=lambda x: x.get('name',''))
+            
+            # ✨✨✨ 关键修复：恢复使用 smart_sort_key 进行智能排序 ✨✨✨
+            try:
+                c_servers.sort(key=smart_sort_key)
+            except:
+                # 兜底防止排序崩溃
+                c_servers.sort(key=lambda x: x.get('name', ''))
+
             is_open = c_name in EXPANDED_GROUPS
             
             with ui.expansion('', icon='public', value=is_open).classes('w-full border rounded mb-1 bg-white shadow-sm').props('expand-icon-toggle').on_value_change(lambda e, g=c_name: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
@@ -4392,16 +4408,16 @@ def render_sidebar_content():
                          with ui.row().classes('w-full justify-between items-center p-2 pl-4 border-b border-gray-100 hover:bg-blue-100 cursor-pointer').props('clickable v-ripple').on('click', lambda _, s=s: refresh_content('SINGLE', s)):
                                 ui.label(s['name']).classes('text-sm truncate flex-grow')
                                 with ui.row().classes('gap-1 items-center'):
+                                    ui.button(icon='terminal', on_click=lambda _, s=s: open_ssh_interface(s)).props('flat dense round size=xs color=grey-8').on('click.stop')
                                     ui.button(icon='edit', on_click=lambda _, idx=SERVERS_CACHE.index(s): open_server_dialog(idx)).props('flat dense round size=xs color=grey').on('click.stop')
 
-    # 3. ✨✨✨ 找回：底部功能区 (含备份按钮) ✨✨✨
+    # 3. 底部功能区 (完整找回)
     with ui.column().classes('w-full p-2 border-t mt-auto mb-15 gap-2 bg-white z-10'):
         bottom_btn_cls = 'w-full font-bold mb-1 active:scale-95 transition-transform duration-150'
         ui.button('批量 SSH 执行', icon='playlist_play', on_click=batch_ssh_manager.open_dialog).props('flat align=left').classes(f'text-slate-800 bg-blue-50 hover:bg-blue-100 {bottom_btn_cls}')
         
         ui.button('全局 SSH 设置', icon='vpn_key', on_click=open_global_settings_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm active:scale-95 transition-transform duration-150')
         
-        # 备份按钮回来了！
         ui.button('数据备份 / 恢复', icon='save', on_click=open_data_mgmt_dialog).props('flat align=left').classes('w-full text-slate-600 text-sm active:scale-95 transition-transform duration-150')
         
 # ================== 登录与 MFA 逻辑 ==================
