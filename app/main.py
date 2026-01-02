@@ -1082,14 +1082,13 @@ async def silent_refresh_all(is_auto_trigger=False):
     except: pass
 
     
+# =================  单台安装探针 =================   
 async def install_probe_on_server(server_conf):
     """给单个服务器安装探针 (智能宽容版)"""
     name = server_conf.get('name', 'Unknown')
     
-    # ✨✨✨  获取动态 Token 并替换脚本中的占位符 ✨✨✨
+    # 获取动态 Token 并替换脚本中的占位符
     my_token = ADMIN_CONFIG.get('probe_token', 'default_token')
-    
-    # 把脚本里的占位符，替换成真正的 Token
     real_script = PROBE_INSTALL_SCRIPT.replace("__REPLACE_ME__", my_token)
     
     def _do_install():
@@ -1098,7 +1097,7 @@ async def install_probe_on_server(server_conf):
             client, msg = get_ssh_client(server_conf)
             if not client: return False, f"连接失败: {msg}"
             
-            # ✨✨✨ 注意：这里执行的是 real_script (带有真实 Token 的脚本) ✨✨✨
+            # 执行安装 (300秒超时)
             stdin, stdout, stderr = client.exec_command(real_script, timeout=300)
             
             # 获取结果
@@ -1108,9 +1107,11 @@ async def install_probe_on_server(server_conf):
             
             client.close()
             
-            # ✨✨✨ 核心修改：智能判定 ✨✨✨
-            # 1. 正常退出 (0) -> 成功
-            # 2. 意外断开 (-1) 但看到了防火墙日志 (Skipping/rule) -> 视为成功 (说明脚本跑完了)
+            # ✨✨✨ 核心修改：判定逻辑升级 ✨✨✨
+            # 只要看到 "Install sequence completed"，无论 Exit Code 是多少，都算成功！
+            if "Install sequence completed" in out_log:
+                return True, "安装成功 (日志确认)"
+            
             if exit_status == 0:
                 return True, "安装成功"
             elif exit_status == -1 and ("Skipping" in out_log or "rule" in out_log or "allow" in out_log):
@@ -1133,7 +1134,6 @@ async def install_probe_on_server(server_conf):
         logger.error(f"❌ [AutoInstall] {name} 安装失败:\n{msg}")
         
     return success
-
 
 # =================  批量安装所有探针 =================
 async def batch_install_all_probes():
