@@ -547,33 +547,43 @@ AUTO_COUNTRY_MAP = {
     '🇸🇦': '🇸🇦 沙特', 'SA': '🇸🇦 沙特', 'Saudi Arabia': '🇸🇦 沙特',
 }
 
+# ================= 智能分组核心  =================
 def detect_country_group(name, server_config=None):
     # 1. ✨ 最高优先级：手动设置的分组 ✨
     if server_config:
         saved_group = server_config.get('group')
-        # 只有当分组有内容，且不是那些“无意义”的默认分组时，才强制生效
-        # ⚠️ 关键修改：如果手动设为 '其他地区'，我们认为这是无效分类，允许继续走下面的智能识别
+        # 排除无效分组
         if saved_group and saved_group.strip() and saved_group not in ['默认分组', '自动注册', '未分组', '自动导入', '🏳️ 其他地区', '其他地区']:
-            # 尝试标准化 (输入 "美国" -> "🇺🇸 美国")
+            # 尝试标准化 (如输入 "美国" -> "🇺🇸 美国")
             for v in AUTO_COUNTRY_MAP.values():
                 if saved_group in v or v in saved_group:
                     return v 
             return saved_group
 
-    # 2. ✨✨✨ 第二优先级：看图识字 (国旗) + 关键字 ✨✨✨
+    # 2. ✨✨✨ 第二优先级：看图识字 + 智能关键字匹配 ✨✨✨
     name_upper = name.upper()
-    for key, val in AUTO_COUNTRY_MAP.items():
-        # A. 找关键字
-        if key in name_upper:
-            return val
+    
+    # 🌟 关键优化：按长度倒序匹配 (优先匹配 "United States" 而非 "US")
+    # 这样可以防止长词被短词截胡
+    sorted_keys = sorted(AUTO_COUNTRY_MAP.keys(), key=len, reverse=True)
+    
+    import re
+    
+    for key in sorted_keys:
+        val = AUTO_COUNTRY_MAP[key]
         
-        # B. 找国旗 (比如名字里有 🇺🇸)
-        try:
-            flag_icon = val.split(' ')[0]
-            if flag_icon and flag_icon in name:
+        if key in name_upper:
+            # 🌟 核心修复：针对 2-3 位短字母缩写 (如 CL, US, SG, ID)
+            # 必须前后是符号或边界，不能夹在单词里 (防止 Oracle 匹配到 CL)
+            if len(key) <= 3 and key.isalpha():
+                # 正则：(?<![A-Z0-9]) 表示前面不能是字母数字
+                #       (?![A-Z0-9])  表示后面不能是字母数字
+                pattern = r'(?<![A-Z0-9])' + re.escape(key) + r'(?![A-Z0-9])'
+                if re.search(pattern, name_upper):
+                    return val
+            else:
+                # 长关键字 (Japan) 或 Emoji (🇯🇵) 或带符号的 (HK-)，直接匹配
                 return val
-        except:
-            continue
 
     # 3. 第三优先级：IP 检测的隐藏字段
     if server_config and server_config.get('_detected_region'):
@@ -2376,41 +2386,28 @@ class SubEditor:
 def open_sub_editor(d):
     with ui.dialog() as dlg: SubEditor(d).ui(dlg); dlg.open()
     
-# ================= 探针页面渲染 (终极完整无省略版) =================
+# ================= 探针页面渲染  =================
 async def render_probe_page():
     global CURRENT_VIEW_STATE
     CURRENT_VIEW_STATE['scope'] = 'PROBE'
     content_container.clear()
     
-    # --- 内部函数：开启探针功能 ---
     async def enable_probe_feature():
-        # 1. 开启开关
         ADMIN_CONFIG['probe_enabled'] = True
         await save_admin_config()
-        
-        # 2. 提示用户
-        safe_notify("✅ 探针功能已激活！后台正在尝试为现有服务器安装...", "positive")
-        
-        # 3. 触发后台批量安装
-        asyncio.create_task(batch_install_all_probes())
-        
-        # 4. 刷新页面
+        safe_notify("✅ 探针功能已激活！", "positive")
         await render_probe_page()
 
-    # 1. 检查功能是否启用
     if not ADMIN_CONFIG.get('probe_enabled', False):
         with content_container:
             with ui.column().classes('w-full h-[60vh] justify-center items-center opacity-50 gap-4'):
                 ui.icon('monitor_heart', size='5rem').classes('text-gray-300')
                 ui.label('探针监控功能未开启').classes('text-2xl font-bold text-gray-400')
-                ui.label('开启后将自动获取服务器的 CPU/内存/硬盘/流量 实时数据').classes('text-sm text-gray-400')
                 ui.button('立即开启探针监控', on_click=enable_probe_feature).props('push color=primary')
         return
 
-    # 2. 功能已启用，准备渲染
     monitor_refs = {}
 
-    # --- UI 辅助函数 ---
     def create_progress_row(label, color_class, initial_val=0):
         with ui.row().classes('w-full items-center gap-2 mb-1'):
             ui.label(label).classes('text-xs font-bold text-gray-500 w-8')
@@ -2424,43 +2421,32 @@ async def render_probe_page():
             ui.label(label).classes('text-[10px] text-gray-400 transform scale-90')
             refs_dict[value_ref_key] = ui.label(initial_text).classes('text-xs font-bold text-slate-700')
 
-    # --- 自动刷新任务 ---
     async def refresh_task():
         if CURRENT_VIEW_STATE['scope'] != 'PROBE': return
-
-        # 限制并发，防止内存溢出
         sema = asyncio.Semaphore(20)
         async def check_one(srv):
             url = srv['url']
             refs = monitor_refs.get(url)
             if not refs: return
+            
+            # ✨ 这里的逻辑不用改，因为下面没渲染的机器根本进不来这里
             async with sema:
                 try:
-                    res = await get_server_status(srv) # 这里会自动写入全局缓存
-                    
-                    # 防止页面元素销毁报错
-                    if refs['cpu_bar'].is_deleted: return
+                    res = await get_server_status(srv)
+                    if refs['status_badge'].is_deleted: return
 
                     if res and res.get('status') == 'online':
                         refs['status_badge'].set_text('运行中')
                         refs['status_badge'].classes(replace='bg-green-100 text-green-600', remove='bg-gray-100 bg-red-100 text-gray-500 text-red-500')
-                        
                         if 'cpu_cores' in res: refs['cpu_cores'].set_text(f"{res['cpu_cores']} Cores")
                         if 'mem_total' in res: refs['mem_total'].set_text(f"{res['mem_total']} GB")
                         if 'disk_total' in res: refs['disk_total'].set_text(f"{res['disk_total']} GB")
-
                         cpu_p = res.get('cpu_usage', 0)
-                        refs['cpu_bar'].style(f'width: {cpu_p}%')
-                        refs['cpu_val'].set_text(f'{int(cpu_p)}%')
-                        
+                        refs['cpu_bar'].style(f'width: {cpu_p}%'); refs['cpu_val'].set_text(f'{int(cpu_p)}%')
                         mem_p = res.get('mem_usage', 0)
-                        refs['mem_bar'].style(f'width: {mem_p}%')
-                        refs['mem_val'].set_text(f'{int(mem_p)}%')
-
+                        refs['mem_bar'].style(f'width: {mem_p}%'); refs['mem_val'].set_text(f'{int(mem_p)}%')
                         disk_p = res.get('disk_usage', 0)
-                        refs['disk_bar'].style(f'width: {disk_p}%')
-                        refs['disk_val'].set_text(f'{int(disk_p)}%')
-
+                        refs['disk_bar'].style(f'width: {disk_p}%'); refs['disk_val'].set_text(f'{int(disk_p)}%')
                         refs['load_val'].set_text(str(res.get('load_1', 0)))
                         refs['uptime_val'].set_text(res.get('uptime', ''))
                     else:
@@ -2469,41 +2455,30 @@ async def render_probe_page():
                         refs['cpu_bar'].style('width: 0%'); refs['mem_bar'].style('width: 0%'); refs['disk_bar'].style('width: 0%')
                 except: pass
 
-        tasks = [check_one(s) for s in SERVERS_CACHE]
+        # ✨ 过滤任务列表：只刷新已渲染的探针机器
+        valid_servers = [s for s in SERVERS_CACHE if s['url'] in monitor_refs]
+        tasks = [check_one(s) for s in valid_servers]
         await asyncio.gather(*tasks)
 
     def manual_refresh():
         safe_notify('正在刷新...', 'ongoing')
         asyncio.create_task(refresh_task())
 
-    # --- 开始渲染界面 ---
     with content_container:
-        # 1. 顶部按钮栏
         with ui.row().classes('w-full items-center justify-between mb-4 px-2'):
-            # 左侧标题
             with ui.row().classes('items-center gap-2'):
                 ui.icon('dns', color='primary').classes('text-2xl')
                 ui.label('实时监控墙').classes('text-2xl font-bold text-slate-800 tracking-tight')
                 ui.element('div').classes('w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_#22c55e] animate-pulse')
             
-            # 右侧按钮组
             with ui.row().classes('items-center gap-2'):
                 async def copy_auto_register_cmd():
-                    try:
-                        origin = await ui.run_javascript('return window.location.origin', timeout=3.0)
-                    except:
-                        safe_notify("无法获取面板地址", "negative")
-                        return
-
+                    try: origin = await ui.run_javascript('return window.location.origin', timeout=3.0)
+                    except: safe_notify("无法获取面板地址", "negative"); return
                     token = ADMIN_CONFIG.get('probe_token', 'default_token')
                     register_api = f"{origin}/api/probe/register"
-                    
-                    # 使用 GitHub 源
                     github_script_url = "https://raw.githubusercontent.com/SIJULY/x-fusion-panel/main/x-install.sh"
-                    
-                    # 生成短命令
                     cmd = f'curl -sL {github_script_url} | bash -s -- "{token}" "{register_api}"'
-                    
                     await safe_copy_to_clipboard(cmd)
                     safe_notify("📋 极简安装命令已复制！", "positive")
 
@@ -2511,36 +2486,30 @@ async def render_probe_page():
                     safe_notify("正在后台为所有服务器重置探针...", "ongoing")
                     await batch_install_all_probes()
 
-                ui.button('复制单机命令', icon='content_copy', on_click=copy_auto_register_cmd).props('flat dense color=blue-6').tooltip('复制一键安装脚本')
-                ui.button('重置所有探针', icon='restart_alt', on_click=reinstall_all_btn).props('flat dense color=orange').tooltip('重新安装探针')
-                ui.button(icon='refresh', on_click=manual_refresh).props('flat round dense color=grey').tooltip('立即刷新')
+                ui.button('复制单机命令', icon='content_copy', on_click=copy_auto_register_cmd).props('flat dense color=blue-6')
+                ui.button('重置所有探针', icon='restart_alt', on_click=reinstall_all_btn).props('flat dense color=orange')
+                ui.button(icon='refresh', on_click=manual_refresh).props('flat round dense color=grey')
 
-        # 2. 渲染卡片网格
-        # ✨ 布局修复：使用 minmax 实现自动多列，防止大屏卡片变扁
         with ui.grid().classes('w-full gap-4 pb-10').style('grid-template-columns: repeat(auto-fill, minmax(320px, 1fr))'):
-            
-            # ✨ 排序修复：强制按照 [分组, 名称] 排序，确保新服务器自动归位
             sorted_servers = sorted(SERVERS_CACHE, key=lambda x: smart_sort_key(x))
 
             for s in sorted_servers:
+                # ✨✨✨ 核心修改：如果未勾选探针，直接跳过渲染 ✨✨✨
+                if not s.get('probe_installed', False): continue
+
                 url = s['url']
                 refs = {}
-                
-                # 优先读取缓存实现秒开
                 cache = PROBE_DATA_CACHE.get(url, {})
                 has_cache = bool(cache)
                 
                 card = ui.card().classes('w-full p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300 flex flex-col gap-3 relative overflow-hidden')
                 
                 with card:
-                    # (1) 标题行
                     with ui.row().classes('w-full justify-between items-start'):
                         with ui.row().classes('items-center gap-2'):
-                            # ✨ 国旗修复：传入 s 对象，让它读取正确的存档分组，避免误判智利
                             flag = "🏳️"
                             try: flag = detect_country_group(s['name'], s).split(' ')[0]
                             except: pass
-                            
                             ui.label(flag).classes('text-2xl filter drop-shadow-sm')
                             with ui.column().classes('gap-0'):
                                 ui.label(s['name']).classes('font-bold text-slate-700 text-sm leading-tight line-clamp-1')
@@ -2554,7 +2523,6 @@ async def render_probe_page():
 
                     ui.separator().classes('opacity-50')
 
-                    # (2) 硬件配置数据 (Cores / RAM / Disk)
                     c_cores = f"{cache.get('cpu_cores', '-')} Cores" if has_cache else '-- Cores'
                     c_mem = f"{cache.get('mem_total', '-')} GB" if has_cache else '-- GB'
                     c_disk = f"{cache.get('disk_total', '-')} GB" if has_cache else '-- GB'
@@ -2570,20 +2538,16 @@ async def render_probe_page():
                             ui.icon('hard_drive', size='xs').classes('text-purple-500')
                             refs['disk_total'] = ui.label(c_disk).classes('text-xs font-bold text-slate-600')
 
-                    # (3) 资源占用进度条
                     with ui.column().classes('w-full gap-2 mt-1'):
                         bar_cpu, val_cpu = create_progress_row('CPU', 'bg-blue-500', cache.get('cpu_usage', 0) if has_cache else 0)
                         refs['cpu_bar'] = bar_cpu; refs['cpu_val'] = val_cpu
-                        
                         bar_mem, val_mem = create_progress_row('内存', 'bg-indigo-500', cache.get('mem_usage', 0) if has_cache else 0)
                         refs['mem_bar'] = bar_mem; refs['mem_val'] = val_mem
-                        
                         bar_disk, val_disk = create_progress_row('硬盘', 'bg-indigo-500', cache.get('disk_usage', 0) if has_cache else 0)
                         refs['disk_bar'] = bar_disk; refs['disk_val'] = val_disk
 
                     ui.separator().classes('opacity-50')
 
-                    # (4) 底部统计 (负载 / 在线时间)
                     with ui.row().classes('w-full justify-between items-center bg-gray-50/50 p-2 rounded-lg'):
                         create_stat_block('负载 (1m)', 'load_val', refs, str(cache.get('load_1', 0)) if has_cache else '--')
                         ui.element('div').classes('w-px h-6 bg-gray-200')
@@ -2591,9 +2555,15 @@ async def render_probe_page():
 
                 monitor_refs[url] = refs
 
-    # 3. 启动后台刷新
+            # ✨ 如果没有一台机器开启了探针，显示提示
+            if not monitor_refs:
+                with ui.column().classes('w-full col-span-full items-center justify-center p-10 opacity-60'):
+                    ui.icon('visibility_off', size='4rem')
+                    ui.label('暂无已启用探针的服务器').classes('text-lg font-bold')
+                    ui.label('请在“添加/编辑服务器”中勾选“启用 Root 探针”').classes('text-sm')
+
     asyncio.create_task(refresh_task())
-    refresh_timer = ui.timer(15.0, refresh_task)
+    refresh_timer = ui.timer(3.0, refresh_task)
     
 
         
@@ -3057,10 +3027,9 @@ async def save_server_config(server_data, is_add=True, idx=None):
 
 
                         
-# ================= 小巧卡片式弹窗 (带切换功能 & 自动探针安装) =================
+# ================= 小巧卡片式弹窗 =================
 async def open_server_dialog(idx=None):
     is_edit = idx is not None
-    # 如果是编辑模式，读取现有配置；否则初始化为空字典
     data = SERVERS_CACHE[idx] if is_edit else {}
     
     with ui.dialog() as d, ui.card().classes('w-full max-w-sm p-5 flex flex-col gap-4'):
@@ -3071,47 +3040,54 @@ async def open_server_dialog(idx=None):
             tabs = ui.tabs().classes('text-blue-600')
             with tabs:
                 t_xui = ui.tab('面板', icon='settings')
-                t_ssh = ui.tab('SSH / 探针', icon='terminal') # 更新标签名
+                t_ssh = ui.tab('SSH / 探针', icon='terminal')
 
-        # 2. 通用字段 (名称/分组)
-        # new_value_mode='add-unique' 允许用户手动输入新分组
+        # 2. 通用字段
         name = ui.input(value=data.get('name',''), label='备注名称 (留空自动获取)').classes('w-full').props('outlined dense')
         group = ui.select(options=get_all_groups(), value=data.get('group','默认分组'), new_value_mode='add-unique', label='分组').classes('w-full').props('outlined dense')
         
-        # 3. 内容面板区域
+        # 3. 内容面板
         with ui.tab_panels(tabs, value=t_xui).classes('w-full animated fadeIn'):
             
             # --- Tab 1: 面板设置 ---
             with ui.tab_panel(t_xui).classes('p-0 flex flex-col gap-3'):
-                url = ui.input(value=data.get('url',''), label='面板 URL (http://ip:port)').classes('w-full').props('outlined dense')
+                # 这里的 url 变量会单向同步给 Tab 2
+                url = ui.input(value=data.get('url',''), label='面板 URL (或 IP)').classes('w-full').props('outlined dense')
+                
                 with ui.row().classes('w-full gap-2'):
                     user = ui.input(value=data.get('user',''), label='账号').classes('flex-1').props('outlined dense')
                     pwd = ui.input(value=data.get('pass',''), label='密码', password=True).classes('flex-1').props('outlined dense')
                 prefix = ui.input(value=data.get('prefix',''), label='API 前缀 (选填)').classes('w-full').props('outlined dense')
 
-            # --- Tab 2: SSH 与 探针设置 ---
-            with ui.tab_panel(t_ssh).classes('p-0 flex flex-col gap-3'):
-                
-                # ✨✨✨ 核心开关：是否安装探针 (决定是否进行 SSH 连接) ✨✨✨
-                # 如果是编辑模式，读取已有状态；如果是新建，默认 False
-                probe_chk = ui.checkbox('启用 Root 探针 (自动安装)', value=data.get('probe_installed', False))
-                probe_chk.classes('text-sm font-bold text-slate-700')
-                ui.label('勾选后将尝试 SSH 连接并写入推送脚本。不勾选则仅添加面板。').classes('text-[10px] text-gray-400 ml-8 -mt-2 leading-tight')
-
                 ui.separator().classes('my-1')
 
-                # SSH 配置输入框
+                # 复选框
+                probe_chk = ui.checkbox('启用 Root 探针 (自动安装)', value=data.get('probe_installed', False))
+                probe_chk.classes('text-sm font-bold text-slate-700')
+                
+                ui.label('提示：若此处未填写信息且仅填写了 SSH，保存时将自动启用探针模式。').classes('text-[10px] text-gray-400 ml-8 -mt-2 leading-tight')
+
+            # --- Tab 2: SSH 配置 ---
+            with ui.tab_panel(t_ssh).classes('p-0 flex flex-col gap-3'):
+                
+                # ✨✨✨ [新增] SSH 页面的 Host 输入框 ✨✨✨
+                # 逻辑：自动获取 Tab 1 的值作为初始值
+                ssh_host_input = ui.input(label='面板 URL 或 IP', value=url.value).classes('w-full').props('outlined dense')
+                
+                # ✨ 单向同步逻辑 (Tab 1 -> Tab 2) ✨
+                # 只有当用户在 Tab 1 输入时，Tab 2 才跟着变。
+                # 如果用户只在 Tab 2 输入，Tab 1 保持为空 (符合纯 SSH 模式的需求)
+                url.on_value_change(lambda e: ssh_host_input.set_value(e.value))
+
+                ui.label('SSH 连接信息').classes('text-xs font-bold text-gray-500 mb-1 mt-1')
+                
                 with ui.column().classes('w-full gap-3'):
-                    # 绑定显隐：虽然数据会保存，但视觉上可以让用户知道如果不勾选这些是非必要的
-                    # 这里选择始终显示，方便用户预填数据，但你可以根据需求加上 .bind_visibility_from(probe_chk, 'value')
-                    
                     with ui.row().classes('w-full gap-2'):
                         ssh_user = ui.input(value=data.get('ssh_user','root'), label='SSH 用户').classes('flex-1').props('outlined dense')
                         ssh_port = ui.input(value=data.get('ssh_port','22'), label='端口').classes('w-1/3').props('outlined dense')
                     
                     auth_type = ui.select(['全局密钥', '独立密码', '独立密钥'], value=data.get('ssh_auth_type', '全局密钥'), label='认证方式').classes('w-full').props('outlined dense options-dense')
                     
-                    # 显隐控制：根据认证方式显示密码或密钥框
                     ssh_pwd = ui.input(label='SSH 密码', password=True, value=data.get('ssh_password','')).classes('w-full').props('outlined dense')
                     ssh_pwd.bind_visibility_from(auth_type, 'value', value='独立密码')
                     
@@ -3122,65 +3098,91 @@ async def open_server_dialog(idx=None):
 
         # 4. 底部按钮
         with ui.row().classes('w-full justify-end gap-2 mt-2'):
-            # --- 删除按钮 (仅编辑模式) ---
             if is_edit:
                 async def delete():
                     if idx < len(SERVERS_CACHE): del SERVERS_CACHE[idx]
                     await save_servers()
                     d.close()
                     render_sidebar_content.refresh()
-                    await refresh_content('ALL') # 强制回到首页
+                    await refresh_content('ALL')
                     safe_notify('服务器已删除', 'positive')
-                    
                 ui.button('删除', on_click=delete, color='red').props('flat dense')
 
-            # --- 保存按钮 (核心逻辑修改) ---
             async def save():
-                # A. 自动命名逻辑 (如果用户没填名字)
+                # 1. 获取最终地址
+                # 逻辑：如果 Tab 1 填了，用 Tab 1 的；如果 Tab 1 没填但 Tab 2 填了，用 Tab 2 的 (补位)
+                t1_val = url.value.strip()
+                t2_val = ssh_host_input.value.strip()
+                
+                final_url = t1_val if t1_val else t2_val
+                
+                # 校验：至少得有个 IP 吧
+                if not final_url:
+                     safe_notify("错误：必须填写 '面板 URL 或 IP'", "negative")
+                     return
+
+                final_user = user.value.strip()
+                final_pass = pwd.value.strip()
+
+                # 判断 SSH 信息是否有效
+                has_ssh_info = False
+                if ssh_user.value:
+                    if auth_type.value == '全局密钥': has_ssh_info = True
+                    elif auth_type.value == '独立密码' and ssh_pwd.value: has_ssh_info = True
+                    elif auth_type.value == '独立密钥' and ssh_key.value: has_ssh_info = True
+
+                # 判断 X-UI 信息是否有效 (URL + 账号 + 密码)
+                has_xui_info = bool(t1_val and final_user and final_pass)
+
+                # ✨✨✨ 核心逻辑判断 (场景 1/2/3) ✨✨✨
+                final_probe_enable = False
+
+                if has_xui_info:
+                    # 场景 1: X-UI 优先。严格遵循复选框。
+                    final_probe_enable = probe_chk.value
+                else:
+                    # 场景 2: 纯 SSH 模式。
+                    # 如果 Tab 1 没填全，但 SSH 填了，强制开启探针。
+                    if has_ssh_info:
+                        final_probe_enable = True
+                    else:
+                        final_probe_enable = False
+
+                # 自动命名
                 final_name = name.value.strip()
                 if not final_name:
                     safe_notify("正在智能获取名称...", "ongoing")
-                    temp_conf = {'url': url.value, 'user': user.value, 'pass': pwd.value, 'prefix': prefix.value}
-                    # 尝试从面板获取，或者用 GeoIP
+                    temp_conf = {'url': final_url, 'user': final_user, 'pass': final_pass, 'prefix': prefix.value}
                     final_name = await generate_smart_name(temp_conf)
                 
-                # B. 构建数据对象
                 server_data = {
                     'name': final_name, 
                     'group': group.value,
-                    'url': url.value, 
-                    'user': user.value, 
-                    'pass': pwd.value, 
+                    'url': final_url, 
+                    'user': final_user, 
+                    'pass': final_pass, 
                     'prefix': prefix.value,
                     'ssh_port': ssh_port.value, 
                     'ssh_user': ssh_user.value,
                     'ssh_auth_type': auth_type.value, 
                     'ssh_password': ssh_pwd.value, 
                     'ssh_key': ssh_key.value,
-                    # ✨ 保存探针安装状态 (True/False)
-                    'probe_installed': probe_chk.value 
+                    'probe_installed': final_probe_enable 
                 }
                 
-                # C. 调用通用保存函数 (处理查重、GeoIP修正等通用逻辑)
                 success = await save_server_config(server_data, is_add=not is_edit, idx=idx)
                 
-                # D. ✨✨✨ 根据勾选状态决定是否发起 SSH 连接 ✨✨✨
                 if success:
-                    if probe_chk.value:
-                        # 情况 1: 用户勾选了探针 -> 触发 SSH 连接并写入 Agent 脚本
+                    # 只有最终判定为开启，才去后台安装
+                    if final_probe_enable:
                         safe_notify(f"🚀 正在后台连接 SSH 并推送 Agent...", "ongoing")
                         asyncio.create_task(install_probe_on_server(server_data))
                     else:
-                        # 情况 2: 用户未勾选 -> 仅保存数据，不连接 SSH
-                        # 此时探针状态为 "未安装"，UI 将显示 "⚠️ 未安装探针"
-                        safe_notify(f"✅ 面板配置已保存 (无 SSH 连接)", "positive")
-                        
+                        safe_notify(f"✅ 配置已保存 (未启用探针)", "positive")
                     d.close()
             
             ui.button('保存配置', on_click=save).classes('bg-slate-900 text-white shadow-lg')
     d.open()
-    
-
 
 # 辅助函数：获取所有唯一分组名（包括主分组、Tags和自定义空分组）
 def get_all_groups_set():
@@ -3230,11 +3232,10 @@ def open_create_group_dialog():
              ui.button('保存', on_click=save_new_group).classes('bg-blue-600 text-white')
     d.open()
     
-# ================= [极简导出版 - 完美居中] 数据备份/恢复 =================
+# =================数据备份/恢复开关 =========================
 async def open_data_mgmt_dialog():
     with ui.dialog() as d, ui.card().classes('w-full max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden'):
         
-        # 顶部 Tab
         with ui.tabs().classes('w-full bg-gray-50 flex-shrink-0 border-b') as tabs:
             tab_export = ui.tab('完整备份 (导出)')
             tab_import = ui.tab('恢复 / 批量添加')
@@ -3306,14 +3307,32 @@ async def open_data_mgmt_dialog():
                         url_area = ui.textarea(placeholder='192.168.1.10\n192.168.1.11:2202\nhttp://example.com:54321').classes('w-full h-32 font-mono text-sm bg-gray-50').props('outlined')
                         ui.separator()
                         
-                        # --- 默认设置区域 ---
+                        # --- 默认设置区域 (SSH 认证升级版) ---
                         with ui.grid().classes('w-full gap-2 grid-cols-2'):
                             def_ssh_user = ui.input('默认 SSH 用户', value='root').props('dense outlined')
                             def_ssh_port = ui.input('默认 SSH 端口', value='22').props('dense outlined')
-                            def_ssh_pwd  = ui.input('默认 SSH 密码 (选填)').props('dense outlined placeholder="留空则用全局密钥"')
+                            
+                            # ✨✨✨ [新增] 认证方式选择 ✨✨✨
+                            def_auth_type = ui.select(['全局密钥', '独立密码', '独立密钥'], value='全局密钥', label='默认 SSH 认证').classes('col-span-2').props('dense outlined options-dense')
+                            
+                            # ✨✨✨ [新增] 动态显隐：密码框 ✨✨✨
+                            def_ssh_pwd = ui.input('默认 SSH 密码').props('dense outlined').classes('col-span-2')
+                            def_ssh_pwd.bind_visibility_from(def_auth_type, 'value', value='独立密码')
+                            
+                            # ✨✨✨ [新增] 动态显隐：私钥框 ✨✨✨
+                            def_ssh_key = ui.textarea('默认 SSH 私钥').props('dense outlined rows=2 input-class=text-xs font-mono').classes('col-span-2')
+                            def_ssh_key.bind_visibility_from(def_auth_type, 'value', value='独立密钥')
+
                             def_xui_port = ui.input('默认 X-UI 端口', value='54321').props('dense outlined')
                             def_xui_user = ui.input('默认 X-UI 账号', value='admin').props('dense outlined')
                             def_xui_pass = ui.input('默认 X-UI 密码', value='admin').props('dense outlined')
+                        
+                        ui.separator()
+
+                        # ✨✨✨ 双独立开关 (Double Switch) ✨✨✨
+                        with ui.row().classes('w-full justify-between items-center bg-gray-50 p-2 rounded border border-gray-200'):
+                            chk_xui = ui.checkbox('添加 X-UI 面板', value=True).classes('font-bold text-blue-700')
+                            chk_probe = ui.checkbox('启用 Root 探针 (自动安装)', value=False).classes('font-bold text-slate-700')
 
                         async def run_batch_import():
                             raw_text = url_area.value.strip()
@@ -3322,66 +3341,62 @@ async def open_data_mgmt_dialog():
                             lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
                             count = 0
                             existing_urls = {s['url'] for s in SERVERS_CACHE}
-                            
-                            # 准备后台任务列表 (修正队列 + 探针队列)
                             post_tasks = []
                             
+                            # 获取开关状态
+                            should_add_xui = chk_xui.value
+                            should_add_probe = chk_probe.value
+
                             for line in lines:
                                 target_ssh_port = def_ssh_port.value
                                 target_xui_port = def_xui_port.value
                                 
-                                # 智能解析输入行
                                 if '://' in line:
                                     final_url = line
-                                    # 如果输入的是完整URL，尝试从中提取主机名暂作名字
                                     try: 
                                         parsed = urlparse(line)
                                         name = parsed.hostname or line
                                     except: name = line
                                 else:
-                                    # 处理 ip:port 格式
                                     if ':' in line and not line.startswith('['): 
                                         parts = line.split(':')
                                         host_ip = parts[0]
-                                        # 如果用户输入了端口，优先使用输入的端口作为面板端口
                                         target_xui_port = parts[1] 
                                     else: 
                                         host_ip = line
-                                        target_xui_port = def_xui_port.value # 用底部默认值
+                                        target_xui_port = def_xui_port.value
                                     
-                                    # 默认拼 HTTP，如果是 HTTPS 面板，用户最好直接粘贴 https://...
                                     final_url = f"http://{host_ip}:{target_xui_port}"
                                     name = host_ip
 
                                 if final_url in existing_urls: continue
                                 
-                                auth_type = '独立密码' if def_ssh_pwd.value.strip() else '全局密钥'
-                                
-                                # 1. 构建配置 (Group 留空，等待后台自动识别归类)
+                                # ✨ 根据开关决定是否填入账号密码
+                                final_xui_user = def_xui_user.value if should_add_xui else ""
+                                final_xui_pass = def_xui_pass.value if should_add_xui else ""
+
                                 new_server = {
                                     'name': name, 
-                                    'group': '',  # <--- 关键：留空！
+                                    'group': '', 
                                     'url': final_url,
-                                    'user': def_xui_user.value, 
-                                    'pass': def_xui_pass.value, 
+                                    'user': final_xui_user, 
+                                    'pass': final_xui_pass, 
                                     'prefix': '',
                                     'ssh_user': def_ssh_user.value, 
-                                    'ssh_port': target_ssh_port, # 这里使用默认 SSH 端口
-                                    'ssh_auth_type': auth_type, 
+                                    'ssh_port': target_ssh_port,
+                                    'ssh_auth_type': def_auth_type.value, # 使用选择的认证方式
                                     'ssh_password': def_ssh_pwd.value, 
-                                    'ssh_key': ''
+                                    'ssh_key': def_ssh_key.value,
+                                    'probe_installed': should_add_probe # 使用开关状态
                                 }
 
                                 SERVERS_CACHE.append(new_server)
                                 existing_urls.add(final_url)
                                 count += 1
                                 
-                                # 2. 加入后台修正队列 (这是关键！让它去读名字、查国旗)
-                                # 必须加这个任务，否则它永远只是 IP
                                 post_tasks.append(fast_resolve_single_server(new_server))
                                 
-                                # 3. 如果开启了探针，加入安装队列
-                                if ADMIN_CONFIG.get('probe_enabled', False):
+                                if ADMIN_CONFIG.get('probe_enabled', False) and should_add_probe:
                                     post_tasks.append(install_probe_on_server(new_server))
 
                             if count > 0:
@@ -3390,17 +3405,10 @@ async def open_data_mgmt_dialog():
                                 safe_notify(f"成功添加 {count} 台服务器", 'positive')
                                 d.close()
                                 
-                                # ✨✨✨ [修复报错核心]：正确执行后台任务列表 ✨✨✨
-                                # 之前的写法会导致 TypeError，这里改用包装函数
                                 if post_tasks:
                                     safe_notify(f"正在后台处理 {len(post_tasks)} 个初始化任务...", "ongoing")
-                                    
-                                    # 定义一个包装协程来执行 gather
                                     async def _run_bg_tasks():
-                                        # 加上 return_exceptions=True 防止单个任务报错中断整体
                                         await asyncio.gather(*post_tasks, return_exceptions=True)
-                                    
-                                    # 正确的提交方式：提交包装后的协程
                                     asyncio.create_task(_run_bg_tasks())
                                     
                             else: safe_notify("未添加任何服务器 (可能已存在)", 'warning')
@@ -3666,10 +3674,17 @@ def render_status_card(label, value_str, sub_text, color_class='text-blue-600', 
                 if sub_text: ui.label(sub_text).classes('text-[10px] text-gray-400')
 
     
-# =================单个服务器视图 (详情页) =========================
+# =================单个服务器视图=========================
 async def render_single_server_view(server_conf, force_refresh=False):
     mgr = get_manager(server_conf)
     ui_refs = {}
+    
+    # ✨✨✨ 判断是否配置了有效的 X-UI 信息 ✨✨✨
+    has_xui_config = (
+        server_conf.get('url') and 
+        server_conf.get('user') and 
+        server_conf.get('pass')
+    )
 
     # --- UI 组件定义 (保持原样) ---
     def _create_live_ring(label, color, key_prefix):
@@ -3704,50 +3719,56 @@ async def render_single_server_view(server_conf, force_refresh=False):
                     ui_refs[f'{key_prefix}_main'] = ui.label('--').classes('text-sm font-bold text-slate-700')
                     ui_refs[f'{key_prefix}_sub'] = ui.label('--').classes('text-[10px] text-gray-400')
 
-    # 顶部按钮
+    # 顶部按钮 (只有配置了 X-UI 才显示新建节点)
     with ui.row().classes('w-full justify-end mb-2'):
-        ui.button('新建节点', icon='add', color='green', on_click=lambda: open_inbound_dialog(mgr, None, lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('dense')
+        if has_xui_config:
+            ui.button('新建节点', icon='add', color='green', on_click=lambda: open_inbound_dialog(mgr, None, lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('dense')
 
     list_container = ui.column().classes('w-full mb-6') 
     status_container = ui.column().classes('w-full') 
 
-    # 1. 节点列表渲染 (混合模式)
-    # 如果有探针(probe=True)，这里 fetch_inbounds_safe 默认读缓存
-    # 如果无探针，refresh_content 的后台任务可能还没跑完，这里先渲染旧缓存，后台跑完后会自动更新
-    res = await fetch_inbounds_safe(server_conf, force_refresh=force_refresh)
-    
+    # 1. 节点列表渲染 (条件控制)
     with list_container:
-        with ui.element('div').classes('grid w-full gap-4 font-bold text-gray-500 border-b pb-2 px-2').style(SINGLE_COLS_NO_PING):
-            ui.label('备注名称').classes('text-left pl-2')
-            for h in ['所在组', '已用流量', '协议', '端口', '状态', '操作']: ui.label(h).classes('text-center')
-        
-        if not res: 
-            msg = '暂无节点 (后台同步中...)' if not server_conf.get('probe_installed') else '暂无节点数据'
-            ui.label(msg).classes('text-gray-400 mt-4 text-center w-full')
+        if not has_xui_config:
+            # ✨✨✨ 纯探针模式提示 ✨✨✨
+            with ui.card().classes('w-full p-4 bg-orange-50 border border-orange-200 items-center flex-row gap-4'):
+                ui.icon('info', size='2rem').classes('text-orange-500')
+                with ui.column().classes('gap-1'):
+                    ui.label('未配置 X-UI 面板信息').classes('font-bold text-orange-800')
+                    ui.label('当前仅作为服务器探针运行。如需管理节点，请在编辑页面填写面板 URL 和账号密码。').classes('text-xs text-orange-600')
         else:
-            for n in res:
-                traffic = format_bytes(n.get('up', 0) + n.get('down', 0))
-                with ui.element('div').classes('grid w-full gap-4 py-3 border-b hover:bg-blue-50 transition px-2').style(SINGLE_COLS_NO_PING):
-                    ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-2')
-                    ui.label(server_conf.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate')
-                    ui.label(traffic).classes('text-xs text-gray-600 w-full text-center font-mono')
-                    ui.label(n.get('protocol', 'unk')).classes('uppercase text-xs font-bold w-full text-center')
-                    ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
-                    
-                    # 状态显示
-                    is_enable = n.get('enable', True)
-                    with ui.row().classes('w-full justify-center items-center gap-1'):
-                        ui.icon('bolt').classes(f'text-{"green" if is_enable else "red"}-500 text-sm')
-                        ui.label("运行中" if is_enable else "已停止").classes(f'text-xs font-bold text-{"green" if is_enable else "red"}-600')
+            # 正常 X-UI 渲染
+            res = await fetch_inbounds_safe(server_conf, force_refresh=force_refresh)
+            
+            with ui.element('div').classes('grid w-full gap-4 font-bold text-gray-500 border-b pb-2 px-2').style(SINGLE_COLS_NO_PING):
+                ui.label('备注名称').classes('text-left pl-2')
+                for h in ['所在组', '已用流量', '协议', '端口', '状态', '操作']: ui.label(h).classes('text-center')
+            
+            if not res: 
+                msg = '暂无节点 (后台同步中...)' if not server_conf.get('probe_installed') else '暂无节点数据'
+                ui.label(msg).classes('text-gray-400 mt-4 text-center w-full')
+            else:
+                for n in res:
+                    traffic = format_bytes(n.get('up', 0) + n.get('down', 0))
+                    with ui.element('div').classes('grid w-full gap-4 py-3 border-b hover:bg-blue-50 transition px-2').style(SINGLE_COLS_NO_PING):
+                        ui.label(n.get('remark', '未命名')).classes('font-bold truncate w-full text-left pl-2')
+                        ui.label(server_conf.get('group', '默认分组')).classes('text-xs text-gray-500 w-full text-center truncate')
+                        ui.label(traffic).classes('text-xs text-gray-600 w-full text-center font-mono')
+                        ui.label(n.get('protocol', 'unk')).classes('uppercase text-xs font-bold w-full text-center')
+                        ui.label(str(n.get('port', 0))).classes('text-blue-600 font-mono w-full text-center')
+                        
+                        is_enable = n.get('enable', True)
+                        with ui.row().classes('w-full justify-center items-center gap-1'):
+                            ui.icon('bolt').classes(f'text-{"green" if is_enable else "red"}-500 text-sm')
+                            ui.label("运行中" if is_enable else "已停止").classes(f'text-xs font-bold text-{"green" if is_enable else "red"}-600')
 
-                    # 操作
-                    with ui.row().classes('gap-2 justify-center w-full no-wrap'):
-                        l = generate_node_link(n, server_conf['url'])
-                        if l: ui.button(icon='content_copy', on_click=lambda u=l: safe_copy_to_clipboard(u)).props('flat dense size=sm')
-                        ui.button(icon='edit', on_click=lambda i=n: open_inbound_dialog(mgr, i, lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm')
-                        ui.button(icon='delete', on_click=lambda i=n: delete_inbound_with_confirm(mgr, i['id'], i.get('remark',''), lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm color=red')
+                        with ui.row().classes('gap-2 justify-center w-full no-wrap'):
+                            l = generate_node_link(n, server_conf['url'])
+                            if l: ui.button(icon='content_copy', on_click=lambda u=l: safe_copy_to_clipboard(u)).props('flat dense size=sm')
+                            ui.button(icon='edit', on_click=lambda i=n: open_inbound_dialog(mgr, i, lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm')
+                            ui.button(icon='delete', on_click=lambda i=n: delete_inbound_with_confirm(mgr, i['id'], i.get('remark',''), lambda: refresh_content('SINGLE', server_conf, force_refresh=True))).props('flat dense size=sm color=red')
 
-    # 2. 状态面板框架
+    # 2. 状态面板 (始终显示)
     with status_container:
         ui.separator().classes('my-4') 
         with ui.card().classes('w-full p-4 bg-white rounded-xl shadow-sm border border-gray-100'):
@@ -3769,43 +3790,41 @@ async def render_single_server_view(server_conf, force_refresh=False):
                 _create_live_stat_card('运行时间', 'schedule', 'text-cyan-600', 'uptime')
                 _create_live_stat_card('系统负载', 'analytics', 'text-pink-600', 'load')
 
-    # 3. 数据更新任务 (核心混合逻辑)
+    # 3. 数据更新任务
     async def update_data_task():
         try:
             if 'heartbeat' in ui_refs: ui_refs['heartbeat'].classes(remove='opacity-0')
             
-            # ✨ 调用全局混合获取函数 (自动区分 Cache/Active)
+            # ✨ get_server_status 会自动读取探针缓存
             status = await get_server_status(server_conf)
             
             if status:
-                is_lite = status.get('_is_lite', False) # 是否为纯面板模式
+                is_lite = status.get('_is_lite', False)
                 
-                # CPU
                 cpu = float(status.get('cpu_usage', 0))
                 if 'cpu_ring' in ui_refs: 
                     ui_refs['cpu_ring'].set_value(cpu / 100)
                     ui_refs['cpu_ring'].props(f'color={"orange" if is_lite else "blue"}')
                 if 'cpu_pct' in ui_refs: ui_refs['cpu_pct'].set_text(f"{round(cpu, 1)}%")
                 
-                # Mem
                 mem_curr = status.get('mem_usage', 0); mem_total = status.get('mem_total', 1)
-                # 面板模式下 mem_usage 可能是百分比，标准化一下
-                if is_lite: mem_pct = mem_curr # Lite 模式直接存的是百分比
+                if is_lite: mem_pct = mem_curr 
                 else: mem_pct = (mem_curr / mem_total * 100) if mem_total > 0 else 0
                 
                 if 'mem_ring' in ui_refs: ui_refs['mem_ring'].set_value(mem_pct / 100)
                 if 'mem_pct' in ui_refs: ui_refs['mem_pct'].set_text(f"{int(mem_pct)}%")
                 
-                # Uptime
                 if 'uptime_main' in ui_refs: ui_refs['uptime_main'].set_text(status.get('uptime', '-'))
                 
-                # Xray
-                if 'xray_main' in ui_refs: ui_refs['xray_main'].set_text("Lite Mode" if is_lite else "RUNNING")
+                # 状态逻辑更新
+                if 'xray_main' in ui_refs: 
+                    if not has_xui_config: ui_refs['xray_main'].set_text("Probe Only")
+                    else: ui_refs['xray_main'].set_text("Lite Mode" if is_lite else "RUNNING")
                 
             if 'heartbeat' in ui_refs: ui_refs['heartbeat'].classes(add='opacity-0')
         except: pass
 
-    # ✨ 智能频率：有探针(内存读) 3秒，无探针(HTTP请求) 5秒
+    # 探针刷新频率
     interval = 3.0 if server_conf.get('probe_installed') else 5.0
     ui.timer(interval, update_data_task)
     ui.timer(0.1, update_data_task, once=True)
