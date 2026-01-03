@@ -13,29 +13,74 @@
 
 ---
 
-**X-Fusion Panel**  是一个全能型 VPS 集中管理平台。它将 X-UI 面板管理、高性能 SSH 网页终端、全球节点地图监控以及订阅转换功能完美融合。通过统一的 Web 界面，您可以轻松掌控分布在世界各地的服务器。
+**X-Fusion Panel**  是一个全能型 VPS 集中运维与监控平台。它首创 “混合双轨制” 监控架构，完美融合了 X-UI 面板管理 与 轻量级服务器探针。无论你是需要管理成百上千个节点的使用者，还是拥有多台 VPS 的极客，X-Fusion 都能通过统一的 Web 界面，提供包含 实时性能监控、WebSSH 终端、批量节点管理、智能订阅转换 在内的一站式解决方案。
 
 ---
 
 ## ✨ 核心功能
 
-* **📊 全景仪表盘**：可视化展示在线服务器、节点状态、实时流量消耗及协议分布图表。
-* **🌍 全球实景地图**：基于 Leaflet 的节点地图，自动定位服务器地理位置，直观监控全球资产。
-* **💻 交互式 SSH 终端**：内置高性能 WebSSH 客户端（Xterm.js），支持全屏、自适应布局、文件挂载，提供类似本地终端的操作体验。
-* **🔗 智能订阅管理**：
-    * **聚合订阅**：自动生成包含所有节点的聚合链接。
-    * **分组订阅**：支持按“国家/地区”或“自定义标签”生成专属订阅。
-    * **格式转换**：内置 SubConverter，直接输出 Clash、Surge 等格式。
-* **☁️ 集中管理**：支持无限添加 X-UI 面板，自动同步节点状态，支持批量操作。
-* **💾 数据安全**：采取密码+MFA+IP记录三重保护措施保证面板数据安全，支持 JSON 全量备份与恢复，支持批量导入 URL，支持平滑迁移。
-* **🛡️ 稳定架构**：采用 Docker 容器化部署，内置 Caddy 反代，开箱即用。
+* **1. 🛡️ 混合双轨制监控 (Hybrid Monitor)
+打破传统面板限制，采用 主动拉取 + 被动推送 双重机制：
+
+被动推送 (Probe Mode)：通过一键安装 Python 轻量探针，服务器主动每 3 秒汇报 CPU、内存、硬盘、负载及实时流量。数据走 HTTP 推送，无需开放额外端口，不受防火墙限制。
+
+主动拉取 (Panel Mode)：对于未安装探针的机器，自动回退到传统的 X-UI API 轮询模式，确保即使不装探针也能获取基础流量数据。
+
+高容错设计：探针内置沙盒隔离机制，即使 X-UI 面板崩溃或 API 变动，探针依然能稳定汇报系统状态，永不掉线。
+
+* **2. 💻 沉浸式 WebSSH 终端
+内置 Xterm.js：提供类似本地终端的丝滑体验，支持全彩显示、命令补全、自适应窗口大小。
+
+灵活认证：支持 全局密钥、独立密钥、独立密码 三种认证方式，满足不同服务器的安全需求。
+
+批量执行：支持向选定的多台服务器批量发送 Shell 命令，并在统一的日志窗口查看执行结果（支持 sudo 交互）。
+
+* **3. 🤖 智能运维与自动化
+智能分组与命名：
+
+自动识别服务器 IP 归属地，添加国旗 Emoji（如 🇺🇸、🇭🇰、🇯🇵）。
+
+智能纠错逻辑（如防止将 Oracle 误判为智利 🇨🇱）。
+
+支持 拖拽排序，可自定义区域分组的显示顺序。
+
+双向同步添加：
+
+单台添加：智能识别“纯 SSH 模式”与“面板模式”。若未填面板信息但配置了 SSH，自动激活探针安装。
+
+批量添加：支持 双独立开关（[ ] 添加 X-UI 面板 | [ ] 启用 Root 探针），灵活控制批量导入的服务器行为。
+
+* **4. 🔗 强大的订阅管理
+聚合与分组：一键生成包含所有节点的聚合订阅，或按“国家/地区”、“自定义 Tag”生成专属订阅。
+
+内置转换：集成 SubConverter，直接输出 Clash、Surge、Loon 等格式配置。
+
+高级策略：支持 正则重命名（Rename）、正则筛选（Include/Exclude）、自动排序、强制开启 UDP 等高级处理策略。
+
+* **5. 📊 可视化仪表盘
+全球实景地图：基于 Leaflet 的动态地图，直观展示全球节点分布。
+
+实时数据：协议分布饼图、流量排行柱状图、实时上传/下载速率。
+
+安全防护：支持 MFA (TOTP) 二次验证，记录登录 IP，保障面板安全。
 
 ---
-<img width="2146" height="1816" alt="image" src="https://github.com/user-attachments/assets/7c8b2163-50aa-4b6a-b550-8dde09e57818" />
-<img width="2119" height="1393" alt="image" src="https://github.com/user-attachments/assets/7746c2b5-c0da-4fbf-8499-e6431e7e5d94" />
-<img width="2133" height="1876" alt="0c69c5d7-a82a-4900-9d45-2190d075f557" src="https://github.com/user-attachments/assets/b65f53fb-37f3-46c6-8897-f1359fb5d4eb" />
-<img width="2136" height="1881" alt="image" src="https://github.com/user-attachments/assets/fae65091-c411-46c3-a4a3-8af97eac50b9" />
-<img width="2143" height="1868" alt="image" src="https://github.com/user-attachments/assets/db7439ee-7cbc-4860-b723-598d8517f1e2" />
+## 📸 界面预览
+
+* **📊 全景仪表盘与地图
+<img width="100%" alt="Dashboard" src="https://github.com/user-attachments/assets/7c8b2163-50aa-4b6a-b550-8dde09e57818" />
+
+* **🧱 智能监控墙 (支持拖拽排序)
+<img width="100%" alt="Monitor Wall" src="https://github.com/user-attachments/assets/7746c2b5-c0da-4fbf-8499-e6431e7e5d94" />
+
+* **🛠️ 批量添加 (支持双独立开关)
+<img width="100%" alt="Batch Add" src="https://github.com/user-attachments/assets/4dbdcb" />
+
+* **💻 WebSSH 终端与单机管理
+<img width="100%" alt="WebSSH" src="https://github.com/user-attachments/assets/fae65091-c411-46c3-a4a3-8af97eac50b9" />
+
+* **🔗 订阅策略编辑器
+<img width="100%" alt="Subscription" src="https://github.com/user-attachments/assets/db7439ee-7cbc-4860-b723-598d8517f1e2" />
 
 
 
@@ -51,6 +96,26 @@
 bash <(curl -Ls https://raw.githubusercontent.com/SIJULY/x-fusion-panel/main/install.sh)
 ```
 提示：如果是旧版本 (xui_manager) 用户，直接运行此命令并选择 [2] 更新面板，脚本会自动将旧数据迁移至新目录。
+
+
+* **💡 添加服务器逻辑说明
+为了适应不同场景，面板在添加服务器时采用了智能判断逻辑：
+
+* ***1. 单台添加
+X-UI 优先原则：如果填写了面板 URL 和账号密码，且未勾选“启用探针”，则仅作为面板管理，不进行 SSH 连接。
+
+纯 SSH 补位：如果未填写面板信息，但填写了 SSH 连接信息，系统会自动强制启用探针模式（用于纯服务器监控）。
+
+混合模式：同时填写并勾选，则既管理面板又安装探针。
+
+* ***2. 批量添加
+采用 双独立开关 设计：
+
+仅勾选 [添加 X-UI 面板]：后台仅尝试连接 X-UI API，绝对不会 发起 SSH 连接。
+
+仅勾选 [启用 Root 探针]：后台仅尝试 SSH 连接并安装 Agent，不尝试连接面板 API。
+
+同时勾选：执行全套初始化流程。
 
 ## 🛠️ 反向代理配置指南
 ⚠️ 注意： 如果您在安装时选择了 「域名访问」 模式，脚本会自动为您配置好 Caddy，无需进行以下操作。 仅当您选择「IP + 端口」模式，且希望手动配置 Nginx 或 Caddy 将域名指向面板时，才需要参考以下内容。
