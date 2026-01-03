@@ -1,19 +1,29 @@
 #!/bin/bash
 
 # 获取参数
-TOKEN=$1
-REPORT_URL=$2
+TOKEN="$1"
+REGISTER_API="$2"
 
-# 检查参数是否存在
-if [ -z "$TOKEN" ] || [ -z "$REPORT_URL" ]; then
-    echo "❌ 错误: 缺少参数。"
-    echo "用法: bash install.sh <TOKEN> <REPORT_URL>"
+# 参数校验
+if [ -z "$TOKEN" ] || [ -z "$REGISTER_API" ]; then
+    echo "❌ 错误: 缺少参数"
+    echo "用法: bash x-install.sh \"TOKEN\" \"REGISTER_API_URL\""
     exit 1
 fi
 
-echo "🚀 开始安装简易探针..."
+# 从注册 API 提取 推送 API (将 /register 替换为 /push)
+# 例如: https://.../api/probe/register -> https://.../api/probe/push
+PUSH_API="${REGISTER_API/\/register/\/push}"
 
-# 1. 环境准备
+echo "🚀 开始安装 X-Fusion 推送探针..."
+echo "🔑 Token: $TOKEN"
+echo "📡 推送地址: $PUSH_API"
+
+# 1. 向面板注册 (这一步是为了让面板知道这台机器存在，如果已存在会忽略)
+curl -s -X POST -H "Content-Type: application/json" -d "{\"token\":\"$TOKEN\"}" "$REGISTER_API"
+echo ""
+
+# 2. 安装 Python3
 if ! command -v python3 >/dev/null 2>&1; then
     echo "📦 安装 Python3..."
     if [ -f /etc/debian_version ]; then apt-get update -y && apt-get install -y python3;
@@ -21,86 +31,104 @@ if ! command -v python3 >/dev/null 2>&1; then
     elif [ -f /etc/alpine-release ]; then apk add python3; fi
 fi
 
-# 2. 写入探针 (TOKEN 使用变量注入)
-cat > /root/mini_probe.py << EOF
-import http.server, json, subprocess, sys, os, time, socketserver
-PORT = 54322
-TOKEN = "$TOKEN"
+# 3. 写入 Python 推送脚本
+cat > /root/x_fusion_agent.py << EOF
+import time, json, os, socket, sys
+import urllib.request, urllib.error
 
-def get_cpu():
+# 配置参数
+MANAGER_URL = "$PUSH_API"
+TOKEN = "$TOKEN"
+# 获取本机 IP/域名作为标识
+SERVER_URL = "" 
+
+def get_sys_info():
+    data = {"token": TOKEN}
+    
+    # 获取系统信息
     try:
+        # CPU
         with open("/proc/stat") as f: fields = [float(x) for x in f.readline().split()[1:5]]
         t1, i1 = sum(fields), fields[3]
-        time.sleep(0.5)
+        time.sleep(1)
         with open("/proc/stat") as f: fields = [float(x) for x in f.readline().split()[1:5]]
         t2, i2 = sum(fields), fields[3]
-        return round((1 - (i2-i1)/(t2-t1)) * 100, 1)
-    except: return 0.0
+        data["cpu_usage"] = round((1 - (i2-i1)/(t2-t1)) * 100, 1)
+        data["cpu_cores"] = os.cpu_count() or 1
+        
+        # Load
+        with open("/proc/loadavg") as f: data["load_1"] = float(f.read().split()[0])
 
-class H(http.server.BaseHTTPRequestHandler):
-    def do_GET(s):
-        if s.path != "/status?token=" + TOKEN: 
-            s.send_response(403); s.end_headers(); return
+        # Memory
+        with open("/proc/meminfo") as f: lines = f.readlines()
+        m = {}
+        for line in lines[:5]:
+            parts = line.split()
+            if len(parts) >= 2: m[parts[0].rstrip(":")] = int(parts[1])
+        total = m.get("MemTotal", 1); avail = m.get("MemAvailable", m.get("MemFree", 0))
+        data["mem_total"] = round(total / 1024 / 1024, 2)
+        data["mem_usage"] = round(((total - avail) / total) * 100, 1)
+
+        # Disk
+        st = os.statvfs("/")
+        total_d = st.f_blocks * st.f_frsize
+        free_d = st.f_bavail * st.f_frsize
+        data["disk_total"] = round(total_d / 1024 / 1024 / 1024, 2)
+        data["disk_usage"] = round(((total_d - free_d) / total_d) * 100, 1)
+
+        # Uptime
+        with open("/proc/uptime") as f: u = float(f.read().split()[0])
+        dy = int(u // 86400); hr = int((u % 86400) // 3600); mn = int((u % 3600) // 60)
+        data["uptime"] = f"{dy}天 {hr}时 {mn}分"
+        
+        # 尝试获取本机公网 IP 用于匹配缓存
         try:
-            cpu_u = get_cpu()
-            try: cores = os.cpu_count() or 1
-            except: cores = 1
-            try:
-                with open("/proc/loadavg") as f: l = float(f.read().split()[0])
-            except: l = 0.0
-            mem_u = 0; mem_t = 0
-            try:
-                with open("/proc/meminfo") as f: lines = f.readlines()
-                m = {}
-                for line in lines[:5]:
-                    parts = line.split()
-                    if len(parts) >= 2: m[parts[0].rstrip(":")] = int(parts[1])
-                total_kb = m.get("MemTotal", 1)
-                avail_kb = m.get("MemAvailable", m.get("MemFree", 0))
-                mem_u = round(((total_kb - avail_kb) / total_kb) * 100, 1)
-                mem_t = round(total_kb / 1024 / 1024, 2)
-            except: pass
-            disk_u = 0; disk_t = 0
-            try:
-                out = subprocess.check_output(["df", "-k", "/"]).decode().splitlines()[1].split()
-                total_kb = int(out[1])
-                disk_t = round(total_kb / 1024 / 1024, 2)
-                disk_u = int(out[-2].strip("%"))
-            except: pass
-            uptime_str = "-"
-            try:
-                with open("/proc/uptime") as f: u = float(f.read().split()[0])
-                dy = int(u // 86400); hr = int((u % 86400) // 3600)
-                uptime_str = f"{dy}d {hr}h"
-            except: pass
-            data = {
-                "status": "online", "load": l, "cpu_usage": cpu_u, "cpu_cores": cores,
-                "mem_usage": mem_u, "mem_total": mem_t, "disk_usage": disk_u, "disk_total": disk_t, "uptime": uptime_str
-            }
-            s.send_response(200); s.send_header("Content-Type", "application/json"); s.end_headers()
-            s.wfile.write(json.dumps(data).encode())
-        except: s.send_response(500)
-    def log_message(s,f,*a): pass
+            with urllib.request.urlopen("http://ifconfig.me", timeout=3) as r:
+                my_ip = r.read().decode().strip()
+                data["server_url"] = f"http://{my_ip}:54322" # 模拟旧格式URL以匹配缓存键
+        except:
+            pass
+
+    except: pass
+    return data
+
+def push_data():
+    while True:
+        try:
+            payload = json.dumps(get_sys_info()).encode("utf-8")
+            req = urllib.request.Request(MANAGER_URL, data=payload, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=5) as r: pass
+        except Exception as e:
+            pass 
+        time.sleep(3) 
 
 if __name__ == "__main__":
-    try: 
-        socketserver.TCPServer.allow_reuse_address = True
-        http.server.HTTPServer(("0.0.0.0", PORT), H).serve_forever()
-    except: pass
+    push_data()
 EOF
 
-# 3. 启动服务
+# 4. 创建 Systemd 服务
+cat > /etc/systemd/system/x-fusion-agent.service << SERVICE_EOF
+[Unit]
+Description=X-Fusion Probe Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /root/x_fusion_agent.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+SERVICE_EOF
+
+# 5. 启动服务
+systemctl daemon-reload
+systemctl enable x-fusion-agent
+systemctl restart x-fusion-agent
+
+# 清理旧的监听进程 (如果存在)
 pkill -f mini_probe.py || true
-nohup python3 /root/mini_probe.py >/dev/null 2>&1 &
 
-# 4. 放行端口
-if command -v iptables >/dev/null; then iptables -I INPUT -p tcp --dport 54322 -j ACCEPT || true; fi
-if command -v ufw >/dev/null; then ufw allow 54322/tcp || true; fi
-if command -v firewall-cmd >/dev/null; then firewall-cmd --zone=public --add-port=54322/tcp --permanent && firewall-cmd --reload || true; fi
-
-echo "📡 正在向面板注册..."
-curl -s -X POST "$REPORT_URL" -H "Content-Type: application/json" -d "{\"token\": \"$TOKEN\"}"
-
-echo -e "\n✅ 安装完成！请检查面板列表。"
-sleep 1
-ss -nltp | grep 54322
+echo "✅ 探针 Agent 已启动！正在向 $PUSH_API 推送数据..."
