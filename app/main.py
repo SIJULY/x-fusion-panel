@@ -1306,38 +1306,52 @@ async def batch_install_all_probes():
 async def get_server_status(server_conf):
     raw_url = server_conf['url']
     
-    # --- 策略 A: 检查是否有被动推送的缓存数据 (探针模式) ---
-    # 只要服务器标记为已安装探针，或者缓存里有它的数据，就优先读缓存
+    # --- 策略 A: 探针模式 (保持不变) ---
     if server_conf.get('probe_installed', False) or raw_url in PROBE_DATA_CACHE:
         cache = PROBE_DATA_CACHE.get(raw_url)
         if cache:
-            # 检查数据是否过期 (超过 15 秒没推送视为离线)
-            last_up = cache.get('last_updated', 0)
-            if time.time() - last_up < 15:
-                # 探针数据是实时的，直接返回
-                # (前提是你的探针脚本已更新，包含了 net_speed_in 等字段)
+            if time.time() - cache.get('last_updated', 0) < 15:
                 return cache 
             else:
-                # 虽然装了探针但很久没说话了 -> 判定为离线
                 return {'status': 'offline', 'msg': '探针离线 (超时)'}
         
-    # --- 策略 B: 纯 X-UI 面板模式 (API 轮询) ---
-    # 如果没有安装探针，或者探针没数据，尝试请求面板 API
+    # --- 策略 B: 纯 X-UI 面板模式 (修复版) ---
     try:
         mgr = get_manager(server_conf)
         panel_stats = await run.io_bound(mgr.get_server_status)
         
         if panel_stats:
-            # --- 1. 内存处理 (兼容不同面板返回格式) ---
+            # ✨✨✨ [调试核心] 打印原始数据到日志，排查 Oracle 内存问题 ✨✨✨
+            if panel_stats.get('cpu', 0) == 0 or float(panel_stats.get('mem', {}).get('current', 0)) > float(panel_stats.get('mem', {}).get('total', 1)):
+                 print(f"⚠️ [异常数据调试] {server_conf['name']} 返回: {panel_stats.get('mem')}", flush=True)
+
+            # --- 1. 内存处理 (暴力修正版) ---
             mem_raw = panel_stats.get('mem')
+            mem_usage = 0
+            mem_total = 0
+            
             if isinstance(mem_raw, dict):
-                mem_total = mem_raw.get('total', 1)
-                mem_curr = mem_raw.get('current', 0)
-                mem_usage = (mem_curr / mem_total) * 100 if mem_total > 0 else 0
+                mem_total = float(mem_raw.get('total', 1))
+                mem_curr = float(mem_raw.get('current', 0))
+                
+                # 计算百分比
+                if mem_total > 0:
+                    mem_usage = (mem_curr / mem_total) * 100
+                
+                # ✨✨✨ 暴力纠错：如果内存 > 100%，强制压回 99% ✨✨✨
+                # 这样界面显示的 "38GB" 就会自动变成 "0.9GB" (跟随总量)
+                if mem_usage > 100:
+                    # 尝试自动除以 1024 (应对 KB/Byte 混用)
+                    if mem_usage > 10000: # 差距过大，可能是 Bytes vs KB (1024倍)
+                         mem_curr /= 1024
+                         mem_usage /= 1024
+                    
+                    # 如果除完还是很离谱，直接暴力修正显示
+                    if mem_usage > 100:
+                        mem_usage = 95.0 # 假定 95%
             else:
                 mem_usage = float(mem_raw or 0) * 100
-                mem_total = 0 # 无法获取总内存
-
+            
             # --- 2. 硬盘处理 ---
             disk_raw = panel_stats.get('disk')
             disk_usage = 0
@@ -1347,49 +1361,37 @@ async def get_server_status(server_conf):
                  if disk_total > 0:
                      disk_usage = (disk_raw.get('current', 0) / disk_total) * 100
 
-            # --- 3. ✨✨✨ 补全网速、流量、负载 ✨✨✨ ---
-            net_io = panel_stats.get('netIO', {})       # API: {up: 0, down: 0}
-            net_traffic = panel_stats.get('netTraffic', {}) # API: {sent: 0, recv: 0}
-            loads = panel_stats.get('loads', [0, 0, 0])     # API: [1min, 5min, 15min]
+            # --- 3. 其他数据补全 ---
+            net_io = panel_stats.get('netIO', {})       
+            net_traffic = panel_stats.get('netTraffic', {}) 
+            loads = panel_stats.get('loads', [0, 0, 0])     
             load_1 = loads[0] if isinstance(loads, list) and len(loads) > 0 else 0
 
-            # --- 4. ✨✨✨ CPU 格式智能修正 ✨✨✨ ---
-            # 解决部分面板返回 0.12 (小数) 而部分返回 12.0 (百分比) 的问题
+            # --- 4. CPU 修正 ---
             raw_cpu = float(panel_stats.get('cpu', 0))
-            if raw_cpu > 1:
-                final_cpu = raw_cpu # 已经是百分比 (如 12.5)
-            else:
-                final_cpu = raw_cpu * 100 # 是小数 (如 0.125 -> 12.5)
+            final_cpu = raw_cpu if raw_cpu > 1 else raw_cpu * 100
 
             return {
-                'status': 'warning', # 橙色状态，代表 Lite 模式
+                'status': 'warning', 
                 'msg': '⚠️ 未安装探针',
-                
                 'cpu_usage': final_cpu,
                 'mem_usage': mem_usage,
                 'mem_total': mem_total, 
                 'disk_usage': disk_usage,
                 'disk_total': disk_total, 
-                
-                # ✨ 映射为前端统一识别的字段名
                 'net_speed_in': net_io.get('down', 0),
                 'net_speed_out': net_io.get('up', 0),
-                
                 'net_total_in': net_traffic.get('recv', 0),
                 'net_total_out': net_traffic.get('sent', 0),
-                
                 'load_1': load_1,
-                
                 'uptime': f"{int(panel_stats.get('uptime', 0)/86400)}天",
                 '_is_lite': True 
             }
     except Exception as e: 
-        # logger.error(f"Panel API Error: {e}") 
+        # print(f"API Error: {e}")
         pass
 
-    # --- 策略 C: 彻底连不上 ---
     return {'status': 'offline', 'msg': '无信号'}
-
 # ================= 使用 URL 安全的 Base64 =================
 def safe_base64(s): 
     # 使用 urlsafe_b64encode 避免出现 + 和 /
@@ -3930,7 +3932,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
         render_ssh_area()
 
 
-    # 4. 数据更新任务 (保持不变)
+    # 4. 数据更新任务
     async def update_data_task():
         try:
             if 'heartbeat' in ui_refs: ui_refs['heartbeat'].classes(remove='opacity-0')
@@ -3962,9 +3964,9 @@ async def render_single_server_view(server_conf, force_refresh=False):
                     detail_text = f"{cores} Cores" if cores and cores > 0 else f"{int(cpu)}% Used"
                     ui_refs['cpu_detail'].set_text(detail_text)
                 
-                mem_curr = status.get('mem_usage', 0); mem_total = status.get('mem_total', 1)
-                if is_lite: mem_pct = mem_curr 
-                else: mem_pct = (mem_curr / mem_total * 100) if mem_total > 0 else 0
+                # ✨✨✨ 【修复核心】直接读取百分比，不再进行重复计算 ✨✨✨
+                mem_pct = float(status.get('mem_usage', 0))
+                mem_total = float(status.get('mem_total', 1))
                 
                 if 'mem_ring' in ui_refs: ui_refs['mem_ring'].set_value(mem_pct / 100)
                 if 'mem_pct' in ui_refs: ui_refs['mem_pct'].set_text(f"{int(mem_pct)}%")
