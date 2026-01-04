@@ -73,17 +73,19 @@
 ***📊 全景仪表盘与地图***
 <img width="100%" alt="Dashboard" src="https://github.com/user-attachments/assets/7c8b2163-50aa-4b6a-b550-8dde09e57818" />
 
-***🧱 智能监控墙 (支持拖拽排序)***
-<img width="100%" alt="Monitor Wall" src="https://github.com/user-attachments/assets/7746c2b5-c0da-4fbf-8499-e6431e7e5d94" />
+***🧱 探针页面***
+<img width="1909" height="1919" alt="image" src="https://github.com/user-attachments/assets/d3e50a4a-5ccb-4e39-8ae2-8c08034a75a5" />
 
 ***🛠️ 批量添加 (支持双独立开关)***
-<img width="100%" alt="Batch Add" src="https://github.com/user-attachments/assets/4dbdcb" />
+<img width="1923" height="1921" alt="image" src="https://github.com/user-attachments/assets/04965188-6aa3-4021-9d4e-106052b568bf" />
+
 
 ***💻 WebSSH 终端与单机管理***
-<img width="100%" alt="WebSSH" src="https://github.com/user-attachments/assets/fae65091-c411-46c3-a4a3-8af97eac50b9" />
+<img width="1923" height="1926" alt="630ebad3-a49b-425a-860c-9c52cee10d17" src="https://github.com/user-attachments/assets/e0c35eed-9a0c-4491-8b59-d58744b1243d" />
 
 ***🔗 订阅策略编辑器***
-<img width="100%" alt="Subscription" src="https://github.com/user-attachments/assets/db7439ee-7cbc-4860-b723-598d8517f1e2" />
+<img width="1903" height="1906" alt="image" src="https://github.com/user-attachments/assets/091c851e-1440-40a3-b28e-b462baf732a8" />
+
 
 
 
