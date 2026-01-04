@@ -14,7 +14,7 @@ fi
 # 从注册 API 提取 推送 API (将 /register 替换为 /push)
 PUSH_API="${REGISTER_API/\/register/\/push}"
 
-echo "🚀 开始安装 X-Fusion 全能探针 (含测速)..."
+echo "🚀 开始安装 X-Fusion 全能探针 (v3.1 稳定版)..."
 echo "🔑 Token: $TOKEN"
 echo "📡 推送地址: $PUSH_API"
 
@@ -36,22 +36,28 @@ elif [ -f /etc/alpine-release ]; then
     command -v ping >/dev/null 2>&1 || apk add iputils
 fi
 
-# 3. 写入 Python 推送脚本 (与 main.py 逻辑同步)
+# 3. 写入 Python 推送脚本 (集成 SSL 修复与 IPv4 强制锁定)
 cat > /root/x_fusion_agent.py << EOF
 import time, json, os, socket, sys, subprocess, re
 import urllib.request, urllib.error
+import ssl
 
 # 配置参数
 MANAGER_URL = "$PUSH_API"
 TOKEN = "$TOKEN"
-SERVER_URL = "" # 将在下面自动获取
+SERVER_URL = "" 
 
-# 默认测速目标 (与 Panel 默认配置保持一致)
+# 默认测速目标
 PING_TARGETS = {
     "电信": "202.102.192.68",
     "联通": "112.122.10.26",
     "移动": "211.138.180.2"
 }
+
+# ✨ 全局 SSL 上下文 (忽略证书错误)
+ssl_ctx = ssl.create_default_context()
+ssl_ctx.check_hostname = False
+ssl_ctx.verify_mode = ssl.CERT_NONE
 
 def get_ping_latency(ip_input):
     try:
@@ -87,31 +93,38 @@ def get_sys_info():
     global SERVER_URL
     data = {"token": TOKEN}
     
-    # 首次运行时尝试获取公网 IP 作为标识
+    # ✨✨✨ 核心修复：强制使用 IPv4 接口 ✨✨✨
     if not SERVER_URL:
         try:
-            with urllib.request.urlopen("http://ifconfig.me", timeout=3) as r:
+            # 使用 AWS 的 IPv4 专用接口 (它不返回 IPv6)
+            url_v4 = "http://checkip.amazonaws.com"
+            with urllib.request.urlopen(url_v4, timeout=5, context=ssl_ctx) as r:
                 my_ip = r.read().decode().strip()
                 SERVER_URL = f"http://{my_ip}:54322"
-        except: pass
+        except:
+            try:
+                # 备用接口: ipw.cn 的 IPv4 接口
+                with urllib.request.urlopen("http://4.ipw.cn", timeout=5, context=ssl_ctx) as r:
+                    my_ip = r.read().decode().strip()
+                    SERVER_URL = f"http://{my_ip}:54322"
+            except: pass
     
     data["server_url"] = SERVER_URL
 
     try:
-        # 1. 读取初始状态 (流量 + CPU)
+        # 1. 读取初始状态
         net_rx1, net_tx1 = get_network_stats()
         with open("/proc/stat") as f: fields = [float(x) for x in f.readline().split()[1:5]]
         t1, i1 = sum(fields), fields[3]
         
-        # 2. 等待 1 秒
         time.sleep(1) 
         
-        # 3. 读取结束状态
+        # 2. 读取结束状态
         with open("/proc/stat") as f: fields = [float(x) for x in f.readline().split()[1:5]]
         t2, i2 = sum(fields), fields[3]
         net_rx2, net_tx2 = get_network_stats()
         
-        # 4. 计算差值 (CPU利用率 & 网速)
+        # 3. 计算数据
         data["cpu_usage"] = round((1 - (i2-i1)/(t2-t1)) * 100, 1)
         data["cpu_cores"] = os.cpu_count() or 1
         data["net_total_in"] = net_rx2
@@ -119,10 +132,8 @@ def get_sys_info():
         data["net_speed_in"] = net_rx2 - net_rx1
         data["net_speed_out"] = net_tx2 - net_tx1
 
-        # Load
         with open("/proc/loadavg") as f: data["load_1"] = float(f.read().split()[0])
 
-        # Memory
         with open("/proc/meminfo") as f: lines = f.readlines()
         m = {}
         for line in lines[:5]:
@@ -132,14 +143,12 @@ def get_sys_info():
         data["mem_total"] = round(total / 1024 / 1024, 2)
         data["mem_usage"] = round(((total - avail) / total) * 100, 1)
 
-        # Disk
         st = os.statvfs("/")
         total_d = st.f_blocks * st.f_frsize
         free_d = st.f_bavail * st.f_frsize
         data["disk_total"] = round(total_d / 1024 / 1024 / 1024, 2)
         data["disk_usage"] = round(((total_d - free_d) / total_d) * 100, 1)
 
-        # Uptime
         with open("/proc/uptime") as f: u = float(f.read().split()[0])
         dy = int(u // 86400); hr = int((u % 86400) // 3600); mn = int((u % 3600) // 60)
         data["uptime"] = f"{dy}天 {hr}时 {mn}分"
@@ -158,7 +167,8 @@ def push_data():
         try:
             payload = json.dumps(get_sys_info()).encode("utf-8")
             req = urllib.request.Request(MANAGER_URL, data=payload, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=5) as r: pass
+            # ✨ 加入 SSL Context
+            with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as r: pass
         except: pass 
         time.sleep(2) 
 
@@ -188,4 +198,4 @@ systemctl daemon-reload
 systemctl enable x-fusion-agent
 systemctl restart x-fusion-agent
 
-echo "✅ 探针 Agent (v3.0) 已启动！正在向 $PUSH_API 推送数据..."
+echo "✅ 探针 Agent (v3.1) 已启动！正在向 $PUSH_API 推送数据..."
