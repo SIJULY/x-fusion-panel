@@ -52,8 +52,8 @@ async def render_single_server_view(server_conf, force_refresh=False):
         content_container.style(f'background-color: {page_bg};')
 
     with content_container:
-        with ui.element('div').classes(
-                'w-full max-w-[1440px] mx-auto h-full flex-1 min-h-[calc(100vh-130px)] flex flex-col gap-0 flex-nowrap'):
+        # 修改点 1：重构最外层容器为标准 Flex 列，使用 gap-4 控制卡片间距
+        with ui.column().classes('w-full max-w-[1440px] mx-auto h-full flex flex-col gap-4 flex-nowrap min-h-0'):
             has_manager_access = (server_conf.get('url') and server_conf.get('user') and server_conf.get('pass')) or (
                     server_conf.get('probe_installed') and server_conf.get('ssh_host'))
             mgr = None
@@ -106,7 +106,6 @@ async def render_single_server_view(server_conf, force_refresh=False):
                         ui.element('div').classes('h-full transition-all duration-500').style(f'width: {pct}%; background: {accent}; box-shadow: 0 0 10px color-mix(in srgb, {accent} 60%, transparent);')
                         ui.label(text).classes(progress_text_class(pct)).style(progress_text_style(pct))
 
-            # 🛠️ 科技风：重构指标数据行（带发光左边框和悬浮高亮）
             def render_metric_row(label, value, sub_text='', value_color='#22d3ee', accent='#22d3ee'):
                 metric_row_cls = 'w-full min-h-[62px] items-center justify-between gap-4 px-4 py-4 border border-l-[3px] transition-all flex-nowrap relative overflow-hidden group'
                 metric_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
@@ -119,7 +118,6 @@ async def render_single_server_view(server_conf, force_refresh=False):
                             ui.label(sub_text).classes('text-[10px] break-all leading-relaxed font-mono').style('color: var(--xf-text-muted);')
                     ui.label(str(value)).classes('text-sm font-black text-right shrink-0 font-mono tracking-wide z-10').style(f'color: {value_color};')
 
-            # 🛠️ 科技风：重构模块标题（发光图标与机械感）
             def render_section_header(title, icon, accent_class, desc='', right_renderer=None):
                 header_row_cls = 'w-full items-center justify-between px-4 py-2.5 border-b min-h-[56px] relative overflow-hidden'
                 header_line_cls = 'absolute top-0 left-0 w-1/3 h-[1px]'
@@ -545,10 +543,9 @@ PY'''
                             'bg-rose-950/45 text-rose-300 border border-rose-500/45 hover:bg-rose-900/55 hover:shadow-[0_0_12px_rgba(244,63,94,0.28)] px-5 font-black text-xs tracking-wide rounded-sm' if is_dark else 'bg-rose-100 text-rose-700 border border-rose-300 hover:bg-rose-200 px-5 font-black text-xs tracking-wide rounded-sm')
                 d.open()
 
-            # 🛠️ 科技风：重构顶部核心资产卡片
+            # 修改点 2：顶部卡片加上 shrink-0 防止被压缩
             with ui.row().classes(
-                    'w-full justify-between items-center p-4 border border-t-[3px] flex-shrink-0 rounded-sm relative overflow-hidden').style('background: linear-gradient(to right, var(--xf-panel-bg), var(--xf-soft-bg)); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 8px 24px rgba(15,23,42,0.12);'):
-                # 顶部卡片的赛博背景纹理
+                    'w-full justify-between items-center p-4 border border-t-[3px] shrink-0 rounded-sm relative overflow-hidden').style('background: linear-gradient(to right, var(--xf-panel-bg), var(--xf-soft-bg)); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 8px 24px rgba(15,23,42,0.12);'):
                 ui.element('div').classes(
                     'absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
 
@@ -603,10 +600,9 @@ PY'''
                             'flat size=sm').classes(
                             'px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
 
-            ui.element('div').classes('h-4 flex-shrink-0')
-
+            # 修改点 3：中间的 VPS 运行信息卡片加上 shrink-0 保持高度
             vps_container = ui.element('div').classes(
-                f'w-full flex-shrink-0 p-0 gap-0 flex flex-col relative {shell_card_cls}')
+                f'w-full shrink-0 p-0 gap-0 flex flex-col relative {shell_card_cls}')
             with vps_container:
                 with ui.row().classes(
                         f'w-full items-center justify-between px-4 py-2 min-h-[48px] {shell_header_cls}'):
@@ -716,12 +712,11 @@ PY'''
 
                 ui.timer(2.0, safe_refresh)
 
-            ui.element('div').classes('h-6 flex-shrink-0')
-
+            # 修改点 4：底部节点列表卡片加上 flex-1，填满剩余高度，让其内部产生滚动条
             with ui.element('div').classes(
-                    f'w-full flex-1 min-h-[300px] flex flex-col p-0 relative {shell_card_cls}'):
+                    f'w-full flex-1 min-h-[250px] flex flex-col p-0 relative {shell_card_cls}'):
                 with ui.row().classes(
-                        f'w-full items-center justify-between p-3 gap-3 flex-wrap flex-shrink-0 relative z-10 {shell_header_cls}'):
+                        f'w-full items-center justify-between p-3 gap-3 flex-wrap shrink-0 relative z-10 {shell_header_cls}'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('hub').classes('text-blue-500 drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]')
                         ui.label('节点列表').classes('text-sm font-black tracking-wider text-slate-200' if is_dark else 'text-sm font-black tracking-wider text-slate-800')
@@ -733,7 +728,6 @@ PY'''
                         from app.services.deployment import open_deploy_hysteria_dialog, open_deploy_snell_dialog, \
                             open_deploy_xhttp_dialog
 
-                        # 🛠️ 科技风：霓虹线框按钮
                         btn_tech_base = 'text-[11px] font-bold px-4 py-1.5 border transition-all duration-300 tracking-wider rounded-sm backdrop-blur-sm'
                         btn_cyan = btn_tech_base
                         btn_purple = btn_tech_base
@@ -769,7 +763,7 @@ PY'''
                                 'text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5 border').style('background: var(--xf-soft-bg); color: var(--xf-text-subtle); border-color: var(--xf-card-border); opacity: 0.8;')
 
                 with ui.element('div').classes(
-                        'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
+                        'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
                     SINGLE_COLS_NO_PING):
                     ui.label('节点名称').classes('text-left pl-1')
                     for h in ['类型', '流量', '协议', '端口', '状态', '操作']: ui.label(h).classes('text-center')
