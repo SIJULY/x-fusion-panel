@@ -33,7 +33,8 @@ async def render_single_server_view(server_conf, force_refresh=False):
     def apply_tooltip(target, text):
         tip = target.tooltip(text)
         tip.classes('text-[11px] font-bold px-2 py-1 rounded-sm')
-        tip.style('background:var(--xf-tooltip-bg);color:var(--xf-tooltip-text);border:1px solid var(--xf-tooltip-border);box-shadow:var(--xf-tooltip-shadow);')
+        tip.style(
+            'background:var(--xf-tooltip-bg);color:var(--xf-tooltip-text);border:1px solid var(--xf-tooltip-border);box-shadow:var(--xf-tooltip-shadow);')
         return tip
 
     SINGLE_COLS_NO_PING = _server_dialog.SINGLE_COLS_NO_PING
@@ -99,11 +100,17 @@ async def render_single_server_view(server_conf, force_refresh=False):
                 progress_row_cls = 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm border border-l-[3px] flex-nowrap relative overflow-hidden group transition-all'
                 progress_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
                 glow_shadow = f'0 0 0 1px color-mix(in srgb, {accent} 18%, transparent), 0 0 16px color-mix(in srgb, {accent} {36 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
-                with ui.row().classes(progress_row_cls).style(f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {accent}; box-shadow: {glow_shadow};'):
-                    ui.element('div').classes(progress_overlay_cls).style(f'background: linear-gradient(to right, color-mix(in srgb, {accent} 16%, transparent), transparent);')
-                    ui.label(label).classes('text-[11px] font-bold tracking-wider leading-none shrink-0 z-10').style(f'color: {accent};')
-                    with ui.element('div').classes('w-1/2 max-w-[190px] ml-auto rounded-none h-[24px] relative overflow-hidden border shrink-0 z-10').style('background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
-                        ui.element('div').classes('h-full transition-all duration-500').style(f'width: {pct}%; background: {accent}; box-shadow: 0 0 10px color-mix(in srgb, {accent} 60%, transparent);')
+                with ui.row().classes(progress_row_cls).style(
+                        f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {accent}; box-shadow: {glow_shadow};'):
+                    ui.element('div').classes(progress_overlay_cls).style(
+                        f'background: linear-gradient(to right, color-mix(in srgb, {accent} 16%, transparent), transparent);')
+                    ui.label(label).classes('text-[11px] font-bold tracking-wider leading-none shrink-0 z-10').style(
+                        f'color: {accent};')
+                    with ui.element('div').classes(
+                            'w-1/2 max-w-[190px] ml-auto rounded-none h-[24px] relative overflow-hidden border shrink-0 z-10').style(
+                            'background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
+                        ui.element('div').classes('h-full transition-all duration-500').style(
+                            f'width: {pct}%; background: {accent}; box-shadow: 0 0 10px color-mix(in srgb, {accent} 60%, transparent);')
                         ui.label(text).classes(progress_text_class(pct)).style(progress_text_style(pct))
 
             # 🛠️ 科技风：重构指标数据行（带发光左边框和悬浮高亮）
@@ -111,13 +118,19 @@ async def render_single_server_view(server_conf, force_refresh=False):
                 metric_row_cls = 'w-full min-h-[62px] items-center justify-between gap-4 px-4 py-4 border border-l-[3px] transition-all flex-nowrap relative overflow-hidden group'
                 metric_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
                 glow_shadow = f'0 0 0 1px color-mix(in srgb, {accent} 18%, transparent), 0 0 16px color-mix(in srgb, {accent} {36 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
-                with ui.row().classes(metric_row_cls).style(f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {accent}; box-shadow: {glow_shadow};'):
-                    ui.element('div').classes(metric_overlay_cls).style(f'background: linear-gradient(to right, color-mix(in srgb, {accent} 16%, transparent), transparent);')
+                with ui.row().classes(metric_row_cls).style(
+                        f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {accent}; box-shadow: {glow_shadow};'):
+                    ui.element('div').classes(metric_overlay_cls).style(
+                        f'background: linear-gradient(to right, color-mix(in srgb, {accent} 16%, transparent), transparent);')
                     with ui.column().classes('gap-0.5 min-w-0 flex-1 justify-center z-10'):
-                        ui.label(label).classes('text-[11px] font-bold tracking-wide leading-none').style(f'color: {accent}; opacity: 0.92;')
+                        ui.label(label).classes('text-[11px] font-bold tracking-wide leading-none').style(
+                            f'color: {accent}; opacity: 0.92;')
                         if sub_text:
-                            ui.label(sub_text).classes('text-[10px] break-all leading-relaxed font-mono').style('color: var(--xf-text-muted);')
-                    ui.label(str(value)).classes('text-sm font-black text-right shrink-0 font-mono tracking-wide z-10').style(f'color: {value_color};')
+                            ui.label(sub_text).classes('text-[10px] break-all leading-relaxed font-mono').style(
+                                'color: var(--xf-text-muted);')
+                    ui.label(str(value)).classes(
+                        'text-sm font-black text-right shrink-0 font-mono tracking-wide z-10').style(
+                        f'color: {value_color};')
 
             # 🛠️ 科技风：重构模块标题（发光图标与机械感）
             def render_section_header(title, icon, accent_class, desc='', right_renderer=None):
@@ -125,16 +138,21 @@ async def render_single_server_view(server_conf, force_refresh=False):
                 header_line_cls = 'absolute top-0 left-0 w-1/3 h-[1px]'
                 icon_wrap_base = 'w-8 h-8 rounded-sm flex items-center justify-center relative overflow-hidden group'
                 icon_wrap_cls = f'{icon_wrap_base} border {accent_class}'
-                with ui.row().classes(header_row_cls).style('border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), transparent);'):
-                    ui.element('div').classes(header_line_cls).style('background: linear-gradient(to right, var(--xf-accent), transparent); opacity: 0.65;')
+                with ui.row().classes(header_row_cls).style(
+                        'border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), transparent);'):
+                    ui.element('div').classes(header_line_cls).style(
+                        'background: linear-gradient(to right, var(--xf-accent), transparent); opacity: 0.65;')
                     with ui.row().classes('items-center gap-3 z-10'):
-                        with ui.element('div').classes(icon_wrap_cls).style('background: var(--xf-code-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.12);'):
+                        with ui.element('div').classes(icon_wrap_cls).style(
+                                'background: var(--xf-code-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.12);'):
                             ui.element('div').classes('absolute inset-0 bg-current opacity-10')
                             ui.icon(icon).classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
                         with ui.column().classes('gap-0 justify-center'):
-                            ui.label(title).classes('text-sm font-black tracking-wide').style('color: var(--xf-text-strong);')
+                            ui.label(title).classes('text-sm font-black tracking-wide').style(
+                                'color: var(--xf-text-strong);')
                             if desc:
-                                ui.label(desc).classes('text-[10px] tracking-wide').style('color: var(--xf-text-muted);')
+                                ui.label(desc).classes('text-[10px] tracking-wide').style(
+                                    'color: var(--xf-text-muted);')
                     if right_renderer:
                         with ui.element('div').classes('z-10'):
                             right_renderer()
@@ -346,8 +364,10 @@ PY'''
 
                 if not all_nodes:
                     with ui.column().classes('w-full py-12 items-center justify-center opacity-50'):
-                        ui.icon('radar', size='4rem').classes('mb-2 drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]').style('color: var(--xf-accent);')
-                        ui.label('暂无节点 (可直接新建)').classes('text-xs font-mono tracking-widest').style('color: var(--xf-accent); opacity: 0.8;')
+                        ui.icon('radar', size='4rem').classes('mb-2 drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]').style(
+                            'color: var(--xf-accent);')
+                        ui.label('暂无节点 (可直接新建)').classes('text-xs font-mono tracking-widest').style(
+                            'color: var(--xf-accent); opacity: 0.8;')
                 else:
                     for n in all_nodes:
                         is_custom = n.get('_is_custom', False)
@@ -359,10 +379,13 @@ PY'''
                         row_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
                         row_accent = '#a855f7' if is_custom else ('#14b8a6' if is_ssh_mode else '#3b82f6')
                         row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
-                        with ui.element('div').classes(row_tech_cls).style(f'{SINGLE_COLS_NO_PING} background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
-                            ui.element('div').classes(row_overlay_cls).style(f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
+                        with ui.element('div').classes(row_tech_cls).style(
+                                f'{SINGLE_COLS_NO_PING} background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
+                            ui.element('div').classes(row_overlay_cls).style(
+                                f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
                             ui.label(n.get('remark', '未命名')).classes(
-                                'font-bold truncate w-full text-left pl-1 text-[13px] transition-colors relative z-10').style('color: var(--xf-text-strong);')
+                                'font-bold truncate w-full text-left pl-1 text-[13px] transition-colors relative z-10').style(
+                                'color: var(--xf-text-strong);')
                             if is_custom:
                                 ui.label('独立').classes(
                                     'text-[10px] text-purple-400 font-black w-fit mx-auto tracking-wider relative z-10')
@@ -375,12 +398,15 @@ PY'''
 
                             traffic = format_bytes(n.get('up', 0) + n.get('down', 0)) if not is_custom else '--'
                             ui.label(traffic).classes(
-                                'text-[11px] w-full text-center font-mono font-bold tracking-wide relative z-10').style('color: var(--xf-accent); opacity: 0.8;')
+                                'text-[11px] w-full text-center font-mono font-bold tracking-wide relative z-10').style(
+                                'color: var(--xf-accent); opacity: 0.8;')
                             proto = str(n.get('protocol', 'unk')).upper()
                             ui.label(proto).classes(
-                                'text-[10px] font-black w-full text-center tracking-widest relative z-10').style('color: var(--xf-text-muted);')
+                                'text-[10px] font-black w-full text-center tracking-widest relative z-10').style(
+                                'color: var(--xf-text-muted);')
                             ui.label(str(n.get('port', 0))).classes(
-                                'font-mono w-full text-center font-bold text-[11px] relative z-10').style('color: var(--xf-accent);')
+                                'font-mono w-full text-center font-bold text-[11px] relative z-10').style(
+                                'color: var(--xf-accent);')
                             is_enable = n.get('enable', True)
                             with ui.row().classes('w-full justify-center items-center gap-1.5'):
                                 color = 'emerald' if is_enable else 'rose'
@@ -394,33 +420,35 @@ PY'''
                                 btn_props = 'flat dense size=sm round'
                                 raw_link = n.get('_raw_link', '') or generate_node_link(n, server_conf['url'])
                                 if raw_link:
-                                    raw_btn = ui.button(icon='link', on_click=lambda u=raw_link: safe_copy_to_clipboard(u)).props(
+                                    raw_btn = ui.button(icon='link',
+                                                        on_click=lambda u=raw_link: safe_copy_to_clipboard(u)).props(
                                         btn_props).classes(
                                         'text-slate-400 transition-all').style('color: var(--xf-text-muted);')
                                     apply_tooltip(raw_btn, '复制原始链接')
 
                                 async def copy_detail_action(node_item=n):
                                     host = \
-                                    server_conf.get('url', '').replace('http://', '').replace('https://', '').split(
-                                        ':')[0]
+                                        server_conf.get('url', '').replace('http://', '').replace('https://', '').split(
+                                            ':')[0]
                                     text = generate_detail_config(node_item, host)
                                     if text and not str(text).startswith('//'):
                                         await safe_copy_to_clipboard(text)
                                     else:
                                         ui.notify(text or '该协议不支持生成明文配置', type='warning')
 
-                                detail_btn = ui.button(icon='data_object', on_click=copy_detail_action).props(btn_props).classes(
+                                detail_btn = ui.button(icon='data_object', on_click=copy_detail_action).props(
+                                    btn_props).classes(
                                     'text-slate-400 transition-all').style('color: var(--xf-text-muted);')
                                 apply_tooltip(detail_btn, '复制明文配置')
 
                                 if is_custom:
                                     edit_btn = ui.button(icon='edit_square',
-                                              on_click=lambda node=n: open_edit_custom_node(node)).props(
+                                                         on_click=lambda node=n: open_edit_custom_node(node)).props(
                                         btn_props).classes(
                                         'text-blue-500 hover:bg-blue-900/30 hover:text-blue-300 transition-all')
                                     apply_tooltip(edit_btn, '编辑自定义节点')
                                     delete_btn = ui.button(icon='delete_sweep',
-                                              on_click=lambda node=n: uninstall_and_delete(node)).props(
+                                                           on_click=lambda node=n: uninstall_and_delete(node)).props(
                                         btn_props).classes(
                                         'text-rose-500 hover:bg-rose-900/30 hover:text-rose-300 transition-all')
                                     apply_tooltip(delete_btn, '删除自定义节点')
@@ -430,9 +458,11 @@ PY'''
                                         await reload_and_refresh_ui()
 
                                     edit_btn = ui.button(icon='edit_square',
-                                              on_click=lambda i=n: open_inbound_dialog(mgr, i, on_edit_success,
-                                                                                       is_3x_ui=server_conf.get(
-                                                                                           'is_3x_ui', False))).props(
+                                                         on_click=lambda i=n: open_inbound_dialog(mgr, i,
+                                                                                                  on_edit_success,
+                                                                                                  is_3x_ui=server_conf.get(
+                                                                                                      'is_3x_ui',
+                                                                                                      False))).props(
                                         btn_props).classes(
                                         'text-blue-500 hover:bg-blue-900/30 hover:text-blue-300 transition-all')
                                     apply_tooltip(edit_btn, '编辑节点')
@@ -442,9 +472,12 @@ PY'''
                                         await reload_and_refresh_ui()
 
                                     delete_btn = ui.button(icon='delete_sweep',
-                                              on_click=lambda i=n: delete_inbound_with_confirm(mgr, i['id'],
-                                                                                               i.get('remark', ''),
-                                                                                               on_del_success)).props(
+                                                           on_click=lambda i=n: delete_inbound_with_confirm(mgr,
+                                                                                                            i['id'],
+                                                                                                            i.get(
+                                                                                                                'remark',
+                                                                                                                ''),
+                                                                                                            on_del_success)).props(
                                         btn_props).classes(
                                         'text-rose-500 hover:bg-rose-900/30 hover:text-rose-300 transition-all')
                                     apply_tooltip(delete_btn, '删除节点')
@@ -454,24 +487,44 @@ PY'''
 
             async def reload_and_refresh_ui():
                 old_nodes = NODES_DATA.get(server_conf['url'], []) or []
-                if mgr and hasattr(mgr, '_exec_remote_script'):
+                new_nodes = None
+                fetch_success = False
+
+                # 策略 1: 优先走通用的 API 抓取 (最稳定，能确保面板节点不丢失)
+                try:
+                    fetched_nodes = await fetch_inbounds_safe(server_conf, force_refresh=True)
+                    if fetched_nodes is not None:
+                        new_nodes = fetched_nodes
+                        fetch_success = True
+                except Exception as e:
+                    logger.warning(f"API 获取节点失败: {e}")
+
+                # 策略 2: 如果 API 没获取到 (面板可能无响应)，且有 SSH Manager，尝试走底层 SSH 获取
+                if not fetch_success and mgr and hasattr(mgr, '_exec_remote_script'):
                     try:
-                        new_inbounds = await run.io_bound(
-                            lambda: asyncio.run(mgr.get_inbounds())) if not asyncio.iscoroutinefunction(
-                            mgr.get_inbounds) else await mgr.get_inbounds()
-                        if new_inbounds is not None:
-                            NODES_DATA[server_conf['url']] = new_inbounds
-                            server_conf['_status'] = 'online'
-                            await save_nodes_cache()
-                    except:
-                        NODES_DATA[server_conf['url']] = old_nodes
+                        if not asyncio.iscoroutinefunction(mgr.get_inbounds):
+                            ssh_nodes = await run.io_bound(lambda: asyncio.run(mgr.get_inbounds()))
+                        else:
+                            ssh_nodes = await mgr.get_inbounds()
+
+                        if ssh_nodes is not None:
+                            new_nodes = ssh_nodes
+                            fetch_success = True
+                    except Exception as e:
+                        logger.warning(f"SSH 获取节点失败: {e}")
+
+                # 最终数据校验与更新逻辑
+                if fetch_success:
+                    # 只有明确获取成功，才覆盖当前状态
+                    NODES_DATA[server_conf['url']] = new_nodes
+                    server_conf['_status'] = 'online'
+                    # 创建后台任务保存缓存，避免阻塞当前 UI
+                    asyncio.create_task(save_nodes_cache())
                 else:
-                    try:
-                        fetched_nodes = await fetch_inbounds_safe(server_conf, force_refresh=True)
-                        if fetched_nodes is None:
-                            NODES_DATA[server_conf['url']] = old_nodes
-                    except:
-                        NODES_DATA[server_conf['url']] = old_nodes
+                    # 如果由于网络或报错导致全都失败了，必须回滚为旧节点数据，防止列表变白板
+                    NODES_DATA[server_conf['url']] = old_nodes
+
+                # 刷新节点列表 UI 组件
                 render_node_list.refresh()
 
             REFRESH_CURRENT_NODES = reload_and_refresh_ui
@@ -480,18 +533,25 @@ PY'''
             def open_edit_custom_node(node_data):
                 with ui.dialog() as d, ui.card().classes(
                         'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if is_dark else 'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_18px_42px_rgba(148,163,184,0.18)]'):
-                    with ui.column().classes('w-full bg-gradient-to-r from-[#0a1526] to-[#050a14] p-5 gap-2 border-b border-[#1e3a5f]/60 relative overflow-hidden' if is_dark else 'w-full bg-gradient-to-r from-[#f8fbff] to-[#eef4ff] p-5 gap-2 border-b border-slate-300/90 relative overflow-hidden'):
-                        ui.element('div').classes('absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
+                    with ui.column().classes(
+                            'w-full bg-gradient-to-r from-[#0a1526] to-[#050a14] p-5 gap-2 border-b border-[#1e3a5f]/60 relative overflow-hidden' if is_dark else 'w-full bg-gradient-to-r from-[#f8fbff] to-[#eef4ff] p-5 gap-2 border-b border-slate-300/90 relative overflow-hidden'):
+                        ui.element('div').classes(
+                            'absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
                         with ui.row().classes('items-center gap-3 z-10'):
-                            with ui.element('div').classes('w-9 h-9 rounded-sm flex items-center justify-center bg-[#050b14] border border-[#1e3a5f] shadow-[0_0_8px_rgba(0,0,0,0.7)] text-cyan-400 relative overflow-hidden' if is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-sky-50 border border-slate-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] text-sky-600 relative overflow-hidden'):
+                            with ui.element('div').classes(
+                                    'w-9 h-9 rounded-sm flex items-center justify-center bg-[#050b14] border border-[#1e3a5f] shadow-[0_0_8px_rgba(0,0,0,0.7)] text-cyan-400 relative overflow-hidden' if is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-sky-50 border border-slate-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] text-sky-600 relative overflow-hidden'):
                                 ui.element('div').classes('absolute inset-0 bg-cyan-400/10')
                                 ui.icon('edit_square').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
                             with ui.column().classes('gap-0'):
-                                ui.label('编辑节点备注').classes('text-lg font-black text-slate-100 tracking-wide' if is_dark else 'text-lg font-black text-slate-800 tracking-wide')
+                                ui.label('编辑节点备注').classes(
+                                    'text-lg font-black text-slate-100 tracking-wide' if is_dark else 'text-lg font-black text-slate-800 tracking-wide')
                                 ui.label('修改自定义节点名称').classes('text-[10px] text-slate-500 tracking-wide')
-                    with ui.column().classes('w-full p-5 gap-4 bg-[#030712]' if is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
-                        ui.label('节点名称').classes('text-[11px] font-bold text-cyan-500/80 tracking-wide mb-[-6px]' if is_dark else 'text-[11px] font-bold text-sky-700/80 tracking-wide mb-[-6px]')
-                        with ui.element('div').classes('w-full rounded-sm border border-[#1e3a5f]/45 bg-[#08101d]/80 px-3 py-2 shadow-[0_0_8px_rgba(0,0,0,0.35)] transition-all hover:border-cyan-500/35' if is_dark else 'w-full rounded-sm border border-slate-300/90 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(148,163,184,0.10)] transition-all hover:border-sky-400/60'):
+                    with ui.column().classes(
+                            'w-full p-5 gap-4 bg-[#030712]' if is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
+                        ui.label('节点名称').classes(
+                            'text-[11px] font-bold text-cyan-500/80 tracking-wide mb-[-6px]' if is_dark else 'text-[11px] font-bold text-sky-700/80 tracking-wide mb-[-6px]')
+                        with ui.element('div').classes(
+                                'w-full rounded-sm border border-[#1e3a5f]/45 bg-[#08101d]/80 px-3 py-2 shadow-[0_0_8px_rgba(0,0,0,0.35)] transition-all hover:border-cyan-500/35' if is_dark else 'w-full rounded-sm border border-slate-300/90 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(148,163,184,0.10)] transition-all hover:border-sky-400/60'):
                             name_input = ui.input(value=node_data.get('remark', '')).classes('w-full').props(
                                 'dense outlined dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'dense outlined color=blue')
 
@@ -502,7 +562,8 @@ PY'''
                         d.close()
                         render_node_list.refresh()
 
-                    with ui.row().classes('w-full justify-end p-4 gap-3 border-t border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1526] to-[#050a14]' if is_dark else 'w-full justify-end p-4 gap-3 border-t border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-[#eef4ff]'):
+                    with ui.row().classes(
+                            'w-full justify-end p-4 gap-3 border-t border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1526] to-[#050a14]' if is_dark else 'w-full justify-end p-4 gap-3 border-t border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-[#eef4ff]'):
                         ui.button('取消', on_click=d.close).props('outline color=grey').classes(
                             'text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-slate-100 text-xs font-bold tracking-wide rounded-sm')
                         ui.button('保存', on_click=save).props('flat').classes(
@@ -512,18 +573,24 @@ PY'''
             async def uninstall_and_delete(node_data):
                 with ui.dialog() as d, ui.card().classes(
                         'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-rose-800/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if is_dark else 'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-rose-300 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
-                    with ui.column().classes('w-full p-5 gap-3 bg-gradient-to-r from-[#19070d] to-[#0b0911] border-b border-rose-900/60 relative overflow-hidden' if is_dark else 'w-full p-5 gap-3 bg-gradient-to-r from-rose-50 to-orange-50 border-b border-rose-200 relative overflow-hidden'):
-                        ui.element('div').classes('absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgyNDQsNjMsOTQsMC4wNykiLz48L3N2Zz4=")] opacity-100 pointer-events-none')
+                    with ui.column().classes(
+                            'w-full p-5 gap-3 bg-gradient-to-r from-[#19070d] to-[#0b0911] border-b border-rose-900/60 relative overflow-hidden' if is_dark else 'w-full p-5 gap-3 bg-gradient-to-r from-rose-50 to-orange-50 border-b border-rose-200 relative overflow-hidden'):
+                        ui.element('div').classes(
+                            'absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgyNDQsNjMsOTQsMC4wNykiLz48L3N2Zz4=")] opacity-100 pointer-events-none')
                         with ui.row().classes('items-center gap-3 text-rose-400 z-10'):
-                            with ui.element('div').classes('w-9 h-9 rounded-sm flex items-center justify-center bg-[#14070b] border border-rose-900/60 shadow-[0_0_8px_rgba(0,0,0,0.7)] relative overflow-hidden'):
+                            with ui.element('div').classes(
+                                    'w-9 h-9 rounded-sm flex items-center justify-center bg-[#14070b] border border-rose-900/60 shadow-[0_0_8px_rgba(0,0,0,0.7)] relative overflow-hidden'):
                                 ui.element('div').classes('absolute inset-0 bg-rose-400/10')
                                 ui.icon('warning').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
                             with ui.column().classes('gap-0'):
                                 ui.label('卸载并清理环境').classes('font-black text-lg tracking-wide')
-                                ui.label('此操作将删除节点并清理远程服务').classes('text-[10px] text-slate-400 tracking-wide')
+                                ui.label('此操作将删除节点并清理远程服务').classes(
+                                    'text-[10px] text-slate-400 tracking-wide')
 
-                    with ui.column().classes('w-full p-5 gap-3 bg-[#030712]' if is_dark else 'w-full p-5 gap-3 bg-white'):
-                        ui.label(f"目标节点：{node_data.get('remark', '未命名节点')}").classes('text-sm text-slate-200 font-bold')
+                    with ui.column().classes(
+                            'w-full p-5 gap-3 bg-[#030712]' if is_dark else 'w-full p-5 gap-3 bg-white'):
+                        ui.label(f"目标节点：{node_data.get('remark', '未命名节点')}").classes(
+                            'text-sm text-slate-200 font-bold')
                         ui.label('确认后将执行卸载脚本，并从当前服务器节点列表中移除。').classes('text-xs text-slate-400')
 
                     async def start_uninstall():
@@ -538,7 +605,8 @@ PY'''
                             await save_servers()
                         await reload_and_refresh_ui()
 
-                    with ui.row().classes('w-full justify-end p-4 gap-3 border-t border-rose-900/40 bg-[#0b0911]' if is_dark else 'w-full justify-end p-4 gap-3 border-t border-rose-200 bg-rose-50'):
+                    with ui.row().classes(
+                            'w-full justify-end p-4 gap-3 border-t border-rose-900/40 bg-[#0b0911]' if is_dark else 'w-full justify-end p-4 gap-3 border-t border-rose-200 bg-rose-50'):
                         ui.button('取消', on_click=d.close).props('outline color=grey').classes(
                             'text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-white text-xs font-bold tracking-wide rounded-sm')
                         ui.button('确认执行', color='red', on_click=start_uninstall).props('flat').classes(
@@ -547,7 +615,8 @@ PY'''
 
             # 🛠️ 科技风：重构顶部核心资产卡片
             with ui.row().classes(
-                    'w-full justify-between items-center p-4 border border-t-[3px] flex-shrink-0 rounded-sm relative overflow-hidden').style('background: linear-gradient(to right, var(--xf-panel-bg), var(--xf-soft-bg)); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 8px 24px rgba(15,23,42,0.12);'):
+                    'w-full justify-between items-center p-4 border border-t-[3px] flex-shrink-0 rounded-sm relative overflow-hidden').style(
+                'background: linear-gradient(to right, var(--xf-panel-bg), var(--xf-soft-bg)); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 8px 24px rgba(15,23,42,0.12);'):
                 # 顶部卡片的赛博背景纹理
                 ui.element('div').classes(
                     'absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
@@ -555,17 +624,21 @@ PY'''
                 with ui.row().classes('items-center gap-4 z-10'):
                     sys_icon = 'memory' if 'Oracle' in server_conf.get('name', '') else 'dns'
                     with ui.element('div').classes(
-                            'p-3 rounded-sm border').style('background: var(--xf-code-bg); border-color: var(--xf-card-border); box-shadow: inset 0 0 12px rgba(15,23,42,0.10);'):
-                        ui.icon(sys_icon, size='md').classes('drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]').style('color: var(--xf-accent);')
+                            'p-3 rounded-sm border').style(
+                        'background: var(--xf-code-bg); border-color: var(--xf-card-border); box-shadow: inset 0 0 12px rgba(15,23,42,0.10);'):
+                        ui.icon(sys_icon, size='md').classes('drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]').style(
+                            'color: var(--xf-accent);')
                     with ui.column().classes('gap-1 min-w-0'):
                         with ui.row().classes('items-center gap-3 no-wrap'):
                             ui.label(server_conf.get('name', '未命名服务器')).classes(
-                                'text-xl font-black tracking-wide drop-shadow-md truncate max-w-[520px]').style('color: var(--xf-text-strong);')
+                                'text-xl font-black tracking-wide drop-shadow-md truncate max-w-[520px]').style(
+                                'color: var(--xf-text-strong);')
                         with ui.row().classes('items-center gap-3 flex-wrap'):
                             raw_host = server_conf.get('ssh_host') or \
                                        server_conf.get('url', '').replace('http://', '').replace('https://', '').split(
                                            ':')[0]
-                            ui.label(raw_host).classes('text-[11px] font-mono font-bold').style('color: var(--xf-accent); opacity: 0.85;')
+                            ui.label(raw_host).classes('text-[11px] font-mono font-bold').style(
+                                'color: var(--xf-accent); opacity: 0.85;')
 
                             @ui.refreshable
                             def live_status_badge():
@@ -593,7 +666,8 @@ PY'''
                                         ui.element('img').props(f'src="{os_logo_url}"').classes(
                                             'w-3.5 h-3.5 object-contain shrink-0 filter brightness-125')
                                         ui.label(clean_os).classes(
-                                            'text-[11px] font-bold truncate max-w-[180px]').style('color: var(--xf-text-muted);')
+                                            'text-[11px] font-bold truncate max-w-[180px]').style(
+                                            'color: var(--xf-text-muted);')
 
                             live_status_badge()
                             ui.timer(3.0, live_status_badge.refresh)
@@ -601,7 +675,8 @@ PY'''
                     if server_conf.get('ssh_host'):
                         ui.button('进入 SSH 终端', icon='terminal', on_click=open_ssh_page).props(
                             'flat size=sm').classes(
-                            'px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
+                            'px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style(
+                            'background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
 
             ui.element('div').classes('h-4 flex-shrink-0')
 
@@ -611,8 +686,10 @@ PY'''
                 with ui.row().classes(
                         f'w-full items-center justify-between px-4 py-2 min-h-[48px] {shell_header_cls}'):
                     with ui.row().classes('items-center gap-2'):
-                        ui.icon('query_stats').classes('drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]').style('color: var(--xf-accent);')
-                        ui.label('VPS 运行信息').classes('text-xs font-black tracking-wide').style('color: var(--xf-text-strong);')
+                        ui.icon('query_stats').classes('drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]').style(
+                            'color: var(--xf-accent);')
+                        ui.label('VPS 运行信息').classes('text-xs font-black tracking-wide').style(
+                            'color: var(--xf-text-strong);')
 
                     @ui.refreshable
                     def render_sync_status():
@@ -641,7 +718,8 @@ PY'''
                             render_section_header('系统信息', 'developer_board', 'text-cyan-400',
                                                   '操作系统 / 架构 / 在线时间',
                                                   right_renderer=lambda: ui.label(f"{snap['cpu_cores']} C").classes(
-                                                      'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style('color: var(--xf-accent); background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
+                                                      'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style(
+                                                      'color: var(--xf-accent); background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
 
                             with ui.column().classes('w-full p-4 gap-4'):
                                 @ui.refreshable
@@ -652,7 +730,8 @@ PY'''
                                     render_progress_row('CPU 使用率', pct, f'{pct:.1f}%', cpu_color)
                                     render_metric_row('处理器架构', format_arch_text(snap['arch']),
                                                       value_color='#3b82f6', accent='#3b82f6')
-                                    render_metric_row('在线运行时间', snap['uptime'], value_color='#10b981', accent='#10b981')
+                                    render_metric_row('在线运行时间', snap['uptime'], value_color='#10b981',
+                                                      accent='#10b981')
 
                                 render_sys_dyn()
 
@@ -665,17 +744,22 @@ PY'''
                                                       '系统内存 / 空闲 / SWAP 使用情况',
                                                       right_renderer=lambda: ui.label(
                                                           f"{fmt_gb(snap['mem_total_gb'])}").classes(
-                                                          'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style('color: #10b981; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
+                                                          'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style(
+                                                          'color: #10b981; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
                                 with ui.column().classes('w-full p-4 gap-4'):
                                     pct, val = snap['mem_usage_pct'], fmt_gb(snap['mem_used_gb'])
-                                    render_progress_row('已使用内存', pct, f'{val} ({pct:.0f}%)', '#10b981' if pct <= 80 else '#facc15')
+                                    render_progress_row('已使用内存', pct, f'{val} ({pct:.0f}%)',
+                                                        '#10b981' if pct <= 80 else '#facc15')
 
-                                    free_pct, free_val = max(0.0, 100.0 - snap['mem_usage_pct']), fmt_gb(snap['mem_free_gb'])
-                                    render_progress_row('空闲可用内存', free_pct, f'{free_val} ({free_pct:.0f}%)', '#14b8a6')
+                                    free_pct, free_val = max(0.0, 100.0 - snap['mem_usage_pct']), fmt_gb(
+                                        snap['mem_free_gb'])
+                                    render_progress_row('空闲可用内存', free_pct, f'{free_val} ({free_pct:.0f}%)',
+                                                        '#14b8a6')
 
                                     swap_pct = snap['swap_usage_pct']
                                     swap_val = f"{fmt_gb(snap['swap_used_gb'])} / {fmt_gb(snap['swap_total_gb'])}"
-                                    render_progress_row('SWAP 虚拟内存', swap_pct, f'{swap_val} ({swap_pct:.0f}%)', '#a855f7')
+                                    render_progress_row('SWAP 虚拟内存', swap_pct, f'{swap_val} ({swap_pct:.0f}%)',
+                                                        '#a855f7')
 
                             render_mem_card()
 
@@ -688,15 +772,16 @@ PY'''
                                                   '根分区容量、已用空间、剩余空间与占用率',
                                                   right_renderer=lambda: ui.label(
                                                       f"{fmt_gb(snap['disk_total_gb'])}").classes(
-                                                      'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style('color: #f59e0b; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
+                                                      'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style(
+                                                      'color: #f59e0b; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
                             with ui.grid().classes('w-full grid-cols-1 lg:grid-cols-3 gap-5 p-4'):
                                 render_metric_row('磁盘设备', snap.get('disk_device', '/'),
                                                   value_color='#8b5cf6', accent='#8b5cf6')
 
                                 pct = snap.get('disk_usage_pct', 0.0)
                                 val = fmt_gb(snap['disk_used_gb'])
-                                render_progress_row('已用容量', pct, f'{val} ({pct:.0f}%)', '#f59e0b' if pct <= 85 else '#f97316')
-
+                                render_progress_row('已用容量', pct, f'{val} ({pct:.0f}%)',
+                                                    '#f59e0b' if pct <= 85 else '#f97316')
 
                                 free_pct = 100.0 - pct if pct > 0 else 100.0
                                 val = fmt_gb(snap['disk_free_gb'])
@@ -724,7 +809,8 @@ PY'''
                         f'w-full items-center justify-between p-3 gap-3 flex-wrap flex-shrink-0 relative z-10 {shell_header_cls}'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('hub').classes('text-blue-500 drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]')
-                        ui.label('节点列表').classes('text-sm font-black tracking-wider text-slate-200' if is_dark else 'text-sm font-black tracking-wider text-slate-800')
+                        ui.label('节点列表').classes(
+                            'text-sm font-black tracking-wider text-slate-200' if is_dark else 'text-sm font-black tracking-wider text-slate-800')
                         if server_conf.get('probe_installed') and server_conf.get('ssh_host'):
                             ui.badge('Root 模式', color='teal').props('outline rounded-sm').classes(
                                 'text-[10px] font-bold tracking-wider shadow-[0_0_5px_rgba(20,184,166,0.3)] ml-2')
@@ -748,11 +834,14 @@ PY'''
                             await open_deploy_snell_dialog(server_conf, reload_and_refresh_ui)
 
                         ui.button('一键部署 XHTTP', icon='rocket_launch', on_click=open_xhttp_deploy).props(
-                            'flat size=sm').classes(btn_cyan).style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
+                            'flat size=sm').classes(btn_cyan).style(
+                            'background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
                         ui.button('一键部署 Hy2', icon='bolt', on_click=open_hy2_deploy).props(
-                            'flat size=sm').classes(btn_cyan).style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
+                            'flat size=sm').classes(btn_cyan).style(
+                            'background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
                         ui.button('一键部署 Snell', icon='security', on_click=open_snell_deploy).props(
-                            'flat size=sm').classes(btn_cyan).style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
+                            'flat size=sm').classes(btn_cyan).style(
+                            'background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
 
                         if has_manager_access:
                             async def on_add_success():
@@ -761,12 +850,15 @@ PY'''
 
                             ui.button('新建 XUI 节点', icon='add',
                                       on_click=lambda: open_inbound_dialog(mgr, None, on_add_success,
-                                                                           is_3x_ui=server_conf.get('is_3x_ui', False))).props(
-                                'flat size=sm').classes(btn_purple).style('background: var(--xf-soft-bg); color: #a855f7; border-color: var(--xf-card-border);')
+                                                                           is_3x_ui=server_conf.get('is_3x_ui',
+                                                                                                    False))).props(
+                                'flat size=sm').classes(btn_purple).style(
+                                'background: var(--xf-soft-bg); color: #a855f7; border-color: var(--xf-card-border);')
                         else:
                             ui.button('探针只读', icon='visibility', on_click=None).props(
                                 'flat size=sm disabled').classes(
-                                'text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5 border').style('background: var(--xf-soft-bg); color: var(--xf-text-subtle); border-color: var(--xf-card-border); opacity: 0.8;')
+                                'text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5 border').style(
+                                'background: var(--xf-soft-bg); color: var(--xf-text-subtle); border-color: var(--xf-card-border); opacity: 0.8;')
 
                 with ui.element('div').classes(
                         'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
@@ -775,7 +867,8 @@ PY'''
                     for h in ['类型', '流量', '协议', '端口', '状态', '操作']: ui.label(h).classes('text-center')
 
                 with ui.element('div').classes('w-full relative flex-1 min-h-0'):
-                    with ui.element('div').classes('absolute inset-0 bg-[#030712]' if is_dark else 'absolute inset-0 bg-[#f8fbff]'):
+                    with ui.element('div').classes(
+                            'absolute inset-0 bg-[#030712]' if is_dark else 'absolute inset-0 bg-[#f8fbff]'):
                         with ui.scroll_area().classes('w-full h-full p-2'):
                             await render_node_list()
 
