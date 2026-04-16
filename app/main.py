@@ -90,7 +90,7 @@ bootstrap_app()
 
 if __name__ in {'__main__', '__mp_main__'}:
     ui.run(
-        title='X-Fusion Panel',
+        title='X-Fusion-pro',
         host='0.0.0.0',
         port=8080,
         language='zh-CN',

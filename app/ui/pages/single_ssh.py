@@ -817,9 +817,9 @@ async def render_single_ssh_view(server_conf):
 
             for index, item in enumerate(sorted_entries):
                 is_dir = item.get('is_dir', False)
-                row_classes = 'w-full items-center px-2 py-1.5 border-b cursor-default transition-colors flex-nowrap no-wrap'
+                row_classes = 'w-full items-center px-2 py-1.5 cursor-default transition-colors flex-nowrap no-wrap'
 
-                with ui.row().classes(row_classes).style('border-color: var(--xf-card-border);') as row:
+                with ui.row().classes(row_classes) as row:
                     with ui.context_menu().classes(
                             'text-[13px] font-bold min-w-[140px] border').style('background: var(--xf-panel-bg); color: var(--xf-text-strong); border-color: var(--xf-card-border);'):
                         if is_dir:

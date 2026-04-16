@@ -5,7 +5,7 @@ import socket
 import uuid
 
 import paramiko
-from nicegui import run, ui
+from nicegui import app, run, ui
 
 from app.storage.repositories import load_global_key
 
@@ -104,7 +104,14 @@ class WebSSH:
     async def connect(self):
         with self.container:
             try:
-                ui.element('div').props(f'id={self.term_id}').classes('w-full h-full bg-black rounded overflow-hidden relative').style('min-height: 420px; height: 100%; width: 100%; display: block; position: relative;')
+                is_dark = bool(app.storage.user.get('is_dark', True))
+                term_bg = '#000000' if is_dark else '#eef4ff'
+                term_fg = '#ffffff' if is_dark else '#0f172a'
+                term_cursor = '#22d3ee' if is_dark else '#2563eb'
+                term_selection = 'rgba(34, 211, 238, 0.28)' if is_dark else 'rgba(37, 99, 235, 0.18)'
+                term_ready = '\\x1b[32m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n' if is_dark else '\\x1b[34m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n'
+
+                ui.element('div').props(f'id={self.term_id}').classes('w-full h-full rounded overflow-hidden relative').style(f'min-height: 420px; height: 100%; width: 100%; display: block; position: relative; background: {term_bg}; color: {term_fg};')
 
                 init_js = f"""
                 try {{
@@ -135,7 +142,13 @@ class WebSSH:
                         fontSize: 13,
                         lineHeight: 1.2,
                         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-                        theme: {{ background: '#000000', foreground: '#ffffff' }},
+                        theme: {{
+                            background: '{term_bg}',
+                            foreground: '{term_fg}',
+                            cursor: '{term_cursor}',
+                            cursorAccent: '{term_bg}',
+                            selectionBackground: '{term_selection}'
+                        }},
                         convertEol: true,
                         scrollback: 5000
                     }});
@@ -148,7 +161,15 @@ class WebSSH:
                     }}
 
                     term.open(el);
-                    term.write('\\x1b[32m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n');
+                    var viewport = el.querySelector('.xterm-viewport');
+                    var screen = el.querySelector('.xterm-screen');
+                    var xtermRoot = el.querySelector('.xterm');
+                    if (xtermRoot) xtermRoot.style.backgroundColor = '{term_bg}';
+                    if (viewport) viewport.style.backgroundColor = '{term_bg}';
+                    if (screen) screen.style.backgroundColor = '{term_bg}';
+                    el.style.backgroundColor = '{term_bg}';
+                    el.style.color = '{term_fg}';
+                    term.write('{term_ready}');
 
                     var doFit = function() {{
                         try {{

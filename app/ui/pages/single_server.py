@@ -725,14 +725,20 @@ PY'''
                         btn_cyan = btn_tech_base
                         btn_purple = btn_tech_base
 
-                        ui.button('一键部署 XHTTP', icon='rocket_launch',
-                                  on_click=lambda: open_deploy_xhttp_dialog(server_conf, reload_and_refresh_ui)).props(
+                        async def open_xhttp_deploy():
+                            await open_deploy_xhttp_dialog(server_conf, reload_and_refresh_ui)
+
+                        async def open_hy2_deploy():
+                            await open_deploy_hysteria_dialog(server_conf, reload_and_refresh_ui)
+
+                        async def open_snell_deploy():
+                            await open_deploy_snell_dialog(server_conf, reload_and_refresh_ui)
+
+                        ui.button('一键部署 XHTTP', icon='rocket_launch', on_click=open_xhttp_deploy).props(
                             'flat size=sm').classes(btn_cyan).style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
-                        ui.button('一键部署 Hy2', icon='bolt', on_click=lambda: open_deploy_hysteria_dialog(server_conf,
-                                                                                                            reload_and_refresh_ui)).props(
+                        ui.button('一键部署 Hy2', icon='bolt', on_click=open_hy2_deploy).props(
                             'flat size=sm').classes(btn_cyan).style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
-                        ui.button('一键部署 Snell', icon='security',
-                                  on_click=lambda: open_deploy_snell_dialog(server_conf, reload_and_refresh_ui)).props(
+                        ui.button('一键部署 Snell', icon='security', on_click=open_snell_deploy).props(
                             'flat size=sm').classes(btn_cyan).style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
 
                         if has_manager_access:
