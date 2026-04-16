@@ -103,17 +103,17 @@ async def render_single_server_view(server_conf, force_refresh=False):
                         ui.label(text).classes(progress_text_class(pct)).style(progress_text_style(pct))
 
             # 🛠️ 科技风：重构指标数据行（带发光左边框和悬浮高亮）
-            def render_metric_row(label, value, sub_text='', value_color='text-cyan-300'):
+            def render_metric_row(label, value, sub_text='', value_color='#22d3ee', accent='#22d3ee'):
                 metric_row_cls = 'w-full min-h-[62px] items-center justify-between gap-4 px-4 py-4 border border-l-[3px] transition-all flex-nowrap relative overflow-hidden group'
                 metric_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
-                with ui.row().classes(metric_row_cls).style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);'):
-                    ui.element('div').classes(metric_overlay_cls).style('background: linear-gradient(to right, var(--xf-accent-soft), transparent);')
+                glow_shadow = f'0 0 0 1px color-mix(in srgb, {accent} 18%, transparent), 0 0 16px color-mix(in srgb, {accent} {36 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
+                with ui.row().classes(metric_row_cls).style(f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {accent}; box-shadow: {glow_shadow};'):
+                    ui.element('div').classes(metric_overlay_cls).style(f'background: linear-gradient(to right, color-mix(in srgb, {accent} 16%, transparent), transparent);')
                     with ui.column().classes('gap-0.5 min-w-0 flex-1 justify-center z-10'):
-                        ui.label(label).classes('text-[11px] font-bold tracking-wide leading-none').style('color: var(--xf-accent); opacity: 0.85;')
+                        ui.label(label).classes('text-[11px] font-bold tracking-wide leading-none').style(f'color: {accent}; opacity: 0.92;')
                         if sub_text:
                             ui.label(sub_text).classes('text-[10px] break-all leading-relaxed font-mono').style('color: var(--xf-text-muted);')
-                    ui.label(str(value)).classes(
-                        f'text-sm font-black text-right shrink-0 font-mono tracking-wide z-10 {value_color}')
+                    ui.label(str(value)).classes('text-sm font-black text-right shrink-0 font-mono tracking-wide z-10').style(f'color: {value_color};')
 
             # 🛠️ 科技风：重构模块标题（发光图标与机械感）
             def render_section_header(title, icon, accent_class, desc='', right_renderer=None):
@@ -352,7 +352,9 @@ PY'''
 
                         # 🛠️ 科技风：节点列表行
                         row_tech_cls = 'grid w-full gap-4 py-2.5 px-3 mb-2 items-center group border border-l-[3px] transition-all duration-300 cursor-default rounded-sm'
-                        with ui.element('div').classes(row_tech_cls).style(f'{SINGLE_COLS_NO_PING} background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);'):
+                        row_accent = '#a855f7' if is_custom else ('#14b8a6' if is_ssh_mode else '#3b82f6')
+                        row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
+                        with ui.element('div').classes(row_tech_cls).style(f'{SINGLE_COLS_NO_PING} background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
                             ui.label(n.get('remark', '未命名')).classes(
                                 'font-bold truncate w-full text-left pl-1 text-[13px] transition-colors').style('color: var(--xf-text-strong);')
                             if is_custom:
@@ -643,8 +645,8 @@ PY'''
                                     cpu_color = '#22d3ee' if pct < 60 else ('#facc15' if pct < 85 else '#f43f5e')
                                     render_progress_row('CPU 使用率', pct, f'{pct:.1f}%', cpu_color)
                                     render_metric_row('处理器架构', format_arch_text(snap['arch']),
-                                                      value_color='text-blue-300')
-                                    render_metric_row('在线运行时间', snap['uptime'], value_color='text-emerald-400')
+                                                      value_color='#3b82f6', accent='#3b82f6')
+                                    render_metric_row('在线运行时间', snap['uptime'], value_color='#10b981', accent='#10b981')
 
                                 render_sys_dyn()
 
@@ -683,7 +685,7 @@ PY'''
                                                       'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style('color: #f59e0b; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
                             with ui.grid().classes('w-full grid-cols-1 lg:grid-cols-3 gap-5 p-4'):
                                 render_metric_row('磁盘设备', snap.get('disk_device', '/'),
-                                                  value_color='text-indigo-300')
+                                                  value_color='#8b5cf6', accent='#8b5cf6')
 
                                 pct = snap.get('disk_usage_pct', 0.0)
                                 val = fmt_gb(snap['disk_used_gb'])
