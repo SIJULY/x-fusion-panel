@@ -8,7 +8,7 @@ from nicegui import app, run, ui
 
 from app.core.config import AUTO_REGISTER_SECRET
 from app.core.logging import logger
-from app.core.state import ADMIN_CONFIG, CURRENT_VIEW_STATE, SERVERS_CACHE
+from app.core.state import ADMIN_CONFIG, SERVERS_CACHE
 from app.storage.repositories import save_admin_config
 from app.ui.common.notifications import safe_copy_to_clipboard
 from app.ui.components.sidebar import render_sidebar_content
@@ -112,6 +112,60 @@ def main_page(request: Request):
                 if (themeIcon) themeIcon.textContent = payload.theme_icon;
                 const content = document.getElementById('xf-content-container');
                 if (content) content.style.backgroundColor = payload.content_bg;
+            }};
+            window.applyXFusionDomTheme = function(isDark) {{
+                const darkToLight = [
+                    ['bg-[#070b14]', 'bg-white'],
+                    ['bg-[#030712]', 'bg-[#eef4ff]'],
+                    ['bg-[#0a1120]', 'bg-white'],
+                    ['bg-[#050a14]', 'bg-[#eef4ff]'],
+                    ['bg-[#050b14]', 'bg-sky-50'],
+                    ['bg-[#08101d]/80', 'bg-white'],
+                    ['bg-[#08101d]/90', 'bg-white'],
+                    ['bg-[#0a1120]/80', 'bg-white'],
+                    ['bg-[#0a1120]/85', 'bg-white/95'],
+                    ['bg-[#0a1120]/90', 'bg-white/95'],
+                    ['bg-[#0d172a]', 'bg-sky-50'],
+                    ['from-[#0a1526]', 'from-[#f8fbff]'],
+                    ['to-[#050a14]', 'to-[#eef4ff]'],
+                    ['from-[#0a1120]', 'from-[#f8fbff]'],
+                    ['from-[#10203d]', 'from-[#eff6ff]'],
+                    ['to-[#050b14]', 'to-[#dbeafe]'],
+                    ['text-slate-100', 'text-slate-800'],
+                    ['text-slate-200', 'text-slate-800'],
+                    ['text-slate-300', 'text-slate-700'],
+                    ['text-slate-400', 'text-slate-500'],
+                    ['text-cyan-300', 'text-sky-700'],
+                    ['text-cyan-400', 'text-sky-600'],
+                    ['text-cyan-500', 'text-sky-700'],
+                    ['border-[#1e3a5f]/60', 'border-slate-300/90'],
+                    ['border-[#1e3a5f]/55', 'border-slate-300/90'],
+                    ['border-[#1e3a5f]/50', 'border-slate-300/90'],
+                    ['border-[#1e3a5f]/45', 'border-slate-300/90'],
+                    ['border-[#1e3a5f]/40', 'border-slate-300/90'],
+                    ['border-[#1e3a5f]/35', 'border-slate-200/90'],
+                    ['border-[#1e3a5f]', 'border-slate-300'],
+                    ['border-l-cyan-700/80', 'border-l-sky-500'],
+                    ['border-l-cyan-500', 'border-l-sky-600'],
+                    ['hover:bg-cyan-950/30', 'hover:bg-sky-100'],
+                    ['hover:bg-cyan-900/55', 'hover:bg-sky-200'],
+                    ['hover:text-cyan-300', 'hover:text-sky-700'],
+                    ['hover:border-cyan-500/45', 'hover:border-sky-400/60'],
+                    ['hover:border-cyan-500/35', 'hover:border-sky-400/60'],
+                    ['hover:border-cyan-500/40', 'hover:border-sky-400/70'],
+                    ['shadow-[0_0_16px_rgba(0,0,0,0.28)]', 'shadow-[0_8px_24px_rgba(148,163,184,0.14)]'],
+                    ['shadow-[0_0_12px_rgba(0,0,0,0.35)]', 'shadow-[0_6px_18px_rgba(148,163,184,0.14)]'],
+                    ['shadow-[0_10px_30px_rgba(0,0,0,0.8)]', 'shadow-[0_10px_28px_rgba(148,163,184,0.16)]'],
+                ];
+                const lightToDark = darkToLight.map(([a, b]) => [b, a]);
+                const swaps = isDark ? lightToDark : darkToLight;
+                const elements = document.querySelectorAll('[class]');
+                elements.forEach(el => {
+                    let cls = el.className;
+                    if (typeof cls !== 'string') return;
+                    swaps.forEach(([from, to]) => {{ cls = cls.split(from).join(to); }});
+                    el.className = cls;
+                });
             }};
         </script>
         <style>
@@ -259,39 +313,12 @@ def main_page(request: Request):
         await ui.run_javascript(f'''
             window.applyXFusionTheme && window.applyXFusionTheme({js_theme});
             window.applyXFusionShellTheme && window.applyXFusionShellTheme({js_payload});
+            window.applyXFusionDomTheme && window.applyXFusionDomTheme({str(new_is_dark).lower()});
         ''')
-
-        try:
-            render_sidebar_content.refresh()
-        except Exception:
-            pass
 
         from app.ui.pages import content_router
         if content_router.content_container:
             content_router.content_container.style(f'background-color: {new_theme["content_bg"]};')
-
-        current_scope = CURRENT_VIEW_STATE.get('scope', app.storage.user.get('last_view_scope', 'DASHBOARD'))
-        current_data = CURRENT_VIEW_STATE.get('data', app.storage.user.get('last_view_data'))
-        current_page = CURRENT_VIEW_STATE.get('page', app.storage.user.get('last_view_page', 1))
-
-        if current_scope in ['SINGLE', 'SSH_SINGLE'] and isinstance(current_data, dict):
-            current_data = next((s for s in SERVERS_CACHE if s.get('url') == current_data.get('url')), current_data)
-
-        await asyncio.sleep(0.05)
-
-        from app.ui.components.dashboard import load_dashboard_stats
-        from app.ui.pages.content_router import refresh_content
-        from app.ui.pages.probe_page import render_probe_page
-        from app.ui.pages.subs_page import load_subs_view
-
-        if current_scope == 'DASHBOARD':
-            await load_dashboard_stats()
-        elif current_scope == 'PROBE':
-            await render_probe_page()
-        elif current_scope == 'SUBS':
-            await load_subs_view()
-        else:
-            await refresh_content(current_scope, current_data, page_num=current_page)
 
     async def run_security_check():
         if last_ip and last_ip != current_ip:
