@@ -430,6 +430,12 @@ def main_page(request: Request):
         if content_router.content_container:
             content_router.content_container.style(f'background-color: {new_theme["content_bg"]};')
 
+        from app.core.state import CURRENT_VIEW_STATE
+        if CURRENT_VIEW_STATE.get('scope') == 'DASHBOARD':
+            from app.ui.components.dashboard import refresh_dashboard_ui
+            await refresh_dashboard_ui()
+            await ui.run_javascript('setTimeout(() => { window.applyDashboardTheme && window.applyDashboardTheme(); }, 80)')
+
     async def run_security_check():
         if last_ip and last_ip != current_ip:
             if last_device_id and last_device_id == current_device_id:
