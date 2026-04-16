@@ -57,7 +57,7 @@ def _sidebar_theme():
         'expansion_header_props': 'expand-icon-toggle',
         'drag_icon': 'cursor-move p-0.5 rounded transition-colors',
         'group_name': 'font-bold truncate text-sm',
-        'group_header_row': 'w-full items-center justify-between p-3 border rounded-sm mb-1 cursor-pointer group transition-all duration-200',
+        'group_header_row': 'w-full items-center justify-between p-3 cursor-pointer group transition-all duration-200',
         'icon_btn': '',
         'expansion_body': 'w-full gap-2 p-2 border-t',
         'flag_name': 'font-bold truncate',
@@ -195,7 +195,7 @@ def render_sidebar_content():
                 with ui.element('div').classes('w-full').on('dragover.prevent', lambda _: None).on('drop', lambda e, n=tag_group: on_tag_drop(e, n)):
                     with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_custom']).props(theme['expansion_header_props']).style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                         with exp.add_slot('header'):
-                            with ui.row().classes(f"{theme['group_header_row']} no-wrap").style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10); color: var(--xf-text-strong);').on('click', lambda _, g=tag_group: open_tag_group(g)):
+                            with ui.row().classes(f"{theme['group_header_row']} no-wrap").style('color: var(--xf-text-strong);').on('click', lambda _, g=tag_group: open_tag_group(g)):
                                 with ui.row().classes('items-center gap-3 flex-grow overflow-hidden no-wrap'):
                                     ui.icon('drag_indicator').props('draggable="true"').classes(theme['drag_icon']).on('dragstart', lambda e, n=tag_group: on_drag_start(e, n)).on('click.stop').tooltip('按住拖拽')
 
@@ -258,7 +258,7 @@ def render_sidebar_content():
                 with ui.element('div').classes('w-full').on('dragover.prevent', lambda _: None).on('drop', lambda e, n=c_name: on_region_drop(e, n)):
                     with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_region']).props(theme['expansion_header_props']).style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(lambda e, g=c_name: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                         with exp.add_slot('header'):
-                            with ui.row().classes(f"{theme['group_header_row']} no-wrap").style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10); color: var(--xf-text-strong);').on('click', lambda _, g=c_name: open_country_group(g)):
+                            with ui.row().classes(f"{theme['group_header_row']} no-wrap").style('color: var(--xf-text-strong);').on('click', lambda _, g=c_name: open_country_group(g)):
                                 with ui.row().classes('items-center gap-3 flex-grow overflow-hidden'):
                                     ui.icon('drag_indicator').props('draggable="true"').classes(theme['drag_icon']).on('dragstart', lambda e, n=c_name: on_drag_start(e, n)).on('click.stop').tooltip('按住拖拽')
                                     with ui.row().classes('items-center gap-2 flex-grow'):
