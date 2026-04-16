@@ -1,3 +1,5 @@
+import asyncio
+
 from nicegui import app, ui
 
 from app.core.state import ADMIN_CONFIG, CURRENT_VIEW_STATE, SERVERS_CACHE
@@ -201,6 +203,17 @@ def open_group_sort_dialog():
     d.open()
 
 
+async def _open_server_dialog_by_server(server, client=None):
+    from app.ui.dialogs.server_dialog import open_server_dialog
+
+    if client:
+        with client:
+            await open_server_dialog(SERVERS_CACHE.index(server))
+        return
+
+    await open_server_dialog(SERVERS_CACHE.index(server))
+
+
 def open_unified_group_manager(mode='manage'):
     theme = _group_theme()
     if 'probe_custom_groups' not in ADMIN_CONFIG:
@@ -339,8 +352,11 @@ def open_unified_group_manager(mode='manage'):
                         chk.on('click.stop', lambda _, c=chk, r=row, u=url: [update_selection(u, c.value),
                             r.classes(add='bg-cyan-950/25 border-cyan-500/45' if theme['is_dark'] else 'bg-sky-100 border-sky-300', remove='bg-[#0a1120] border-[#1e3a5f]/45' if theme['is_dark'] else 'bg-white border-slate-300/90') if c.value else r.classes(remove='bg-cyan-950/25 border-cyan-500/45' if theme['is_dark'] else 'bg-sky-100 border-sky-300', add='bg-[#0a1120] border-[#1e3a5f]/45' if theme['is_dark'] else 'bg-white border-slate-300/90')])
 
+                        async def open_server_detail(server=s):
+                            await _open_server_dialog_by_server(server, ui.context.client)
+
                         with ui.column().classes('gap-0 ml-2 overflow-hidden'):
-                            ui.label(s.get('name', 'Unknown')).classes('text-sm font-black truncate text-slate-200' if theme['is_dark'] else 'text-sm font-black truncate text-slate-800')
+                            ui.label(s.get('name', 'Unknown')).classes('text-sm font-black truncate cursor-pointer text-slate-200 hover:text-cyan-300' if theme['is_dark'] else 'text-sm font-black truncate cursor-pointer text-slate-800 hover:text-sky-700').on('click.stop', lambda _, server=s: asyncio.create_task(open_server_detail(server)))
                             if is_checked:
                                 ui.label('已选中').classes('text-[10px] text-green-400 font-bold')
                             else:
@@ -514,9 +530,12 @@ def open_combined_group_management(group_name):
 
                                 chk.on_value_change(lambda e, u=s['url']: selection_map.update({u: e.value}))
 
+                                async def open_server_detail(server=s):
+                                    await _open_server_dialog_by_server(server, ui.context.client)
+
                                 with ui.column().classes('gap-0 ml-2 flex-grow overflow-hidden'):
                                     with ui.row().classes('items-center gap-2'):
-                                        ui.label(s['name']).classes('text-sm font-black truncate text-slate-300' if theme['is_dark'] else 'text-sm font-black truncate text-slate-800')
+                                        ui.label(s['name']).classes('text-sm font-black truncate cursor-pointer text-slate-300 hover:text-cyan-300' if theme['is_dark'] else 'text-sm font-black truncate cursor-pointer text-slate-800 hover:text-sky-700').on('click.stop', lambda _, server=s: asyncio.create_task(open_server_detail(server)))
 
                                 try:
                                     real_region = detect_country_group(s['name'], None)
