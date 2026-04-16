@@ -178,12 +178,29 @@ class WebSSH:
                         var viewport = el.querySelector('.xterm-viewport');
                         var screen = el.querySelector('.xterm-screen');
                         var xtermRoot = el.querySelector('.xterm');
-                        if (term && term.options) term.options.theme = theme;
+
+                        try {{
+                            if (term && term.options) term.options.theme = theme;
+                            if (term && term._core && term._core._themeService && typeof term._core._themeService.setTheme === 'function') {{
+                                term._core._themeService.setTheme(theme);
+                            }}
+                        }} catch (e) {{
+                            console.warn('xterm theme apply failed', e);
+                        }}
+
                         if (xtermRoot) xtermRoot.style.backgroundColor = bg;
                         if (viewport) viewport.style.backgroundColor = bg;
                         if (screen) screen.style.backgroundColor = bg;
                         el.style.backgroundColor = bg;
                         el.style.color = fg;
+
+                        try {{
+                            var canvases = el.querySelectorAll('canvas');
+                            canvases.forEach(function(canvas) {{
+                                canvas.style.backgroundColor = bg;
+                            }});
+                        }} catch (e) {{}}
+
                         if (typeof term.refresh === 'function') {{
                             try {{ term.refresh(0, Math.max((term.rows || 1) - 1, 0)); }} catch (e) {{}}
                         }}
