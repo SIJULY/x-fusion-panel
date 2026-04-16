@@ -47,24 +47,25 @@ def _sidebar_theme():
         'new_group_btn': '',
         'new_server_btn': '',
 
-        # 修复点 1：给“所有服务器”固定高度 52px，并将 p-3 改为 px-3（水平边距），垂直交由 items-center 居中
-        'list_item': 'w-full h-[52px] items-center justify-between px-3 border rounded-sm mb-1 cursor-pointer group transition-all duration-200',
+        # 修复点 1：添加 shrink-0 严禁浏览器压缩该元素的高度
+        'list_item': 'w-full h-[52px] shrink-0 items-center justify-between px-3 border rounded-sm mb-1 cursor-pointer group transition-all duration-200',
 
         'list_icon_box': 'p-1.5 rounded-sm border transition-colors',
         'list_icon': 'text-sm',
         'list_label': 'font-bold text-sm',
         'section_label': 'text-xs font-bold mt-4 mb-2 px-2 uppercase tracking-wider',
-        'expansion_custom': 'w-full border rounded-sm mb-2 transition-all',
-        'expansion_region': 'w-full border rounded-sm',
 
-        # 修复点 2：强制抹除 Expansion 折叠面板自带的 Header 填充间距和最小高度限制
+        # 修复点 2：给折叠面板外层也加上 shrink-0，防止整个分组框被挤压
+        'expansion_custom': 'w-full shrink-0 border rounded-sm mb-2 transition-all',
+        'expansion_region': 'w-full shrink-0 border rounded-sm',
+
         'expansion_header_props': 'expand-icon-toggle header-style="padding: 0px; min-height: 52px;"',
 
         'drag_icon': 'cursor-move p-0.5 rounded transition-colors',
         'group_name': 'font-bold truncate text-sm',
 
-        # 修复点 3：同样给分组头部赋予 52px 固定高度和 px-3 水平边距，与上方的卡片完美对齐
-        'group_header_row': 'w-full h-[52px] items-center justify-between px-3 cursor-pointer group transition-all duration-200',
+        # 修复点 3：同样给分组头部加上 shrink-0
+        'group_header_row': 'w-full h-[52px] shrink-0 items-center justify-between px-3 cursor-pointer group transition-all duration-200',
 
         'icon_btn': '',
         'expansion_body': 'w-full gap-2 p-2 border-t',
