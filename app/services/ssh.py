@@ -84,7 +84,8 @@ def get_ssh_client(server_data):
         return client, f"✅ 已连接 {user}@{host}"
 
     except Exception as e:
-        return None, f"❌ 连接失败: {str(e)}"
+        detail = str(e).strip() or repr(e)
+        return None, f"❌ 连接失败: {detail}"
 
 
 def get_ssh_client_sync(server_data):
@@ -382,7 +383,7 @@ def _ssh_exec_wrapper(server_conf, cmd):
         client.close()
         return True, out + "\n" + err
     except Exception as e:
-        return False, str(e)
+        return False, str(e).strip() or repr(e)
 
 
 def _exec(server_data, cmd, log_area):

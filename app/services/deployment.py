@@ -68,6 +68,17 @@ def _deploy_confirm_button(label, on_click):
     return ui.button(label, on_click=on_click).props('flat').classes('bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 hover:shadow-[0_0_12px_rgba(34,211,238,0.32)] px-6 font-black text-xs tracking-wide rounded-sm' if _deploy_is_dark() else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 hover:shadow-[0_6px_16px_rgba(56,189,248,0.18)] px-6 font-black text-xs tracking-wide rounded-sm')
 
 
+def _push_deploy_output(log_area, output, empty_hint='(无输出，请检查 SSH 主机、端口、认证方式或服务器防火墙设置)'):
+    text = (output or '').replace('\r\n', '\n').replace('\r', '\n').strip()
+    if not text:
+        log_area.push(empty_hint)
+        return
+    for line in text.split('\n'):
+        line = line.rstrip()
+        if line:
+            log_area.push(line)
+
+
 async def open_deploy_xhttp_dialog(server_conf, callback):
     # 1. 准备 IP
     target_host = server_conf.get('ssh_host') or server_conf.get('url', '').replace('http://', '').replace('https://', '').split(':')[0]
@@ -124,6 +135,7 @@ EOF_SCRIPT
 bash /tmp/install_xhttp.sh "{target_domain}"
 """
                     success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, deploy_cmd))
+                    _push_deploy_output(log_area, output)
 
                     if success:
                         match = re.search(r'DEPLOY_SUCCESS_LINK: (vless://.*)', output)
@@ -150,10 +162,9 @@ bash /tmp/install_xhttp.sh "{target_domain}"
                             else:
                                 log_area.push("❌ 链接解析失败")
                         else:
-                            log_area.push("❌ 未捕获链接，请检查日志")
-                            log_area.push(output[-500:])
+                            log_area.push("❌ 未捕获链接，请检查完整日志输出")
                     else:
-                        log_area.push(f"❌ SSH 执行出错: {output}")
+                        log_area.push("❌ SSH 执行出错，请查看上方详细日志")
                 except Exception as e:
                     log_area.push(f"❌ 异常: {str(e)}")
                 finally:
@@ -269,6 +280,7 @@ async def open_deploy_hysteria_dialog(server_conf, callback):
 
                     log_area.push(f"🚀 [SSH] 连接到 {real_ip} 开始安装...")
                     success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, deploy_cmd))
+                    _push_deploy_output(log_area, output)
 
                     if success:
                         match = re.search(r'HYSTERIA_DEPLOY_SUCCESS_LINK: (hy2://.*)', output)
@@ -315,10 +327,9 @@ async def open_deploy_hysteria_dialog(server_conf, callback):
                             if callback:
                                 await callback()
                         else:
-                            log_area.push("❌ 未捕获链接")
-                            log_area.push(output[-500:])
+                            log_area.push("❌ 未捕获链接，请查看完整日志输出")
                     else:
-                        log_area.push(f"❌ SSH 失败: {output}")
+                        log_area.push("❌ SSH 执行失败，请查看上方详细日志")
                 except Exception as e:
                     log_area.push(f"❌ 异常: {e}")
                     print(e)
@@ -371,6 +382,7 @@ async def open_deploy_snell_dialog(server_conf, callback):
 
                     log_area.push(f"🚀 [SSH] 开始在 {target_host} 安装 Snell v5 ...")
                     success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, deploy_cmd))
+                    _push_deploy_output(log_area, output)
 
                     if success:
                         import re
@@ -409,10 +421,9 @@ async def open_deploy_snell_dialog(server_conf, callback):
                             if callback:
                                 await callback()
                         else:
-                            log_area.push("❌ 部署失败：未能成功启动服务。")
-                            log_area.push(output[-500:])
+                            log_area.push("❌ 部署失败：未能成功启动服务，请查看完整日志输出。")
                     else:
-                        log_area.push(f"❌ SSH 连接失败: {output}")
+                        log_area.push("❌ SSH 连接失败，请查看上方详细日志")
                 except Exception as e:
                     log_area.push(f"❌ 异常: {e}")
                     print(e)

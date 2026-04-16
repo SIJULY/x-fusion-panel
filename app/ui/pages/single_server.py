@@ -333,8 +333,10 @@ PY'''
 
             @ui.refreshable
             async def render_node_list():
-                xui_nodes = await fetch_inbounds_safe(server_conf, force_refresh=False)
-                if xui_nodes is None: xui_nodes = []
+                xui_nodes = NODES_DATA.get(server_conf['url'], []) or []
+                if not xui_nodes:
+                    fetched_nodes = await fetch_inbounds_safe(server_conf, force_refresh=False)
+                    xui_nodes = fetched_nodes or xui_nodes
                 custom_nodes = server_conf.get('custom_nodes', [])
                 all_nodes = xui_nodes + custom_nodes
 
@@ -443,6 +445,7 @@ PY'''
                                     apply_tooltip(lock_icon, '拒绝访问')
 
             async def reload_and_refresh_ui():
+                old_nodes = NODES_DATA.get(server_conf['url'], []) or []
                 if mgr and hasattr(mgr, '_exec_remote_script'):
                     try:
                         new_inbounds = await run.io_bound(
@@ -453,12 +456,14 @@ PY'''
                             server_conf['_status'] = 'online'
                             await save_nodes_cache()
                     except:
-                        pass
+                        NODES_DATA[server_conf['url']] = old_nodes
                 else:
                     try:
-                        await fetch_inbounds_safe(server_conf, force_refresh=True)
+                        fetched_nodes = await fetch_inbounds_safe(server_conf, force_refresh=True)
+                        if fetched_nodes is None:
+                            NODES_DATA[server_conf['url']] = old_nodes
                     except:
-                        pass
+                        NODES_DATA[server_conf['url']] = old_nodes
                 render_node_list.refresh()
 
             REFRESH_CURRENT_NODES = reload_and_refresh_ui
