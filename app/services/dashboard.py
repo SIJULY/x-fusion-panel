@@ -5,6 +5,14 @@ from app.core.state import NODES_DATA, PROBE_DATA_CACHE, SERVERS_CACHE, SUBS_CAC
 from app.utils.geo import detect_country_group, get_coords_from_name, get_flag_for_country
 
 
+def format_total_traffic(total_traffic_bytes: int) -> str:
+    gb_value = total_traffic_bytes / (1024**3)
+    if gb_value >= 1024:
+        return f"{gb_value / 1024:.2f} T"
+    return f"{gb_value:.2f} GB"
+
+
+
 def prepare_map_data():
     try:
         city_points_map = {}
@@ -286,7 +294,7 @@ def calculate_dashboard_data():
         result = {
             "servers": f"{online_servers}/{total_servers}",
             "nodes": str(total_nodes),
-            "traffic": f"{total_traffic_bytes / (1024**3):.2f} GB",
+            "traffic": format_total_traffic(total_traffic_bytes),
             "subs": str(len(SUBS_CACHE)),
             "bar_chart": {"names": bar_names, "values": bar_values},
             "pie_chart": chart_data

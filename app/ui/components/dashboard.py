@@ -257,15 +257,16 @@ async def refresh_dashboard_ui():
 
         if DASHBOARD_REFS.get('bar_chart'):
             DASHBOARD_REFS['bar_chart'].options['xAxis']['data'] = data['bar_chart']['names']
-            DASHBOARD_REFS['bar_chart'].options['xAxis']['axisLabel']['color'] = text_muted
+            DASHBOARD_REFS['bar_chart'].options['xAxis']['axisLabel']['color'] = text_strong
             DASHBOARD_REFS['bar_chart'].options['yAxis']['axisLabel']['color'] = text_muted
             DASHBOARD_REFS['bar_chart'].options['yAxis']['splitLine']['lineStyle']['color'] = split_line
             DASHBOARD_REFS['bar_chart'].options['series'][0]['data'] = data['bar_chart']['values']
             DASHBOARD_REFS['bar_chart'].update()
 
         if DASHBOARD_REFS.get('pie_chart'):
-            DASHBOARD_REFS['pie_chart'].options['legend']['textStyle']['color'] = text_muted
+            DASHBOARD_REFS['pie_chart'].options['legend']['textStyle']['color'] = text_strong
             DASHBOARD_REFS['pie_chart'].options['series'][0]['itemStyle']['borderColor'] = pie_border
+            DASHBOARD_REFS['pie_chart'].options['series'][0]['label']['color'] = text_strong
             DASHBOARD_REFS['pie_chart'].options['series'][0]['emphasis']['label']['color'] = text_strong
             DASHBOARD_REFS['pie_chart'].options['series'][0]['data'] = data['pie_chart']
             DASHBOARD_REFS['pie_chart'].update()
@@ -416,7 +417,7 @@ async def load_dashboard_stats():
                     chart.setOption({
                         textStyle: { color: textStrong },
                         tooltip: { backgroundColor: tooltipBg, borderColor: tooltipBorder, textStyle: { color: textStrong } },
-                        xAxis: { axisLine: { lineStyle: { color: cardBorder } }, axisLabel: { color: textMuted } },
+                        xAxis: { axisLine: { lineStyle: { color: cardBorder } }, axisLabel: { color: textStrong } },
                         yAxis: { axisLabel: { color: textMuted }, splitLine: { lineStyle: { color: cardBorder } } }
                     });
                 }
@@ -429,8 +430,8 @@ async def load_dashboard_stats():
                     chart.setOption({
                         textStyle: { color: textStrong },
                         tooltip: { backgroundColor: tooltipBg, borderColor: tooltipBorder, textStyle: { color: textStrong } },
-                        legend: { textStyle: { color: textMuted } },
-                        series: [{ itemStyle: { borderColor: panelBg }, emphasis: { label: { color: textStrong } } }]
+                        legend: { textStyle: { color: textStrong } },
+                        series: [{ label: { color: textStrong }, itemStyle: { borderColor: panelBg }, emphasis: { label: { color: textStrong } } }]
                     });
                 }
             }
@@ -481,7 +482,7 @@ async def load_dashboard_stats():
                     'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'},
                     'tooltip': {'trigger': 'axis', 'backgroundColor': '#0f172a' if is_dark else '#ffffff', 'borderColor': '#334155' if is_dark else '#cbd5e1', 'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'}},
                     'grid': {'left': '2%', 'right': '3%', 'bottom': '2%', 'top': '10%', 'containLabel': True},
-                    'xAxis': {'type': 'category', 'data': init_data['bar_chart']['names'], 'axisLine': {'lineStyle': {'color': '#334155' if is_dark else '#cbd5e1'}}, 'axisLabel': {'interval': 0, 'rotate': 30, 'color': '#94a3b8' if is_dark else '#475569', 'fontSize': 10}},
+                    'xAxis': {'type': 'category', 'data': init_data['bar_chart']['names'], 'axisLine': {'lineStyle': {'color': '#334155' if is_dark else '#cbd5e1'}}, 'axisLabel': {'interval': 0, 'rotate': 30, 'color': '#e5eefc' if is_dark else '#0f172a', 'fontSize': 10}},
                     'yAxis': {'type': 'value', 'axisLine': {'show': False}, 'splitLine': {'lineStyle': {'type': 'dashed', 'color': '#1e3a5f' if is_dark else '#cbd5e1'}}, 'axisLabel': {'color': '#94a3b8' if is_dark else '#475569'}},
                     'series': [{'type': 'bar', 'data': init_data['bar_chart']['values'], 'barWidth': '40%', 'itemStyle': {'borderRadius': [6, 6, 0, 0], 'color': '#06b6d4'}}]
                 }).classes('w-full h-64').props('id=chart-bar')
@@ -493,7 +494,7 @@ async def load_dashboard_stats():
                 DASHBOARD_REFS['pie_chart'] = ui.echart({
                     'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'},
                     'tooltip': {'trigger': 'item', 'formatter': '{b}: <br/><b>{c} 台</b> ({d}%)', 'backgroundColor': '#0f172a' if is_dark else '#ffffff', 'borderColor': '#334155' if is_dark else '#cbd5e1', 'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'}},
-                    'legend': {'bottom': '0%', 'left': 'center', 'icon': 'circle', 'itemGap': 10, 'textStyle': {'color': '#94a3b8' if is_dark else '#475569', 'fontSize': 11}},
+                    'legend': {'bottom': '0%', 'left': 'center', 'icon': 'circle', 'itemGap': 10, 'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a', 'fontSize': 11}},
                     'color': color_palette,
                     'series': [{
                         'name': '服务器分布',
@@ -502,7 +503,7 @@ async def load_dashboard_stats():
                         'center': ['50%', '45%'],
                         'avoidLabelOverlap': False,
                         'itemStyle': {'borderRadius': 4, 'borderColor': '#070b14' if is_dark else '#ffffff', 'borderWidth': 2},
-                        'label': {'show': False, 'position': 'center'},
+                        'label': {'show': False, 'position': 'center', 'color': '#e5eefc' if is_dark else '#0f172a'},
                         'emphasis': {'label': {'show': True, 'fontSize': 16, 'fontWeight': 'bold', 'color': '#e5eefc' if is_dark else '#0f172a'}, 'scale': True, 'scaleSize': 5},
                         'labelLine': {'show': False},
                         'data': init_data['pie_chart']
