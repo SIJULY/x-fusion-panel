@@ -32,7 +32,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
 
     def apply_tooltip(target, text):
         tip = target.tooltip(text)
-        tip.classes('bg-[#050b14] text-slate-100 border border-cyan-500/35 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_6px_18px_rgba(0,0,0,0.35)]' if is_dark else 'bg-slate-800 text-white border border-slate-700 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_6px_18px_rgba(148,163,184,0.18)]')
+        tip.classes('bg-[#050b14] text-slate-100 border border-cyan-500/35 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_6px_18px_rgba(0,0,0,0.35)]' if is_dark else 'bg-[#f8fbff] text-slate-700 border border-slate-300 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_8px_20px_rgba(148,163,184,0.18)]')
         return tip
 
     SINGLE_COLS_NO_PING = _server_dialog.SINGLE_COLS_NO_PING
