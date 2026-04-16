@@ -59,8 +59,8 @@ def _server_dialog_theme():
         'icon_box': 'w-9 h-9 rounded-sm flex items-center justify-center bg-[#050b14] border border-[#1e3a5f] shadow-[0_0_8px_rgba(0,0,0,0.7)] text-cyan-400 relative overflow-hidden' if is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-sky-50 border border-slate-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] text-sky-600 relative overflow-hidden',
         'title': 'text-lg font-black text-slate-100 tracking-wide' if is_dark else 'text-lg font-black text-slate-800 tracking-wide',
         'body': 'w-full gap-2 p-5 bg-[#030712]' if is_dark else 'w-full gap-2 p-5 bg-[#f8fbff]',
-        'input': 'outlined dense dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'outlined dense color=blue',
-        'select': 'outlined dense dark color=cyan options-dense bg-color="[#050b14]"' if is_dark else 'outlined dense color=blue options-dense',
+        'input': 'outlined dense dark color=cyan standout' if is_dark else 'outlined dense color=blue',
+        'select': 'outlined dense dark color=cyan options-dense' if is_dark else 'outlined dense color=blue options-dense',
         'panel_bg': 'w-full animated fadeIn bg-[#030712] text-slate-200 px-5 pb-5' if is_dark else 'w-full animated fadeIn bg-[#f8fbff] text-slate-700 px-5 pb-5',
         'empty_box': 'w-full h-48 justify-center items-center bg-[#050b14] rounded-sm border border-dashed border-[#1e3a5f]/55' if is_dark else 'w-full h-48 justify-center items-center bg-sky-50 rounded-sm border border-dashed border-slate-300',
         'btn_primary': 'bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 hover:shadow-[0_0_12px_rgba(34,211,238,0.32)] px-4 py-1 rounded-sm font-black tracking-wide transition-all' if is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 px-4 py-1 rounded-sm font-black tracking-wide transition-all',
@@ -429,7 +429,9 @@ async def open_server_dialog(idx=None):
                     inputs['auth_type'] = ui.select(valid_auth_options, value=current_auth, label='认证方式').classes('w-full').props(theme['select'])
                     inputs['ssh_pwd'] = ui.input(label='SSH 密码', password=True, value=data.get('ssh_password', '')).classes('w-full').props(theme['input'])
                     inputs['ssh_pwd'].bind_visibility_from(inputs['auth_type'], 'value', value='独立密码')
-                    inputs['ssh_key'] = ui.textarea(label='SSH 私钥', value=data.get('ssh_key', '')).classes('w-full').props('outlined dense rows=3 input-class=font-mono text-xs dark color=cyan standout bg-color="[#050b14]"' if theme['is_dark'] else 'outlined dense rows=3 input-class=font-mono text-xs color=blue')
+                    
+                    # 修复点：移除了 props 里的 bg-color="[#050b14]"
+                    inputs['ssh_key'] = ui.textarea(label='SSH 私钥', value=data.get('ssh_key', '')).classes('w-full').props('outlined dense rows=3 input-class=font-mono text-xs dark color=cyan standout' if theme['is_dark'] else 'outlined dense rows=3 input-class=font-mono text-xs color=blue')
                     inputs['ssh_key'].bind_visibility_from(inputs['auth_type'], 'value', value='独立密钥')
 
                 ui.separator().classes('my-1')
