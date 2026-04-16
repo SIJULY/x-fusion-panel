@@ -21,8 +21,11 @@ def _group_theme():
         'title': 'text-slate-100' if is_dark else 'text-slate-800',
         'text': 'text-slate-300' if is_dark else 'text-slate-700',
         'muted': 'text-slate-400' if is_dark else 'text-slate-600',
-        'input': 'outlined dense dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'outlined dense color=blue',
-        'input_clearable': 'outlined dense clearable dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'outlined dense clearable color=blue',
+        
+        # 修复点：移除了会导致底层 ast 解析崩溃的 bg-color="[#050b14]"
+        'input': 'outlined dense dark color=cyan standout' if is_dark else 'outlined dense color=blue',
+        'input_clearable': 'outlined dense clearable dark color=cyan standout' if is_dark else 'outlined dense clearable color=blue',
+        
         'checkbox_blue': 'dense dark color=blue' if is_dark else 'dense color=blue',
         'checkbox_green': 'dense dark color=green' if is_dark else 'dense color=green',
         'btn_primary': 'bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 font-black rounded-sm px-4' if is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 font-black rounded-sm px-4',
@@ -356,7 +359,13 @@ def open_unified_group_manager(mode='manage'):
                             await _open_server_dialog_by_server(server, ui.context.client)
 
                         with ui.column().classes('gap-0 ml-2 overflow-hidden'):
-                            ui.label(s.get('name', 'Unknown')).classes('text-sm font-black truncate cursor-pointer text-slate-200 hover:text-cyan-300' if theme['is_dark'] else 'text-sm font-black truncate cursor-pointer text-slate-800 hover:text-sky-700').on('click.stop', lambda _, server=s: asyncio.create_task(open_server_detail(server)))
+                            name_label = ui.label(s.get('name', 'Unknown'))
+                            if theme['is_dark']:
+                                name_label.classes('text-sm font-black truncate cursor-pointer text-slate-200 hover:text-cyan-300')
+                            else:
+                                name_label.classes('text-sm font-black truncate cursor-pointer text-slate-800 hover:text-sky-700')
+                            name_label.on('click.stop', lambda _, server=s: asyncio.create_task(open_server_detail(server)))
+                            
                             if is_checked:
                                 ui.label('已选中').classes('text-[10px] text-green-400 font-bold')
                             else:
@@ -535,7 +544,12 @@ def open_combined_group_management(group_name):
 
                                 with ui.column().classes('gap-0 ml-2 flex-grow overflow-hidden'):
                                     with ui.row().classes('items-center gap-2'):
-                                        ui.label(s['name']).classes('text-sm font-black truncate cursor-pointer text-slate-300 hover:text-cyan-300' if theme['is_dark'] else 'text-sm font-black truncate cursor-pointer text-slate-800 hover:text-sky-700').on('click.stop', lambda _, server=s: asyncio.create_task(open_server_detail(server)))
+                                        name_label = ui.label(s['name'])
+                                        if theme['is_dark']:
+                                            name_label.classes('text-sm font-black truncate cursor-pointer text-slate-300 hover:text-cyan-300')
+                                        else:
+                                            name_label.classes('text-sm font-black truncate cursor-pointer text-slate-800 hover:text-sky-700')
+                                        name_label.on('click.stop', lambda _, server=s: asyncio.create_task(open_server_detail(server)))
 
                                 try:
                                     real_region = detect_country_group(s['name'], None)
