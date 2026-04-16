@@ -17,6 +17,18 @@ from app.services.subscriptions import copy_group_link
 content_container = None
 
 
+def _persist_last_view(scope, data, page_num=1):
+    try:
+        stored_data = data
+        if scope in ['SINGLE', 'SSH_SINGLE'] and isinstance(data, dict):
+            stored_data = data.get('url')
+        app.storage.user['last_view_scope'] = scope
+        app.storage.user['last_view_data'] = stored_data
+        app.storage.user['last_view_page'] = page_num
+    except:
+        pass
+
+
 def get_targets_by_scope(scope, data):
     targets = []
     try:
@@ -78,6 +90,7 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False, sync_name
 
         if not force_refresh and ((now - last_sync < SYNC_COOLDOWN) or is_all_probe):
             CURRENT_VIEW_STATE.update({'scope': scope, 'data': data, 'page': page_num, 'render_token': now})
+            _persist_last_view(scope, data, page_num)
             logger.info(f"[ContentRouter] refresh_content using cached/probe path | current_view={CURRENT_VIEW_STATE}")
             await _render_ui_internal(scope, data, page_num, force_refresh, sync_name_action, client)
 
@@ -93,6 +106,7 @@ async def refresh_content(scope='ALL', data=None, force_refresh=False, sync_name
             return
 
         CURRENT_VIEW_STATE.update({'scope': scope, 'data': data, 'page': page_num, 'render_token': now})
+        _persist_last_view(scope, data, page_num)
         logger.info(f"[ContentRouter] refresh_content state updated | current_view={CURRENT_VIEW_STATE}")
 
         await _render_ui_internal(scope, data, page_num, force_refresh, sync_name_action, client)

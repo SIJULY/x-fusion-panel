@@ -13,6 +13,10 @@ async def load_subs_view():
 
     CURRENT_VIEW_STATE['scope'] = 'SUBS'
     CURRENT_VIEW_STATE['data'] = None
+    CURRENT_VIEW_STATE['page'] = 1
+    app.storage.user['last_view_scope'] = 'SUBS'
+    app.storage.user['last_view_data'] = None
+    app.storage.user['last_view_page'] = 1
 
     from app.ui.pages.content_router import content_container
 

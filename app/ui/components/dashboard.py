@@ -293,6 +293,10 @@ async def load_dashboard_stats():
     global CURRENT_VIEW_STATE
     CURRENT_VIEW_STATE['scope'] = 'DASHBOARD'
     CURRENT_VIEW_STATE['data'] = None
+    CURRENT_VIEW_STATE['page'] = 1
+    app.storage.user['last_view_scope'] = 'DASHBOARD'
+    app.storage.user['last_view_data'] = None
+    app.storage.user['last_view_page'] = 1
     logger.info(f"[Dashboard] load_dashboard_stats start | servers_cache={len(SERVERS_CACHE)} refs_before={list(DASHBOARD_REFS.keys())}")
 
     is_dark = bool(app.storage.user.get('is_dark', True))

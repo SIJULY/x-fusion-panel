@@ -10,6 +10,11 @@ from app.ui.dialogs.group_dialogs import open_group_sort_dialog, open_unified_gr
 async def render_probe_page():
     global CURRENT_VIEW_STATE
     CURRENT_VIEW_STATE['scope'] = 'PROBE'
+    CURRENT_VIEW_STATE['data'] = None
+    CURRENT_VIEW_STATE['page'] = 1
+    app.storage.user['last_view_scope'] = 'PROBE'
+    app.storage.user['last_view_data'] = None
+    app.storage.user['last_view_page'] = 1
     is_dark = bool(app.storage.user.get('is_dark', True))
 
     from app.ui.pages.content_router import content_container

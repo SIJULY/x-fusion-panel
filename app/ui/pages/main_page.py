@@ -17,7 +17,7 @@ from app.utils.network import get_dynamic_origin
 
 
 def main_page(request: Request):
-    is_dark = bool(app.storage.user.get('is_dark', True))
+    is_dark = bool(app.storage.user.get('is_dark', False))
     app.storage.user['is_dark'] = is_dark
 
     dark = ui.dark_mode()
@@ -264,6 +264,7 @@ def main_page(request: Request):
 
         last_scope = app.storage.user.get('last_view_scope', 'DASHBOARD')
         last_data_id = app.storage.user.get('last_view_data', None)
+        last_page = app.storage.user.get('last_view_page', 1)
         target_data = last_data_id
         if last_scope in ['SINGLE', 'SSH_SINGLE'] and last_data_id:
             target_data = next((s for s in SERVERS_CACHE if s['url'] == last_data_id), None)
@@ -281,7 +282,7 @@ def main_page(request: Request):
             await load_subs_view()
         else:
             logger.info(f"[MainPage] restore_last_view branch={last_scope} target_data={target_data}")
-            await refresh_content(last_scope, target_data)
+            await refresh_content(last_scope, target_data, page_num=last_page)
         logger.info(f'♻️ 自动恢复视图: {last_scope}')
 
     ui.timer(0.1, lambda: asyncio.create_task(restore_last_view()), once=True)
