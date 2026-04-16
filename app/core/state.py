@@ -1,0 +1,35 @@
+import asyncio
+import time
+
+
+SERVERS_CACHE = []
+SUBS_CACHE = []
+NODES_DATA = {}
+ADMIN_CONFIG = {}
+GLOBAL_UI_VERSION = time.time()
+
+PROCESS_POOL = None
+SYNC_SEMAPHORE = asyncio.Semaphore(50)
+
+IP_GEO_CACHE = {}
+PING_CACHE = {}
+PING_TREND_CACHE = {}
+PROBE_DATA_CACHE = {}
+DNS_CACHE = {}
+DNS_WAITING_LABELS = {}
+ALERT_CACHE = {}
+FAILURE_COUNTS = {}
+
+DASHBOARD_REFS = {}
+UI_ROW_REFS = {}
+SIDEBAR_UI_REFS = {
+    'groups': {},
+    'rows': {},
+}
+
+EXPANDED_GROUPS = set()
+CURRENT_PROBE_TAB = 'ALL'
+REFRESH_LOCKS = set()
+LAST_SYNC_MAP = {}
+REFRESH_CURRENT_NODES = lambda: None
+CURRENT_VIEW_STATE = {'scope': 'DASHBOARD', 'data': None}

@@ -1,0 +1,93 @@
+# Migration State
+
+- 当前阶段：项目骨架直接创建阶段
+- 骨架创建是否完成：是
+- 已创建目录列表：
+  - app/
+  - app/core/
+  - app/storage/
+  - app/utils/
+  - app/services/
+  - app/api/
+  - app/ui/
+  - app/ui/common/
+  - app/ui/components/
+  - app/ui/pages/
+  - app/ui/dialogs/
+  - app/jobs/
+- 已创建文件列表：
+  - app/__init__.py
+  - app/main.py
+  - app/core/__init__.py
+  - app/core/config.py
+  - app/core/state.py
+  - app/core/logging.py
+  - app/core/security.py
+  - app/storage/__init__.py
+  - app/storage/files.py
+  - app/storage/repositories.py
+  - app/storage/bootstrap.py
+  - app/utils/__init__.py
+  - app/utils/encoding.py
+  - app/utils/formatters.py
+  - app/utils/geo.py
+  - app/utils/network.py
+  - app/utils/async_tools.py
+  - app/services/__init__.py
+  - app/services/ssh.py
+  - app/services/cloudflare.py
+  - app/services/xui_api.py
+  - app/services/xui_ssh.py
+  - app/services/manager_factory.py
+  - app/services/xui_fetch.py
+  - app/services/probe.py
+  - app/services/deployment.py
+  - app/services/subscriptions.py
+  - app/services/dashboard.py
+  - app/services/server_ops.py
+  - app/api/__init__.py
+  - app/api/auth.py
+  - app/api/probe.py
+  - app/api/subscriptions.py
+  - app/api/status.py
+  - app/api/notifications.py
+  - app/ui/__init__.py
+  - app/ui/common/__init__.py
+  - app/ui/common/notifications.py
+  - app/ui/common/dialogs_settings.py
+  - app/ui/common/dialogs_data.py
+  - app/ui/components/__init__.py
+  - app/ui/components/sidebar.py
+  - app/ui/components/server_rows.py
+  - app/ui/components/dashboard.py
+  - app/ui/components/status_cards.py
+  - app/ui/pages/__init__.py
+  - app/ui/pages/login_page.py
+  - app/ui/pages/main_page.py
+  - app/ui/pages/probe_page.py
+  - app/ui/pages/subs_page.py
+  - app/ui/pages/content_router.py
+  - app/ui/pages/single_server.py
+  - app/ui/pages/aggregated_view.py
+  - app/ui/pages/public_status.py
+  - app/ui/dialogs/__init__.py
+  - app/ui/dialogs/server_dialog.py
+  - app/ui/dialogs/inbound_dialog.py
+  - app/ui/dialogs/sub_dialogs.py
+  - app/ui/dialogs/group_dialogs.py
+  - app/ui/dialogs/bulk_edit.py
+  - app/ui/dialogs/batch_ssh.py
+  - app/ui/dialogs/deploy_xhttp.py
+  - app/ui/dialogs/deploy_hysteria.py
+  - app/ui/dialogs/deploy_snell.py
+  - app/ui/dialogs/ssh_console.py
+  - app/jobs/__init__.py
+  - app/jobs/monitor.py
+  - app/jobs/traffic.py
+  - app/jobs/geoip.py
+  - app/jobs/startup.py
+  - migration_manifest.md
+  - migration_state.md
+- 下一阶段：逐文件填充代码阶段
+- 建议先填充的第一个文件：app/core/config.py
+- 继续口令定义：当用户输入“继续”时，直接进入逐文件填充代码阶段，不得回到骨架创建阶段。

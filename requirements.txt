@@ -1,0 +1,11 @@
+nicegui>=1.4.26
+requests
+urllib3
+fastapi
+uvicorn
+pyotp
+qrcode
+pillow
+paramiko
+apscheduler
+

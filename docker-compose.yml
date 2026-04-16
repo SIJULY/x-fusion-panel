@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  x-fusion-panel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: x-fusion-panel-local:latest  # 本地构建时，镜像名建议加后缀区分
+    container_name: x-fusion-panel
+    restart: always
+    ports:
+      - "0.0.0.0:8081:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      - XUI_USERNAME=${XUI_USERNAME:-admin}
+      - XUI_PASSWORD=${XUI_PASSWORD:-admin}
+      - XUI_SECRET_KEY=${XUI_SECRET_KEY:-sijuly_secret_key}
+
+  subconverter:
+    # 关键：必须换成支持 ARM64 的镜像，否则在 ARM VPS 上依然启动失败
+    image: asdlokj123/subconverter:latest 
+    container_name: subconverter
+    restart: always
+    expose:
+      - "25500"
+    environment:
+      - TZ=Asia/Shanghai

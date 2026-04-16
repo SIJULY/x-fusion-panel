@@ -1,0 +1,1770 @@
+{
+  "imports": [
+    {
+      "type": "Import",
+      "lineno": 1,
+      "end_lineno": 1,
+      "code": "import json"
+    },
+    {
+      "type": "Import",
+      "lineno": 2,
+      "end_lineno": 2,
+      "code": "import os"
+    },
+    {
+      "type": "Import",
+      "lineno": 3,
+      "end_lineno": 3,
+      "code": "import uuid"
+    },
+    {
+      "type": "Import",
+      "lineno": 4,
+      "end_lineno": 4,
+      "code": "import base64"
+    },
+    {
+      "type": "Import",
+      "lineno": 5,
+      "end_lineno": 5,
+      "code": "import asyncio"
+    },
+    {
+      "type": "Import",
+      "lineno": 6,
+      "end_lineno": 6,
+      "code": "import logging"
+    },
+    {
+      "type": "Import",
+      "lineno": 7,
+      "end_lineno": 7,
+      "code": "import requests"
+    },
+    {
+      "type": "Import",
+      "lineno": 8,
+      "end_lineno": 8,
+      "code": "import urllib3"
+    },
+    {
+      "type": "Import",
+      "lineno": 9,
+      "end_lineno": 9,
+      "code": "import shutil"
+    },
+    {
+      "type": "Import",
+      "lineno": 10,
+      "end_lineno": 10,
+      "code": "import re"
+    },
+    {
+      "type": "Import",
+      "lineno": 11,
+      "end_lineno": 11,
+      "code": "import sys"
+    },
+    {
+      "type": "Import",
+      "lineno": 12,
+      "end_lineno": 12,
+      "code": "import socket"
+    },
+    {
+      "type": "Import",
+      "lineno": 13,
+      "end_lineno": 13,
+      "code": "import random"
+    },
+    {
+      "type": "Import",
+      "lineno": 14,
+      "end_lineno": 14,
+      "code": "import pyotp"
+    },
+    {
+      "type": "Import",
+      "lineno": 15,
+      "end_lineno": 15,
+      "code": "import qrcode"
+    },
+    {
+      "type": "Import",
+      "lineno": 16,
+      "end_lineno": 16,
+      "code": "import time"
+    },
+    {
+      "type": "Import",
+      "lineno": 17,
+      "end_lineno": 17,
+      "code": "import io"
+    },
+    {
+      "type": "Import",
+      "lineno": 18,
+      "end_lineno": 18,
+      "code": "import paramiko"
+    },
+    {
+      "type": "ImportFrom",
+      "lineno": 19,
+      "end_lineno": 19,
+      "code": "from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor"
+    },
+    {
+      "type": "ImportFrom",
+      "lineno": 20,
+      "end_lineno": 20,
+      "code": "from apscheduler.schedulers.asyncio import AsyncIOScheduler"
+    },
+    {
+      "type": "ImportFrom",
+      "lineno": 21,
+      "end_lineno": 21,
+      "code": "from urllib.parse import urlparse, quote"
+    },
+    {
+      "type": "ImportFrom",
+      "lineno": 22,
+      "end_lineno": 22,
+      "code": "from nicegui import ui, run, app, Client"
+    },
+    {
+      "type": "ImportFrom",
+      "lineno": 23,
+      "end_lineno": 23,
+      "code": "from fastapi import Response, Request"
+    },
+    {
+      "type": "ImportFrom",
+      "lineno": 24,
+      "end_lineno": 24,
+      "code": "from fastapi.responses import RedirectResponse"
+    },
+    {
+      "type": "ImportFrom",
+      "lineno": 25,
+      "end_lineno": 25,
+      "code": "from collections import Counter"
+    },
+    {
+      "type": "Import",
+      "lineno": 5344,
+      "end_lineno": 5344,
+      "code": "import traceback"
+    },
+    {
+      "type": "Import",
+      "lineno": 6554,
+      "end_lineno": 6554,
+      "code": "import re"
+    },
+    {
+      "type": "Import",
+      "lineno": 9767,
+      "end_lineno": 9767,
+      "code": "import asyncio"
+    },
+    {
+      "type": "Import",
+      "lineno": 9768,
+      "end_lineno": 9768,
+      "code": "import traceback"
+    }
+  ],
+  "assignments": [
+    {
+      "targets": [
+        "DATA_DIR"
+      ],
+      "lineno": 31,
+      "end_lineno": 31,
+      "code": "DATA_DIR = '/app/data'"
+    },
+    {
+      "targets": [
+        "CONFIG_FILE"
+      ],
+      "lineno": 34,
+      "end_lineno": 34,
+      "code": "CONFIG_FILE = os.path.join(DATA_DIR, 'servers.json')"
+    },
+    {
+      "targets": [
+        "SUBS_FILE"
+      ],
+      "lineno": 35,
+      "end_lineno": 35,
+      "code": "SUBS_FILE = os.path.join(DATA_DIR, 'subscriptions.json')"
+    },
+    {
+      "targets": [
+        "NODES_CACHE_FILE"
+      ],
+      "lineno": 36,
+      "end_lineno": 36,
+      "code": "NODES_CACHE_FILE = os.path.join(DATA_DIR, 'nodes_cache.json')"
+    },
+    {
+      "targets": [
+        "ADMIN_CONFIG_FILE"
+      ],
+      "lineno": 37,
+      "end_lineno": 37,
+      "code": "ADMIN_CONFIG_FILE = os.path.join(DATA_DIR, 'admin_config.json')"
+    },
+    {
+      "targets": [
+        "GLOBAL_SSH_KEY_FILE"
+      ],
+      "lineno": 38,
+      "end_lineno": 38,
+      "code": "GLOBAL_SSH_KEY_FILE = os.path.join(DATA_DIR, 'global_ssh_key')"
+    },
+    {
+      "targets": [
+        "AUTO_REGISTER_SECRET"
+      ],
+      "lineno": 40,
+      "end_lineno": 40,
+      "code": "AUTO_REGISTER_SECRET = os.getenv('XUI_SECRET_KEY', 'sijuly_secret_key_default')"
+    },
+    {
+      "targets": [
+        "ADMIN_USER"
+      ],
+      "lineno": 41,
+      "end_lineno": 41,
+      "code": "ADMIN_USER = os.getenv('XUI_USERNAME', 'admin')"
+    },
+    {
+      "targets": [
+        "ADMIN_PASS"
+      ],
+      "lineno": 42,
+      "end_lineno": 42,
+      "code": "ADMIN_PASS = os.getenv('XUI_PASSWORD', 'admin')"
+    },
+    {
+      "targets": [
+        "SERVERS_CACHE"
+      ],
+      "lineno": 44,
+      "end_lineno": 44,
+      "code": "SERVERS_CACHE = []"
+    },
+    {
+      "targets": [
+        "SUBS_CACHE"
+      ],
+      "lineno": 45,
+      "end_lineno": 45,
+      "code": "SUBS_CACHE = []"
+    },
+    {
+      "targets": [
+        "NODES_DATA"
+      ],
+      "lineno": 46,
+      "end_lineno": 46,
+      "code": "NODES_DATA = {}"
+    },
+    {
+      "targets": [
+        "ADMIN_CONFIG"
+      ],
+      "lineno": 47,
+      "end_lineno": 47,
+      "code": "ADMIN_CONFIG = {}"
+    },
+    {
+      "targets": [
+        "GLOBAL_UI_VERSION"
+      ],
+      "lineno": 48,
+      "end_lineno": 48,
+      "code": "GLOBAL_UI_VERSION = time.time()"
+    },
+    {
+      "targets": [
+        "PROCESS_POOL"
+      ],
+      "lineno": 51,
+      "end_lineno": 51,
+      "code": "PROCESS_POOL = None"
+    },
+    {
+      "targets": [
+        "LOCATION_COORDS"
+      ],
+      "lineno": 186,
+      "end_lineno": 236,
+      "code": "LOCATION_COORDS = {\n    '🇨🇳': (35.86, 104.19), 'China': (35.86, 104.19), '中国': (35.86, 104.19),\n    '🇭🇰': (22.31, 114.16), 'HK': (22.31, 114.16), 'Hong Kong': (22.31, 114.16), '香港': (22.31, 114.16),\n    '🇹🇼': (23.69, 120.96), 'TW': (23.69, 120.96), 'Taiwan': (23.69, 120.96), '台湾': (23.69, 120.96),\n    '🇯🇵': (36.20, 138.25), 'JP': (36.20, 138.25), 'Japan': (36.20, 138.25), '日本': (36.20, 138.25),\n    'Tokyo': (35.68, 139.76), '东京': (35.68, 139.76), 'Osaka': (34.69, 135.50), '大阪': (34.69, 135.50),\n    '🇸🇬': (1.35, 103.81), 'SG': (1.35, 103.81), 'Singapore': (1.35, 103.81), '新加坡': (1.35, 103.81),\n    '🇰🇷': (35.90, 127.76), 'KR': (35.90, 127.76), 'Korea': (35.90, 127.76), '韩国': (35.90, 127.76),\n    'Seoul': (37.56, 126.97), '首尔': (37.56, 126.97),\n    '🇮🇳': (20.59, 78.96), 'IN': (20.59, 78.96), 'India': (20.59, 78.96), '印度': (20.59, 78.96),\n    '🇮🇩': (-0.78, 113.92), 'ID': (-0.78, 113.92), 'Indonesia': (-0.78, 113.92), '印尼': (-0.78, 113.92),\n    '🇲🇾': (4.21, 101.97), 'MY': (4.21, 101.97), 'Malaysia': (4.21, 101.97), '马来西亚': (4.21, 101.97),\n    '🇹🇭': (15.87, 100.99), 'TH': (15.87, 100.99), 'Thailand': (15.87, 100.99), '泰国': (15.87, 100.99),\n    'Bangkok': (13.75, 100.50), '曼谷': (13.75, 100.50),\n    '🇻🇳': (14.05, 108.27), 'VN': (14.05, 108.27), 'Vietnam': (14.05, 108.27), '越南': (14.05, 108.27),\n    '🇵🇭': (12.87, 121.77), 'PH': (12.87, 121.77), 'Philippines': (12.87, 121.77), '菲律宾': (12.87, 121.77),\n    '🇮🇱': (31.04, 34.85), 'IL': (31.04, 34.85), 'Israel': (31.04, 34.85), '以色列': (31.04, 34.85),\n    '🇹🇷': (38.96, 35.24), 'TR': (38.96, 35.24), 'Turkey': (38.96, 35.24), '土耳其': (38.96, 35.24),\n    '🇦🇪': (23.42, 53.84), 'AE': (23.42, 53.84), 'UAE': (23.42, 53.84), '阿联酋': (23.42, 53.84),\n    'Dubai': (25.20, 55.27), '迪拜': (25.20, 55.27),\n    '🇺🇸': (37.09, -95.71), 'US': (37.09, -95.71), 'USA': (37.09, -95.71), 'United States': (37.09, -95.71), '美国': (37.09, -95.71),\n    'San Jose': (37.33, -121.88), '圣何塞': (37.33, -121.88), 'Los Angeles': (34.05, -118.24), '洛杉矶': (34.05, -118.24),\n    'Phoenix': (33.44, -112.07), '凤凰城': (33.44, -112.07),\n    '🇨🇦': (56.13, -106.34), 'CA': (56.13, -106.34), 'Canada': (56.13, -106.34), '加拿大': (56.13, -106.34),\n    '🇧🇷': (-14.23, -51.92), 'BR': (-14.23, -51.92), 'Brazil': (-14.23, -51.92), '巴西': (-14.23, -51.92),\n    '🇲🇽': (23.63, -102.55), 'MX': (23.63, -102.55), 'Mexico': (23.63, -102.55), '墨西哥': (23.63, -102.55),\n    '🇨🇱': (-35.67, -71.54), 'CL': (-35.67, -71.54), 'Chile': (-35.67, -71.54), '智利': (-35.67, -71.54),\n    '🇦🇷': (-38.41, -63.61), 'AR': (-38.41, -63.61), 'Argentina': (-38.41, -63.61), '阿根廷': (-38.41, -63.61),\n    '🇬🇧': (55.37, -3.43), 'UK': (55.37, -3.43), 'United Kingdom': (55.37, -3.43), '英国': (55.37, -3.43),\n    'London': (51.50, -0.12), '伦敦': (51.50, -0.12),\n    '🇩🇪': (51.16, 10.45), 'DE': (51.16, 10.45), 'Germany': (51.16, 10.45), '德国': (51.16, 10.45),\n    'Frankfurt': (50.11, 8.68), '法兰克福': (50.11, 8.68),\n    '🇫🇷': (46.22, 2.21), 'FR': (46.22, 2.21), 'France': (46.22, 2.21), '法国': (46.22, 2.21),\n    'Paris': (48.85, 2.35), '巴黎': (48.85, 2.35),\n    '🇳🇱': (52.13, 5.29), 'NL': (52.13, 5.29), 'Netherlands': (52.13, 5.29), '荷兰': (52.13, 5.29),\n    'Amsterdam': (52.36, 4.90), '阿姆斯特丹': (52.36, 4.90),\n    '🇷🇺': (61.52, 105.31), 'RU': (61.52, 105.31), 'Russia': (61.52, 105.31), '俄罗斯': (61.52, 105.31),\n    'Moscow': (55.75, 37.61), '莫斯科': (55.75, 37.61),\n    '🇮🇹': (41.87, 12.56), 'IT': (41.87, 12.56), 'Italy': (41.87, 12.56), '意大利': (41.87, 12.56),\n    'Milan': (45.46, 9.19), '米兰': (45.46, 9.19),\n    '🇪🇸': (40.46, -3.74), 'ES': (40.46, -3.74), 'Spain': (40.46, -3.74), '西班牙': (40.46, -3.74),\n    'Madrid': (40.41, -3.70), '马德里': (40.41, -3.70),\n    '🇸🇪': (60.12, 18.64), 'SE': (60.12, 18.64), 'Sweden': (60.12, 18.64), '瑞典': (60.12, 18.64),\n    'Stockholm': (59.32, 18.06), '斯德哥尔摩': (59.32, 18.06),\n    '🇨🇭': (46.81, 8.22), 'CH': (46.81, 8.22), 'Switzerland': (46.81, 8.22), '瑞士': (46.81, 8.22),\n    'Zurich': (47.37, 8.54), '苏黎世': (47.37, 8.54),\n    '🇦🇺': (-25.27, 133.77), 'AU': (-25.27, 133.77), 'Australia': (-25.27, 133.77), '澳大利亚': (-25.27, 133.77), '澳洲': (-25.27, 133.77),\n    'Sydney': (-33.86, 151.20), '悉尼': (-33.86, 151.20),\n    '🇿🇦': (-30.55, 22.93), 'ZA': (-30.55, 22.93), 'South Africa': (-30.55, 22.93), '南非': (-30.55, 22.93),\n    'Johannesburg': (-26.20, 28.04), '约翰内斯堡': (-26.20, 28.04),\n}"
+    },
+    {
+      "targets": [
+        "IP_GEO_CACHE"
+      ],
+      "lineno": 244,
+      "end_lineno": 244,
+      "code": "IP_GEO_CACHE = {}"
+    },
+    {
+      "targets": [
+        "DASHBOARD_REFS"
+      ],
+      "lineno": 246,
+      "end_lineno": 250,
+      "code": "DASHBOARD_REFS = {\n    'servers': None, 'nodes': None, 'traffic': None, 'subs': None,\n    'bar_chart': None, 'pie_chart': None, 'stat_up': None, 'stat_down': None, 'stat_avg': None,\n    'map': None, 'map_info': None\n}"
+    },
+    {
+      "targets": [
+        "DNS_CACHE"
+      ],
+      "lineno": 254,
+      "end_lineno": 254,
+      "code": "DNS_CACHE = {}"
+    },
+    {
+      "targets": [
+        "DNS_WAITING_LABELS"
+      ],
+      "lineno": 255,
+      "end_lineno": 255,
+      "code": "DNS_WAITING_LABELS = {}"
+    },
+    {
+      "targets": [
+        "GLOBAL_SSH_KEY_FILE"
+      ],
+      "lineno": 441,
+      "end_lineno": 441,
+      "code": "GLOBAL_SSH_KEY_FILE = 'data/global_ssh_key'"
+    },
+    {
+      "targets": [
+        "XHTTP_INSTALL_SCRIPT_TEMPLATE"
+      ],
+      "lineno": 475,
+      "end_lineno": 632,
+      "code": "XHTTP_INSTALL_SCRIPT_TEMPLATE = r\"\"\"\n#!/bin/bash\nexport DEBIAN_FRONTEND=noninteractive\nexport PATH=$PATH:/usr/local/bin\n\n# 0. 自我清洗 (防止 Windows 换行符 \\r 导致脚本执行异常)\nsed -i 's/\\r$//' \"$0\"\n\n# 1. 基础环境检查与依赖安装\nif [ -f /etc/debian_version ]; then\n    apt-get update -y >/dev/null 2>&1\n    apt-get install -y net-tools lsof curl unzip jq uuid-runtime openssl psmisc dnsutils >/dev/null 2>&1\nelif [ -f /etc/redhat-release ]; then\n    yum install -y net-tools lsof curl unzip jq psmisc bind-utils >/dev/null 2>&1\nfi\n\n# 定义日志\nlog() { echo -e \"\\033[32m[DEBUG]\\033[0m $1\"; }\nerr() { echo -e \"\\033[31m[ERROR]\\033[0m $1\"; }\n\nDOMAIN=\"$1\"\nif [ -z \"$DOMAIN\" ]; then err \"域名参数缺失\"; exit 1; fi\n\nlog \"========== 开始部署 XHTTP (V76 稳定版) ==========\"\nlog \"目标域名: $DOMAIN\"\n\n# 2. 端口强制清理 (霸道模式)\nif netstat -tlpn | grep -q \":80 \"; then\n    log \"⚠️ 清理 80 端口...\"\n    fuser -k 80/tcp >/dev/null 2>&1; killall -9 nginx >/dev/null 2>&1; killall -9 xray >/dev/null 2>&1\n    sleep 1\nfi\nif netstat -tlpn | grep -q \":443 \"; then\n    log \"⚠️ 清理 443 端口...\"\n    fuser -k 443/tcp >/dev/null 2>&1\n    sleep 1\nfi\n\nPORT_REALITY=443\nPORT_XHTTP=80\n\n# 3. 安装/更新 Xray\nlog \"安装最新版 Xray...\"\nxray_bin=\"/usr/local/bin/xray\"\nrm -f \"$xray_bin\"\narch=$(uname -m); case \"$arch\" in x86_64) a=\"64\";; aarch64) a=\"arm64-v8a\";; esac\ncurl -fsSL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${a}.zip -o /tmp/xray.zip\nunzip -qo /tmp/xray.zip -d /tmp/xray\ninstall -m 755 /tmp/xray/xray \"$xray_bin\"\n\n# 4. 生成密钥与ID\nKEYS=$($xray_bin x25519)\nPRI_KEY=$(echo \"$KEYS\" | grep -i \"Private\" | awk '{print $NF}')\nPUB_KEY=$(echo \"$KEYS\" | grep -i \"Public\" | awk '{print $NF}')\n[ -z \"$PUB_KEY\" ] && { PRI_KEY=$(echo \"$KEYS\" | head -n1 | awk '{print $NF}'); PUB_KEY=$(echo \"$KEYS\" | tail -n1 | awk '{print $NF}'); }\n\nUUID_XHTTP=$(cat /proc/sys/kernel/random/uuid)\nUUID_REALITY=$(cat /proc/sys/kernel/random/uuid)\nXHTTP_PATH=\"/$(echo \"$UUID_XHTTP\" | cut -d- -f1 | tr -d '\\n')\"\nSHORT_ID=$(openssl rand -hex 4)\n\nREALITY_SNI=\"www.icloud.com\"\nYOUXUAN_DOMAIN=\"www.visa.com.hk\"\n\nmkdir -p /usr/local/etc/xray\nCONFIG_FILE=\"/usr/local/etc/xray/config.json\"\n\n# 5. 写入配置文件 (使用 EOF 块，避免转义错误)\ncat > $CONFIG_FILE <<EOF\n{\n  \"log\": { \"loglevel\": \"warning\" },\n  \"inbounds\": [\n    {\n      \"port\": $PORT_XHTTP,\n      \"protocol\": \"vless\",\n      \"settings\": { \"clients\": [{ \"id\": \"$UUID_XHTTP\" }], \"decryption\": \"none\" },\n      \"streamSettings\": { \"network\": \"xhttp\", \"security\": \"none\", \"xhttpSettings\": { \"path\": \"$XHTTP_PATH\", \"mode\": \"auto\" } }\n    },\n    {\n      \"port\": $PORT_REALITY,\n      \"protocol\": \"vless\",\n      \"settings\": {\n        \"clients\": [{ \"id\": \"$UUID_REALITY\", \"flow\": \"xtls-rprx-vision\" }],\n        \"decryption\": \"none\",\n        \"fallbacks\": [{ \"dest\": $PORT_XHTTP }]\n      },\n      \"streamSettings\": {\n        \"network\": \"tcp\",\n        \"security\": \"reality\",\n        \"realitySettings\": { \"privateKey\": \"$PRI_KEY\", \"serverNames\": [\"$REALITY_SNI\"], \"shortIds\": [\"$SHORT_ID\"], \"target\": \"$REALITY_SNI:443\" }\n      }\n    }\n  ],\n  \"outbounds\": [{ \"protocol\": \"freedom\" }]\n}\nEOF\n\n# 6. 启动服务\ncat > /etc/systemd/system/xray.service <<EOF\n[Unit]\nDescription=Xray Service\nAfter=network.target\n[Service]\nExecStart=$xray_bin run -c $CONFIG_FILE\nRestart=on-failure\nLimitNOFILE=1048576\n[Install]\nWantedBy=multi-user.target\nEOF\n\nsystemctl daemon-reload\nsystemctl enable xray >/dev/null 2>&1\nsystemctl restart xray\nsleep 2\n\n# 7. 检查 DNS (诊断)\nlog \"正在检查域名解析: $DOMAIN\"\nnslookup $DOMAIN 8.8.8.8 >/dev/null 2>&1\nif [ $? -ne 0 ]; then\n    log \"⚠️ 警告: 域名 $DOMAIN 尚未在全球 DNS 生效，连接可能会失败。请稍等几分钟。\"\nelse\n    log \"✅ 域名解析正常。\"\nfi\n\n# 8. 生成链接 (JSON 构造优化)\nVPS_IP=$(curl -fsSL https://api.ipify.org)\n\n# 使用 cat 生成 JSON，避免 Python 字符串转义干扰\nEXTRA_JSON_RAW=$(cat <<EOF\n{\n  \"downloadSettings\": {\n    \"address\": \"$VPS_IP\",\n    \"port\": $PORT_REALITY,\n    \"network\": \"xhttp\",\n    \"xhttpSettings\": { \"path\": \"$XHTTP_PATH\", \"mode\": \"auto\" },\n    \"security\": \"reality\",\n    \"realitySettings\": {\n      \"serverName\": \"$REALITY_SNI\",\n      \"fingerprint\": \"chrome\",\n      \"show\": false,\n      \"publicKey\": \"$PUB_KEY\",\n      \"shortId\": \"$SHORT_ID\",\n      \"spiderX\": \"/\",\n      \"mldsa65Verify\": \"\"\n    }\n  }\n}\nEOF\n)\n\n# 压缩并编码 JSON\nENC_EXTRA=$(echo \"$EXTRA_JSON_RAW\" | jq -c . | jq -sRr @uri)\nENC_PATH=$(printf '%s' \"$XHTTP_PATH\" | jq -sRr @uri)\n\nLINK=\"vless://${UUID_XHTTP}@${YOUXUAN_DOMAIN}:443?encryption=none&security=tls&sni=${DOMAIN}&type=xhttp&host=${DOMAIN}&path=${ENC_PATH}&mode=auto&extra=${ENC_EXTRA}#XHTTP-Reality\"\n\necho \"DEPLOY_SUCCESS_LINK: $LINK\"\n\"\"\""
+    },
+    {
+      "targets": [
+        "XHTTP_UNINSTALL_SCRIPT"
+      ],
+      "lineno": 884,
+      "end_lineno": 898,
+      "code": "XHTTP_UNINSTALL_SCRIPT = r\"\"\"\n#!/bin/bash\n# 1. 停止服务\nsystemctl stop xray\nsystemctl disable xray\n\n# 2. 删除服务文件\nrm -f /etc/systemd/system/xray.service\nsystemctl daemon-reload\n\n# 3. 删除配置文件 (保留 bin 文件以防 X-UI 共用)\nrm -rf /usr/local/etc/xray\n\necho \"Xray Service Uninstalled (Binary kept safe)\"\n\"\"\""
+    },
+    {
+      "targets": [
+        "HYSTERIA_INSTALL_SCRIPT_TEMPLATE"
+      ],
+      "lineno": 902,
+      "end_lineno": 1001,
+      "code": "HYSTERIA_INSTALL_SCRIPT_TEMPLATE = r\"\"\"\n#!/bin/bash\n# 1. 接收参数\nPASSWORD=\"{password}\"\nSNI=\"{sni}\"\nENABLE_PORT_HOPPING=\"{enable_hopping}\"\nPORT_RANGE_START=\"{port_range_start}\"\nPORT_RANGE_END=\"{port_range_end}\"\n\n# 2. 环境清理与依赖安装 (修复核心：同时安装 iptables 和 net-tools)\nif [ -f /etc/debian_version ]; then\n    apt-get update -y\n    # net-tools 包含 netstat，iptables 用于端口跳跃\n    apt-get install -y iptables net-tools\nelif [ -f /etc/redhat-release ]; then\n    yum install -y iptables net-tools\nfi\n\nsystemctl stop hysteria-server.service 2>/dev/null\nrm -rf /etc/hysteria\nbash <(curl -fsSL https://get.hy2.sh/)\n\n# 3. 证书生成 (自签)\nmkdir -p /etc/hysteria\nopenssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) \\\n  -keyout /etc/hysteria/server.key \\\n  -out /etc/hysteria/server.crt \\\n  -subj \"/CN=$SNI\" \\\n  -days 3650\nchown hysteria /etc/hysteria/server.key\nchown hysteria /etc/hysteria/server.crt\n\n# 4. 端口检测 (现在有了 net-tools，这里就不会报错了)\nHY2_PORT=443\nif netstat -ulpn | grep -q \":443 \"; then\n    echo \"⚠️ UDP 443 占用，切换至 8443\"\n    HY2_PORT=8443\nfi\n\n# 5. 写入配置\ncat << EOF > /etc/hysteria/config.yaml\nlisten: :$HY2_PORT\ntls:\n  cert: /etc/hysteria/server.crt\n  key: /etc/hysteria/server.key\nauth:\n  type: password\n  password: $PASSWORD\nmasquerade:\n  type: proxy\n  proxy:\n    url: https://$SNI\n    rewriteHost: true\nquic:\n  initStreamReceiveWindow: 26843545\n  maxStreamReceiveWindow: 26843545\n  initConnReceiveWindow: 67108864\n  maxConnReceiveWindow: 67108864\nEOF\n\n# 6. 端口跳跃 (iptables 转发)\nif [ \"$ENABLE_PORT_HOPPING\" == \"true\" ]; then\n    # 清理旧规则\n    iptables -t nat -D PREROUTING -p udp --dport $PORT_RANGE_START:$PORT_RANGE_END -j REDIRECT --to-ports $HY2_PORT 2>/dev/null || true\n    # 添加新规则 (不限制网卡，强制生效)\n    iptables -t nat -A PREROUTING -p udp --dport $PORT_RANGE_START:$PORT_RANGE_END -j REDIRECT --to-ports $HY2_PORT\n    \n    mkdir -p /etc/iptables\n    if command -v iptables-save >/dev/null; then\n        iptables-save > /etc/iptables/rules.v4\n    fi\nfi\n\n# 7. 启动\nsystemctl enable --now hysteria-server.service\nsleep 2\n\n# 8. 输出链接\nif systemctl is-active --quiet hysteria-server.service; then\n    PUBLIC_IP=$(curl -s https://api.ipify.org)\n    \n    CLIENT_PORT=$HY2_PORT\n    MPORT_PARAM=\"\"\n    \n    if [ \"$ENABLE_PORT_HOPPING\" == \"true\" ]; then\n        if command -v shuf > /dev/null; then\n            CLIENT_PORT=$(shuf -i $PORT_RANGE_START-$PORT_RANGE_END -n 1)\n        else\n            RANGE=$(($PORT_RANGE_END - $PORT_RANGE_START + 1))\n            CLIENT_PORT=$(($PORT_RANGE_START + $RANDOM % $RANGE))\n        fi\n        MPORT_PARAM=\"&mport=$PORT_RANGE_START-$PORT_RANGE_END\"\n    fi\n\n    LINK=\"hy2://$PASSWORD@$PUBLIC_IP:$CLIENT_PORT?peer=$SNI&insecure=1&sni=$SNI$MPORT_PARAM#Hy2-Node\"\n    echo \"HYSTERIA_DEPLOY_SUCCESS_LINK: $LINK\"\nelse\n    echo \"HYSTERIA_DEPLOY_FAILED\"\nfi\n\"\"\""
+    },
+    {
+      "targets": [
+        "SNELL_INSTALL_SCRIPT_TEMPLATE"
+      ],
+      "lineno": 1112,
+      "end_lineno": 1206,
+      "code": "SNELL_INSTALL_SCRIPT_TEMPLATE = r\"\"\"\n#!/bin/bash\nexport DEBIAN_FRONTEND=noninteractive\n\n# 接收参数\nPORT=\"{port}\"\nPSK=\"{psk}\"\nTARGET_IP=\"{target_ip}\"\n\n# 1. 安装基础依赖\nif [ -f /etc/debian_version ]; then\n    apt-get update -y >/dev/null 2>&1\n    apt-get install -y curl unzip iptables >/dev/null 2>&1\nelif [ -f /etc/redhat-release ]; then\n    yum install -y curl unzip iptables >/dev/null 2>&1\nfi\n\n# 2. 检测系统架构\nARCH=$(uname -m)\ncase \"$ARCH\" in\n    x86_64) S_ARCH=\"amd64\" ;;\n    aarch64|arm64) S_ARCH=\"aarch64\" ;;\n    *) echo \"不支持的架构: $ARCH\"; exit 1 ;;\nesac\n\n# 3. 停止旧服务并清理环境\nsystemctl stop snell 2>/dev/null\nrm -rf /usr/local/bin/snell-server\n\n# 4. 安全下载 (使用 curl -f 遇到 404 直接失败)\nDOWNLOAD_URL=\"https://dl.nssurge.com/snell/snell-server-v5.0.1-linux-${{S_ARCH}}.zip\"\n\necho \"正在下载: $DOWNLOAD_URL\"\ncurl -fsSL \"$DOWNLOAD_URL\" -o /tmp/snell.zip\nif [ $? -ne 0 ]; then echo \"❌ 下载失败，请检查网络或版本是否已更新\"; exit 1; fi\n\nunzip -o /tmp/snell.zip -d /usr/local/bin/ >/dev/null 2>&1\nif [ ! -f /usr/local/bin/snell-server ]; then echo \"❌ 解压失败，未找到二进制文件\"; exit 1; fi\n\nchmod +x /usr/local/bin/snell-server\nrm -f /tmp/snell.zip\n\n# 5. 生成配置文件\nmkdir -p /etc/snell\ncat > /etc/snell/snell-server.conf << EOF\n[snell-server]\nlisten = 0.0.0.0:$PORT\npsk = $PSK\nipv6 = false\nEOF\n\n# 6. 配置防火墙放行\nif command -v ufw >/dev/null 2>&1; then\n    ufw allow $PORT/tcp >/dev/null 2>&1\n    ufw allow $PORT/udp >/dev/null 2>&1\nfi\nif command -v iptables >/dev/null 2>&1; then\n    iptables -I INPUT -p tcp --dport $PORT -j ACCEPT\n    iptables -I INPUT -p udp --dport $PORT -j ACCEPT\n    netfilter-persistent save >/dev/null 2>&1 || service iptables save >/dev/null 2>&1\nfi\n\n# 7. 配置 Systemd 守护进程\ncat > /etc/systemd/system/snell.service << EOF\n[Unit]\nDescription=Snell Proxy Service\nAfter=network.target\n\n[Service]\nType=simple\nLimitNOFILE=32768\nExecStart=/usr/local/bin/snell-server -c /etc/snell/snell-server.conf\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\nEOF\n\n# 8. 启动服务并验证\nsystemctl daemon-reload\nsystemctl enable --now snell >/dev/null 2>&1\nsleep 1.5\n\n# 9. 核心修复：检查进程是否真的在运行\nif systemctl is-active --quiet snell; then\n    # 尝试获取公网IP，如果超时失败，则使用Python传入的兜底IP\n    PUBLIC_IP=$(curl -s --max-time 3 https://api.ipify.org)\n    [ -z \"$PUBLIC_IP\" ] && PUBLIC_IP=\"$TARGET_IP\"\n    \n    echo \"SNELL_DEPLOY_SUCCESS_LINK: snell://$PSK@$PUBLIC_IP:$PORT?version=5#Snell-Node\"\nelse\n    echo \"❌ 服务启动失败！可能端口被占用，请执行 journalctl -u snell 查看原因。\"\n    exit 1\nfi\n\"\"\""
+    },
+    {
+      "targets": [
+        "PROBE_DATA_CACHE"
+      ],
+      "lineno": 1300,
+      "end_lineno": 1300,
+      "code": "PROBE_DATA_CACHE = {}"
+    },
+    {
+      "targets": [
+        "PING_TREND_CACHE"
+      ],
+      "lineno": 1301,
+      "end_lineno": 1301,
+      "code": "PING_TREND_CACHE = {}"
+    },
+    {
+      "targets": [
+        "PROBE_INSTALL_SCRIPT"
+      ],
+      "lineno": 1347,
+      "end_lineno": 1586,
+      "code": "PROBE_INSTALL_SCRIPT = r\"\"\"\nbash -c '\n# 1. 提升权限\n[ \"$(id -u)\" -eq 0 ] || { command -v sudo >/dev/null && exec sudo bash \"$0\" \"$@\"; echo \"Root required\"; exit 1; }\n\n# 2. 安装基础依赖\nif [ -f /etc/debian_version ]; then\n    apt-get update -y >/dev/null 2>&1\n    apt-get install -y python3 iputils-ping util-linux sqlite3 >/dev/null 2>&1\nelif [ -f /etc/redhat-release ]; then\n    yum install -y python3 iputils util-linux sqlite3 >/dev/null 2>&1\nelif [ -f /etc/alpine-release ]; then\n    apk add python3 iputils util-linux sqlite3 >/dev/null 2>&1\nfi\n\n# 3. 写入 Python 脚本\ncat > /root/x_fusion_agent.py << \"PYTHON_EOF\"\nimport time, json, os, socket, sys, subprocess, re, platform, sqlite3\nimport urllib.request, urllib.error\nimport ssl\n\nMANAGER_URL = \"__MANAGER_URL__/api/probe/push\"\nTOKEN = \"__TOKEN__\"\nSERVER_URL = \"__SERVER_URL__\"\n\nPING_TARGETS = {\n\"电信\": \"__PING_CT__\",\n\"联通\": \"__PING_CU__\",\n\"移动\": \"__PING_CM__\"\n}\n\nssl_ctx = ssl.create_default_context()\nssl_ctx.check_hostname = False\nssl_ctx.verify_mode = ssl.CERT_NONE\n\ndef get_cpu_model():\n    model = \"Unknown\"\n    try:\n        try:\n            out = subprocess.check_output(\"lscpu\", shell=True).decode()\n            for line in out.split(\"\\n\"):\n                if \"Model name:\" in line: return line.split(\":\")[1].strip()\n        except: pass\n        with open(\"/proc/cpuinfo\", \"r\") as f:\n            for line in f:\n                if \"model name\" in line: return line.split(\":\")[1].strip()\n                if \"Hardware\" in line: return line.split(\":\")[1].strip()\n    except: pass\n    return model\n\ndef get_os_distro():\n    try:\n        if os.path.exists(\"/etc/os-release\"):\n            with open(\"/etc/os-release\") as f:\n                for line in f:\n                    if line.startswith(\"PRETTY_NAME=\"):\n                        return line.split(\"=\")[1].strip().strip(\"\\\"\")\n    except: pass\n    try: return platform.platform()\n    except: return \"Linux (Unknown)\"\n\nSTATIC_CACHE = {\n    \"cpu_model\": get_cpu_model(),\n    \"arch\": platform.machine(),\n    \"os\": get_os_distro(),\n    \"virt\": \"Unknown\"\n}\ntry:\n    v = subprocess.check_output(\"systemd-detect-virt\", shell=True).decode().strip()\n    if v and v != \"none\": STATIC_CACHE[\"virt\"] = v\nexcept: pass\n\ndef get_ping(target):\n    try:\n        ip = target.split(\"://\")[-1].split(\":\")[0]\n        cmd = \"ping -c 1 -W 1 \" + ip\n        res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n        if res.returncode == 0:\n            match = re.search(r\"time=([\\d.]+)\", res.stdout.decode())\n            if match: return int(float(match.group(1)))\n    except: pass\n    return -1\n\ndef get_network_bytes():\n    r, t = 0, 0\n    try:\n        with open(\"/proc/net/dev\") as f:\n            lines = f.readlines()[2:]\n            for l in lines:\n                cols = l.split(\":\")\n                if len(cols)<2: continue\n                parts = cols[1].split()\n                if len(parts)>=9 and cols[0].strip() != \"lo\":\n                    r += int(parts[0])\n                    t += int(parts[8])\n    except: pass\n    return r, t\n\n# 读取 X-UI 数据库 \ndef get_xui_rows():\n    db_path = \"/etc/x-ui/x-ui.db\"\n    if not os.path.exists(db_path): return None\n    \n    try:\n        # 使用 URI 模式打开，mode=ro (只读)，防止锁死数据库影响面板写入\n        conn = sqlite3.connect(f\"file:{db_path}?mode=ro\", uri=True)\n        cursor = conn.cursor()\n        # 查询关键字段，尽可能匹配 API 返回的格式\n        cursor.execute(\"SELECT id, up, down, total, remark, enable, protocol, port, settings, stream_settings, expiry_time, listen FROM inbounds\")\n        rows = cursor.fetchall()\n        \n        inbounds = []\n        for row in rows:\n            # 数据清洗与组装\n            node = {\n                \"id\": row[0],\n                \"up\": row[1],\n                \"down\": row[2],\n                \"total\": row[3],\n                \"remark\": row[4],\n                \"enable\": True if row[5] == 1 else False,\n                \"protocol\": row[6],\n                \"port\": row[7],\n                \"settings\": row[8],         # 数据库里存的是 JSON 字符串，直接传给后端\n                \"streamSettings\": row[9],   # 同上\n                \"expiryTime\": row[10],\n                \"listen\": row[11]\n            }\n            inbounds.append(node)\n        conn.close()\n        return inbounds\n    except:\n        return None\n\ndef get_info():\n    global SERVER_URL\n    data = {\"token\": TOKEN, \"static\": STATIC_CACHE}\n    \n    if not SERVER_URL:\n        try:\n            with urllib.request.urlopen(\"http://checkip.amazonaws.com\", timeout=5, context=ssl_ctx) as r:\n                my_ip = r.read().decode().strip()\n                SERVER_URL = \"http://\" + my_ip + \":54322\"\n        except: pass\n    data[\"server_url\"] = SERVER_URL\n\n    try:\n        net_in_1, net_out_1 = get_network_bytes()\n        with open(\"/proc/stat\") as f:\n            fs = [float(x) for x in f.readline().split()[1:5]]\n            tot1, idle1 = sum(fs), fs[3]\n        \n        # 采集等待\n        time.sleep(1)\n        \n        net_in_2, net_out_2 = get_network_bytes()\n        with open(\"/proc/stat\") as f:\n            fs = [float(x) for x in f.readline().split()[1:5]]\n            tot2, idle2 = sum(fs), fs[3]\n            \n        data[\"cpu_usage\"] = round((1 - (idle2-idle1)/(tot2-tot1)) * 100, 1)\n        data[\"cpu_cores\"] = os.cpu_count() or 1\n        \n        data[\"net_speed_in\"] = net_in_2 - net_in_1\n        data[\"net_speed_out\"] = net_out_2 - net_out_1\n        data[\"net_total_in\"] = net_in_2\n        data[\"net_total_out\"] = net_out_2\n\n        with open(\"/proc/loadavg\") as f: data[\"load_1\"] = float(f.read().split()[0])\n        \n        with open(\"/proc/meminfo\") as f:\n            m = {}\n            for l in f:\n                p = l.split()\n                if len(p)>=2: m[p[0].rstrip(\":\")] = int(p[1])\n        \n        tot = m.get(\"MemTotal\", 1)\n        avail = m.get(\"MemAvailable\", m.get(\"MemFree\", 0))\n        data[\"mem_total\"] = round(tot/1024/1024, 2)\n        data[\"mem_usage\"] = round(((tot-avail)/tot)*100, 1)\n        data[\"swap_total\"] = round(m.get(\"SwapTotal\", 0)/1024/1024, 2)\n        data[\"swap_free\"] = round(m.get(\"SwapFree\", 0)/1024/1024, 2)\n\n        st = os.statvfs(\"/\")\n        data[\"disk_total\"] = round((st.f_blocks * st.f_frsize)/1024/1024/1024, 2)\n        free = st.f_bavail * st.f_frsize\n        total = st.f_blocks * st.f_frsize\n        data[\"disk_usage\"] = round(((total-free)/total)*100, 1)\n\n        with open(\"/proc/uptime\") as f: u = float(f.read().split()[0])\n        d = int(u // 86400); h = int((u % 86400) // 3600); m = int((u % 3600) // 60)\n        data[\"uptime\"] = \"%d天 %d时 %d分\" % (d, h, m)\n\n        data[\"pings\"] = {k: get_ping(v) for k, v in PING_TARGETS.items()}\n        \n        #  获取 X-UI 本地数据并随包推送 \n        xui = get_xui_rows()\n        if xui is not None:\n            data[\"xui_data\"] = xui\n\n    except: pass\n    return data\n\ndef push():\n    while True:\n        try:\n            js = json.dumps(get_info()).encode(\"utf-8\")\n            req = urllib.request.Request(MANAGER_URL, data=js, headers={\"Content-Type\": \"application/json\"})\n            with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as r: pass\n        except: pass\n        time.sleep(5) # 降低频率，5秒推送一次\n\nif __name__ == \"__main__\":\n    push()\nPYTHON_EOF\n\n# 4. 创建服务\ncat > /etc/systemd/system/x-fusion-agent.service << SERVICE_EOF\n[Unit]\nDescription=X-Fusion Probe Agent\nAfter=network.target\n\n[Service]\nType=simple\nUser=root\nExecStart=/usr/bin/python3 /root/x_fusion_agent.py\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\nSERVICE_EOF\n\n# 5. 启动\nsystemctl daemon-reload\nsystemctl enable x-fusion-agent\nsystemctl restart x-fusion-agent\nexit 0\n'\n\"\"\""
+    },
+    {
+      "targets": [
+        "logger"
+      ],
+      "lineno": 1596,
+      "end_lineno": 1596,
+      "code": "logger = logging.getLogger(\"XUI_Manager\")"
+    },
+    {
+      "targets": [
+        "BG_EXECUTOR"
+      ],
+      "lineno": 1604,
+      "end_lineno": 1604,
+      "code": "BG_EXECUTOR = ThreadPoolExecutor(max_workers=20)"
+    },
+    {
+      "targets": [
+        "SYNC_SEMAPHORE"
+      ],
+      "lineno": 1606,
+      "end_lineno": 1606,
+      "code": "SYNC_SEMAPHORE = asyncio.Semaphore(50)"
+    },
+    {
+      "targets": [
+        "LAST_AUTO_SYNC_TIME"
+      ],
+      "lineno": 1609,
+      "end_lineno": 1609,
+      "code": "LAST_AUTO_SYNC_TIME = 0"
+    },
+    {
+      "targets": [
+        "SYNC_COOLDOWN_SECONDS"
+      ],
+      "lineno": 1610,
+      "end_lineno": 1610,
+      "code": "SYNC_COOLDOWN_SECONDS = 300"
+    },
+    {
+      "targets": [
+        "AUTO_COUNTRY_MAP"
+      ],
+      "lineno": 1613,
+      "end_lineno": 1667,
+      "code": "AUTO_COUNTRY_MAP = {\n    # --- 亚太地区 ---\n    '🇨🇳': '🇨🇳 中国', 'China': '🇨🇳 中国', '中国': '🇨🇳 中国', 'CN': '🇨🇳 中国', 'PRC': '🇨🇳 中国',\n    '🇭🇰': '🇭🇰 香港', 'HK': '🇭🇰 香港', 'Hong Kong': '🇭🇰 香港', 'Hong Kong SAR': '🇭🇰 香港',\n    '🇲🇴': '🇲🇴 澳门', 'MO': '🇲🇴 澳门', 'Macau': '🇲🇴 澳门', 'Macao': '🇲🇴 澳门',\n    '🇹🇼': '🇹🇼 台湾', 'TW': '🇹🇼 台湾', 'Taiwan': '🇹🇼 台湾', 'Republic of China': '🇹🇼 台湾',\n    '🇯🇵': '🇯🇵 日本', 'JP': '🇯🇵 日本', 'Japan': '🇯🇵 日本', 'Tokyo': '🇯🇵 日本', 'Osaka': '🇯🇵 日本',\n    '🇸🇬': '🇸🇬 新加坡', 'SG': '🇸🇬 新加坡', 'Singapore': '🇸🇬 新加坡',\n    '🇰🇷': '🇰🇷 韩国', 'KR': '🇰🇷 韩国', 'Korea': '🇰🇷 韩国', 'South Korea': '🇰🇷 韩国', 'Republic of Korea': '🇰🇷 韩国', '韩国': '🇰🇷 韩国', 'Seoul': '🇰🇷 韩国',\n    '🇰🇵': '🇰🇵 朝鲜', 'KP': '🇰🇵 朝鲜', 'North Korea': '🇰🇵 朝鲜', '朝鲜': '🇰🇵 朝鲜',\n    '🇮🇳': '🇮🇳 印度', 'IN': '🇮🇳 印度', 'India': '🇮🇳 印度', 'Mumbai': '🇮🇳 印度',\n    '🇮🇩': '🇮🇩 印度尼西亚', 'ID': '🇮🇩 印度尼西亚', 'Indonesia': '🇮🇩 印度尼西亚', '印尼': '🇮🇩 印度尼西亚', '印度尼西亚': '🇮🇩 印度尼西亚', 'Jakarta': '🇮🇩 印度尼西亚',\n    '🇲🇾': '🇲🇾 马来西亚', 'MY': '🇲🇾 马来西亚', 'Malaysia': '🇲🇾 马来西亚', '马来西亚': '🇲🇾 马来西亚',\n    '🇹🇭': '🇹🇭 泰国', 'TH': '🇹🇭 泰国', 'Thailand': '🇹🇭 泰国', '泰国': '🇹🇭 泰国', 'Bangkok': '🇹🇭 泰国',\n    '🇻🇳': '🇻🇳 越南', 'VN': '🇻🇳 越南', 'Vietnam': '🇻🇳 越南', 'Viet Nam': '🇻🇳 越南', '越南': '🇻🇳 越南',\n    '🇵🇭': '🇵🇭 菲律宾', 'PH': '🇵🇭 菲律宾', 'Philippines': '🇵🇭 菲律宾', '菲律宾': '🇵🇭 菲律宾',\n    '🇦🇺': '🇦🇺 澳大利亚', 'AU': '🇦🇺 澳大利亚', 'Australia': '🇦🇺 澳大利亚', '澳大利亚': '🇦🇺 澳大利亚', '澳洲': '🇦🇺 澳大利亚', 'Sydney': '🇦🇺 澳大利亚',\n    '🇳🇿': '🇳🇿 新西兰', 'NZ': '🇳🇿 新西兰', 'New Zealand': '🇳🇿 新西兰', '新西兰': '🇳🇿 新西兰',\n\n    # --- 北美地区 ---\n    '🇺🇸': '🇺🇸 美国', 'USA': '🇺🇸 美国', 'US': '🇺🇸 美国', 'United States': '🇺🇸 美国', 'America': '🇺🇸 美国', '美国': '🇺🇸 美国',\n    '🇨🇦': '🇨🇦 加拿大', 'CA': '🇨🇦 加拿大', 'Canada': '🇨🇦 加拿大', '加拿大': '🇨🇦 加拿大', 'Toronto': '🇨🇦 加拿大',\n    '🇲🇽': '🇲🇽 墨西哥', 'MX': '🇲🇽 墨西哥', 'Mexico': '🇲🇽 墨西哥', '墨西哥': '🇲🇽 墨西哥',\n\n    # --- 南美地区 ---\n    '🇧🇷': '🇧🇷 巴西', 'BR': '🇧🇷 巴西', 'Brazil': '🇧🇷 巴西', '巴西': '🇧🇷 巴西', 'Sao Paulo': '🇧🇷 巴西',\n    '🇨🇱': '🇨🇱 智利', 'CL': '🇨🇱 智利', 'Chile': '🇨🇱 智利', '智利': '🇨🇱 智利',\n    '🇦🇷': '🇦🇷 阿根廷', 'AR': '🇦🇷 阿根廷', 'Argentina': '🇦🇷 阿根廷', '阿根廷': '🇦🇷 阿根廷',\n    '🇨🇴': '🇨🇴 哥伦比亚', 'CO': '🇨🇴 哥伦比亚', 'Colombia': '🇨🇴 哥伦比亚', '哥伦比亚': '🇨🇴 哥伦比亚',\n    '🇵🇪': '🇵🇪 秘鲁', 'PE': '🇵🇪 秘鲁', 'Peru': '🇵🇪 秘鲁', '秘鲁': '🇵🇪 秘鲁',\n\n    # --- 欧洲地区 ---\n    '🇬🇧': '🇬🇧 英国', 'UK': '🇬🇧 英国', 'GB': '🇬🇧 英国', 'United Kingdom': '🇬🇧 英国', 'Great Britain': '🇬🇧 英国', 'England': '🇬🇧 英国', '英国': '🇬🇧 英国', 'London': '🇬🇧 英国',\n    '🇩🇪': '🇩🇪 德国', 'DE': '🇩🇪 德国', 'Germany': '🇩🇪 德国', '德国': '🇩🇪 德国', 'Frankfurt': '🇩🇪 德国',\n    '🇫🇷': '🇫🇷 法国', 'FR': '🇫🇷 法国', 'France': '🇫🇷 法国', '法国': '🇫🇷 法国', 'Paris': '🇫🇷 法国',\n    '🇳🇱': '🇳🇱 荷兰', 'NL': '🇳🇱 荷兰', 'Netherlands': '🇳🇱 荷兰', 'The Netherlands': '🇳🇱 荷兰', '荷兰': '🇳🇱 荷兰', 'Amsterdam': '🇳🇱 荷兰',\n    '🇷🇺': '🇷🇺 俄罗斯', 'RU': '🇷🇺 俄罗斯', 'Russia': '🇷🇺 俄罗斯', 'Russian Federation': '🇷🇺 俄罗斯', '俄罗斯': '🇷🇺 俄罗斯', 'Moscow': '🇷🇺 俄罗斯',\n    '🇮🇹': '🇮🇹 意大利', 'IT': '🇮🇹 意大利', 'Italy': '🇮🇹 意大利', '意大利': '🇮🇹 意大利', 'Milan': '🇮🇹 意大利',\n    '🇪🇸': '🇪🇸 西班牙', 'ES': '🇪🇸 西班牙', 'Spain': '🇪🇸 西班牙', '西班牙': '🇪🇸 西班牙', 'Madrid': '🇪🇸 西班牙',\n    '🇸🇪': '🇸🇪 瑞典', 'SE': '🇸🇪 瑞典', 'Sweden': '🇸🇪 瑞典', '瑞典': '🇸🇪 瑞典', 'Stockholm': '🇸🇪 瑞典',\n    '🇨🇭': '🇨🇭 瑞士', 'CH': '🇨🇭 瑞士', 'Switzerland': '🇨🇭 瑞士', '瑞士': '🇨🇭 瑞士', 'Zurich': '🇨🇭 瑞士',\n    '🇵🇱': '🇵🇱 波兰', 'PL': '🇵🇱 波兰', 'Poland': '🇵🇱 波兰', '波兰': '🇵🇱 波兰',\n    '🇮🇪': '🇮🇪 爱尔兰', 'IE': '🇮🇪 爱尔兰', 'Ireland': '🇮🇪 爱尔兰', '爱尔兰': '🇮🇪 爱尔兰',\n    '🇺🇦': '🇺🇦 乌克兰', 'UA': '🇺🇦 乌克兰', 'Ukraine': '🇺🇦 乌克兰', '乌克兰': '🇺🇦 乌克兰',\n    '🇹🇷': '🇹🇷 土耳其', 'TR': '🇹🇷 土耳其', 'Turkey': '🇹🇷 土耳其', '土耳其': '🇹🇷 土耳其', 'Istanbul': '🇹🇷 土耳其',\n\n    # --- 中东与非洲 ---\n    '🇦🇪': '🇦🇪 阿联酋', 'AE': '🇦🇪 阿联酋', 'UAE': '🇦🇪 阿联酋', 'United Arab Emirates': '🇦🇪 阿联酋', '阿联酋': '🇦🇪 阿联酋', '阿拉伯联合酋长国': '🇦🇪 阿联酋', 'Dubai': '🇦🇪 阿联酋',\n    '🇮🇱': '🇮🇱 以色列', 'IL': '🇮🇱 以色列', 'Israel': '🇮🇱 以色列', '以色列': '🇮🇱 以色列',\n    '🇿🇦': '🇿🇦 南非', 'ZA': '🇿🇦 南非', 'South Africa': '🇿🇦 南非', '南非': '🇿🇦 南非', 'Johannesburg': '🇿🇦 南非',\n    '🇸🇦': '🇸🇦 沙特', 'SA': '🇸🇦 沙特', 'Saudi Arabia': '🇸🇦 沙特', 'Kingdom of Saudi Arabia': '🇸🇦 沙特', '沙特': '🇸🇦 沙特', '沙特阿拉伯': '🇸🇦 沙特',\n    '🇮🇷': '🇮🇷 伊朗', 'IR': '🇮🇷 伊朗', 'Iran': '🇮🇷 伊朗', '伊朗': '🇮🇷 伊朗',\n    '🇪🇬': '🇪🇬 埃及', 'EG': '🇪🇬 埃及', 'Egypt': '🇪🇬 埃及', '埃及': '🇪🇬 埃及',\n    '🇳🇬': '🇳🇬 尼日利亚', 'NG': '🇳🇬 尼日利亚', 'Nigeria': '🇳🇬 尼日利亚', '尼日利亚': '🇳🇬 尼日利亚',\n}"
+    },
+    {
+      "targets": [
+        "GLOBE_STRUCTURE"
+      ],
+      "lineno": 1717,
+      "end_lineno": 1755,
+      "code": "GLOBE_STRUCTURE = r\"\"\"\n<style>\n    /* 容器填满父级 */\n    #earth-container {\n        width: 100%;\n        height: 100%;\n        position: relative;\n        overflow: hidden;\n        border-radius: 12px;\n        background-color: #100C2A; /* 深色背景 */\n    }\n    \n    /* 统计面板 */\n    .earth-stats {\n        position: absolute;\n        top: 20px;\n        left: 20px;\n        color: rgba(255, 255, 255, 0.8);\n        font-family: 'Consolas', monospace;\n        font-size: 12px;\n        z-index: 10;\n        background: rgba(0, 20, 40, 0.6);\n        padding: 10px 15px;\n        border: 1px solid rgba(0, 255, 255, 0.3);\n        border-radius: 6px;\n        backdrop-filter: blur(4px);\n        pointer-events: none;\n    }\n    .earth-stats span { color: #00ffff; font-weight: bold; }\n</style>\n\n<div id=\"earth-container\">\n    <div class=\"earth-stats\">\n        <div>ACTIVE NODES: <span id=\"node-count\">0</span></div>\n        <div>REGIONS: <span id=\"region-count\">0</span></div>\n    </div>\n    <div id=\"earth-render-area\" style=\"width:100%; height:100%;\"></div>\n</div>\n\"\"\""
+    },
+    {
+      "targets": [
+        "GLOBE_JS_LOGIC"
+      ],
+      "lineno": 1758,
+      "end_lineno": 1899,
+      "code": "GLOBE_JS_LOGIC = r\"\"\"\n(function() {\n    // 1. 获取仪表盘专用容器\n    var container = document.getElementById('earth-render-area');\n    if (!container) return;\n    \n    // 2. 初始化数据\n    var serverData = window.DASHBOARD_DATA || [];\n    \n    // 3. 定义默认坐标 (北京)，如果定位成功会被覆盖\n    var myLat = 39.9;\n    var myLon = 116.4;\n\n    // ✨✨✨ 修复核心：定义国旗字体 ✨✨✨\n    var emojiFont = '\"Twemoji Country Flags\", \"Noto Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", sans-serif';\n\n    // 更新统计数字\n    var nodeCountEl = document.getElementById('node-count');\n    var regionCountEl = document.getElementById('region-count');\n    function updateStats(data) {\n        if(nodeCountEl) nodeCountEl.textContent = data.length;\n        const uniqueRegions = new Set(data.map(s => s.name));\n        if(regionCountEl) regionCountEl.textContent = uniqueRegions.size;\n    }\n    updateStats(serverData);\n\n    // 初始化 ECharts\n    var existing = echarts.getInstanceByDom(container);\n    if (existing) existing.dispose();\n    var myChart = echarts.init(container);\n\n    // 4. 获取浏览器定位\n    if (navigator.geolocation) {\n        navigator.geolocation.getCurrentPosition(function(position) {\n            myLat = position.coords.latitude;\n            myLon = position.coords.longitude;\n            var option = buildOption(window.cachedWorldJson, serverData, myLat, myLon);\n            myChart.setOption(option);\n        });\n    }\n\n    // 5. 定义仪表盘专用的更新函数\n    window.updateDashboardMap = function(newData) {\n        if (!window.cachedWorldJson || !myChart) return;\n        serverData = newData;\n        updateStats(newData);\n        var option = buildOption(window.cachedWorldJson, newData, myLat, myLon);\n        myChart.setOption(option);\n    };\n\n    // 定义高亮区域\n    const searchKeys = {\n        '🇺🇸': 'United States', '🇨🇳': 'China', '🇭🇰': 'China', '🇹🇼': 'China', '🇯🇵': 'Japan', '🇰🇷': 'Korea',\n        '🇸🇬': 'Singapore', '🇬🇧': 'United Kingdom', '🇩🇪': 'Germany', '🇫🇷': 'France', '🇷🇺': 'Russia',\n        '🇨🇦': 'Canada', '🇦🇺': 'Australia', '🇮🇳': 'India', '🇧🇷': 'Brazil'\n    };\n\n    function buildOption(mapGeoJSON, data, userLat, userLon) {\n        const mapFeatureNames = mapGeoJSON.features.map(f => f.properties.name);\n        const activeMapNames = new Set();\n\n        data.forEach(s => {\n            let keyword = null;\n            for (let key in searchKeys) {\n                if ((s.name && s.name.includes(key))) {\n                    keyword = searchKeys[key];\n                    break;\n                }\n            }\n            if (keyword && mapFeatureNames.includes(keyword)) {\n                activeMapNames.add(keyword);\n            }\n        });\n\n        const highlightRegions = Array.from(activeMapNames).map(name => ({\n            name: name,\n            itemStyle: { areaColor: '#0055ff', borderColor: '#00ffff', borderWidth: 1.5, opacity: 0.9 }\n        }));\n\n        const scatterData = data.map(s => ({\n            name: s.name, value: [s.lon, s.lat], itemStyle: { color: '#00ffff' }\n        }));\n        \n        scatterData.push({\n            name: \"ME\", value: [userLon, userLat], itemStyle: { color: '#FFD700' },\n            symbolSize: 15, label: { show: true, position: 'top', formatter: 'My PC', color: '#FFD700' }\n        });\n\n        const linesData = data.map(s => ({\n            coords: [[s.lon, s.lat], [userLon, userLat]]\n        }));\n\n        return {\n            backgroundColor: '#100C2A', \n            geo: {\n                map: 'world', roam: false, zoom: 1.2, center: [15, 10],\n                label: { show: false },\n                itemStyle: { areaColor: '#1B2631', borderColor: '#404a59', borderWidth: 1 },\n                emphasis: { itemStyle: { areaColor: '#2a333d' }, label: { show: false } },\n                regions: highlightRegions \n            },\n            series: [\n                {\n                    type: 'lines', coordinateSystem: 'geo', zlevel: 2,\n                    effect: { show: true, period: 4, trailLength: 0.5, color: '#00ffff', symbol: 'arrow', symbolSize: 6 },\n                    lineStyle: { color: '#00ffff', width: 1, opacity: 0, curveness: 0.2 },\n                    data: linesData\n                },\n                {\n                    type: 'scatter', coordinateSystem: 'geo', zlevel: 3, symbol: 'circle', symbolSize: 12,\n                    itemStyle: { color: '#00ffff', shadowBlur: 10, shadowColor: '#333' },\n                    \n                    // ✨✨✨ 重点：在这里应用了字体 ✨✨✨\n                    label: { \n                        show: true, \n                        position: 'right', \n                        formatter: '{b}', \n                        color: '#fff', \n                        fontSize: 16, \n                        fontWeight: 'bold',\n                        fontFamily: emojiFont  // <--- 修复这一行\n                    },\n                    \n                    data: scatterData\n                }\n            ]\n        };\n    }\n\n    fetch('/static/world.json')\n        .then(response => response.json())\n        .then(worldJson => {\n            echarts.registerMap('world', worldJson);\n            window.cachedWorldJson = worldJson;\n            var option = buildOption(worldJson, serverData, myLat, myLon);\n            myChart.setOption(option);\n            \n            window.addEventListener('resize', () => myChart.resize());\n            new ResizeObserver(() => myChart.resize()).observe(container);\n        });\n})();\n\"\"\""
+    },
+    {
+      "targets": [
+        "MATCH_MAP"
+      ],
+      "lineno": 1902,
+      "end_lineno": 1958,
+      "code": "MATCH_MAP = {\n    # --- 南美 ---\n    '🇨🇱': 'Chile', 'CHILE': 'Chile',\n    '🇧🇷': 'Brazil', 'BRAZIL': 'Brazil', 'BRA': 'Brazil', 'SAO PAULO': 'Brazil',\n    '🇦🇷': 'Argentina', 'ARGENTINA': 'Argentina', 'ARG': 'Argentina',\n    '🇨🇴': 'Colombia', 'COLOMBIA': 'Colombia', 'COL': 'Colombia',\n    '🇵🇪': 'Peru', 'PERU': 'Peru',\n    # --- 北美 ---\n    '🇺🇸': 'United States', 'USA': 'United States', 'UNITED STATES': 'United States', 'AMERICA': 'United States',\n    '🇨🇦': 'Canada', 'CANADA': 'Canada', 'CAN': 'Canada',\n    '🇲🇽': 'Mexico', 'MEXICO': 'Mexico', 'MEX': 'Mexico',\n    # --- 欧洲 ---\n    '🇬🇧': 'United Kingdom', 'UK': 'United Kingdom', 'GB': 'United Kingdom', 'UNITED KINGDOM': 'United Kingdom', 'LONDON': 'United Kingdom',\n    '🇩🇪': 'Germany', 'GERMANY': 'Germany', 'DEU': 'Germany', 'FRANKFURT': 'Germany',\n    '🇫🇷': 'France', 'FRANCE': 'France', 'FRA': 'France', 'PARIS': 'France',\n    '🇳🇱': 'Netherlands', 'NETHERLANDS': 'Netherlands', 'NLD': 'Netherlands', 'AMSTERDAM': 'Netherlands',\n    '🇷🇺': 'Russia', 'RUSSIA': 'Russia', 'RUS': 'Russia',\n    '🇮🇹': 'Italy', 'ITALY': 'Italy', 'ITA': 'Italy', 'MILAN': 'Italy',\n    '🇪🇸': 'Spain', 'SPAIN': 'Spain', 'ESP': 'Spain', 'MADRID': 'Spain',\n    '🇵🇱': 'Poland', 'POLAND': 'Poland', 'POL': 'Poland',\n    '🇺🇦': 'Ukraine', 'UKRAINE': 'Ukraine', 'UKR': 'Ukraine',\n    '🇸🇪': 'Sweden', 'SWEDEN': 'Sweden', 'SWE': 'Sweden',\n    '🇨🇭': 'Switzerland', 'SWITZERLAND': 'Switzerland', 'CHE': 'Switzerland',\n    '🇹🇷': 'Turkey', 'TURKEY': 'Turkey', 'TUR': 'Turkey',\n    '🇮🇪': 'Ireland', 'IRELAND': 'Ireland', 'IRL': 'Ireland',\n    '🇫🇮': 'Finland', 'FINLAND': 'Finland', 'FIN': 'Finland',\n    '🇳🇴': 'Norway', 'NORWAY': 'Norway', 'NOR': 'Norway',\n    '🇦🇹': 'Austria', 'AUSTRIA': 'Austria', 'AUT': 'Austria',\n    '🇧🇪': 'Belgium', 'BELGIUM': 'Belgium', 'BEL': 'Belgium',\n    '🇵🇹': 'Portugal', 'PORTUGAL': 'Portugal', 'PRT': 'Portugal',\n    '🇬🇷': 'Greece', 'GREECE': 'Greece', 'GRC': 'Greece',\n    # --- 亚太 ---\n    '🇨🇳': 'China', 'CHINA': 'China', 'CHN': 'China', 'CN': 'China',\n    '🇭🇰': 'China', 'HONG KONG': 'China', 'HK': 'China',\n    '🇲🇴': 'China', 'MACAU': 'China', 'MO': 'China',\n    '🇹🇼': 'China', 'TAIWAN': 'China', 'TW': 'China',\n    '🇯🇵': 'Japan', 'JAPAN': 'Japan', 'JPN': 'Japan', 'TOKYO': 'Japan', 'OSAKA': 'Japan',\n    '🇰🇷': 'South Korea', 'KOREA': 'South Korea', 'KOR': 'South Korea', 'SEOUL': 'South Korea',\n    '🇸🇬': 'Singapore', 'SINGAPORE': 'Singapore', 'SGP': 'Singapore', 'SG': 'Singapore',\n    '🇮🇳': 'India', 'INDIA': 'India', 'IND': 'India', 'MUMBAI': 'India',\n    '🇦🇺': 'Australia', 'AUSTRALIA': 'Australia', 'AUS': 'Australia', 'SYDNEY': 'Australia',\n    '🇳🇿': 'New Zealand', 'NEW ZEALAND': 'New Zealand', 'NZL': 'New Zealand',\n    '🇻🇳': 'Vietnam', 'VIETNAM': 'Vietnam', 'VNM': 'Vietnam',\n    '🇹🇭': 'Thailand', 'THAILAND': 'Thailand', 'THA': 'Thailand', 'BANGKOK': 'Thailand',\n    '🇲🇾': 'Malaysia', 'MALAYSIA': 'Malaysia', 'MYS': 'Malaysia',\n    '🇮🇩': 'Indonesia', 'INDONESIA': 'Indonesia', 'IDN': 'Indonesia', 'JAKARTA': 'Indonesia',\n    '🇵🇭': 'Philippines', 'PHILIPPINES': 'Philippines', 'PHL': 'Philippines',\n    '🇰🇭': 'Cambodia', 'CAMBODIA': 'Cambodia', 'KHM': 'Cambodia',\n    # --- 中东/非洲 ---\n    '🇦🇪': 'United Arab Emirates', 'UAE': 'United Arab Emirates', 'DUBAI': 'United Arab Emirates',\n    '🇿🇦': 'South Africa', 'SOUTH AFRICA': 'South Africa', 'ZAF': 'South Africa',\n    '🇸🇦': 'Saudi Arabia', 'SAUDI ARABIA': 'Saudi Arabia', 'SAU': 'Saudi Arabia',\n    '🇮🇱': 'Israel', 'ISRAEL': 'Israel', 'ISR': 'Israel',\n    '🇪🇬': 'Egypt', 'EGYPT': 'Egypt', 'EGY': 'Egypt',\n    '🇮🇷': 'Iran', 'IRAN': 'Iran', 'IRN': 'Iran',\n    '🇳🇬': 'Nigeria', 'NIGERIA': 'Nigeria', 'NGA': 'Nigeria'\n}"
+    },
+    {
+      "targets": [
+        "FILE_LOCK"
+      ],
+      "lineno": 2155,
+      "end_lineno": 2155,
+      "code": "FILE_LOCK = asyncio.Lock()"
+    },
+    {
+      "targets": [
+        "EXPANDED_GROUPS"
+      ],
+      "lineno": 2156,
+      "end_lineno": 2156,
+      "code": "EXPANDED_GROUPS = set()"
+    },
+    {
+      "targets": [
+        "SERVER_UI_MAP"
+      ],
+      "lineno": 2157,
+      "end_lineno": 2157,
+      "code": "SERVER_UI_MAP = {}"
+    },
+    {
+      "targets": [
+        "managers"
+      ],
+      "lineno": 2284,
+      "end_lineno": 2284,
+      "code": "managers = {}"
+    },
+    {
+      "targets": [
+        "ssh_instances"
+      ],
+      "lineno": 2552,
+      "end_lineno": 2552,
+      "code": "ssh_instances = {}"
+    },
+    {
+      "targets": [
+        "PING_CACHE"
+      ],
+      "lineno": 3603,
+      "end_lineno": 3603,
+      "code": "PING_CACHE = {}"
+    },
+    {
+      "targets": [
+        "CURRENT_PROBE_TAB"
+      ],
+      "lineno": 5174,
+      "end_lineno": 5174,
+      "code": "CURRENT_PROBE_TAB = 'ALL'"
+    },
+    {
+      "targets": [
+        "CN_NUM_MAP"
+      ],
+      "lineno": 6556,
+      "end_lineno": 6556,
+      "code": "CN_NUM_MAP = {'〇':0, '零':0, '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9}"
+    },
+    {
+      "targets": [
+        "COLS_WITH_PING"
+      ],
+      "lineno": 6632,
+      "end_lineno": 6632,
+      "code": "COLS_WITH_PING = 'grid-template-columns: 2fr 2fr 1.5fr 1fr 0.8fr 0.8fr 0.8fr 0.5fr 1.5fr; align-items: center;'"
+    },
+    {
+      "targets": [
+        "COLS_NO_PING"
+      ],
+      "lineno": 6636,
+      "end_lineno": 6636,
+      "code": "COLS_NO_PING   = 'grid-template-columns: 2fr 2fr 1.5fr 1fr 0.8fr 0.8fr 0.5fr 1.5fr; align-items: center;'"
+    },
+    {
+      "targets": [
+        "SINGLE_COLS"
+      ],
+      "lineno": 6641,
+      "end_lineno": 6641,
+      "code": "SINGLE_COLS = 'grid-template-columns: 3fr 1fr 1fr 0.8fr 0.8fr 0.8fr 0.5fr 1.5fr; align-items: center;'"
+    },
+    {
+      "targets": [
+        "COLS_ALL_SERVERS"
+      ],
+      "lineno": 6645,
+      "end_lineno": 6645,
+      "code": "COLS_ALL_SERVERS = 'grid-template-columns: 2fr 2fr 1.5fr 1fr 0.8fr 0.8fr 1.5fr; align-items: center;'"
+    },
+    {
+      "targets": [
+        "COLS_SPECIAL_WITH_PING"
+      ],
+      "lineno": 6649,
+      "end_lineno": 6649,
+      "code": "COLS_SPECIAL_WITH_PING = 'grid-template-columns: 2fr 2fr 1.5fr 1fr 0.8fr 0.8fr 1.5fr; align-items: center;'"
+    },
+    {
+      "targets": [
+        "SINGLE_COLS_NO_PING"
+      ],
+      "lineno": 6653,
+      "end_lineno": 6653,
+      "code": "SINGLE_COLS_NO_PING = 'grid-template-columns: 3fr 1fr 1.5fr 1fr 1fr 1fr 1.5fr; align-items: center;'"
+    },
+    {
+      "targets": [
+        "REFRESH_LOCKS"
+      ],
+      "lineno": 6657,
+      "end_lineno": 6657,
+      "code": "REFRESH_LOCKS = set()"
+    },
+    {
+      "targets": [
+        "LAST_SYNC_MAP"
+      ],
+      "lineno": 6658,
+      "end_lineno": 6658,
+      "code": "LAST_SYNC_MAP = {}"
+    },
+    {
+      "targets": [
+        "PAGE_SIZE"
+      ],
+      "lineno": 6659,
+      "end_lineno": 6659,
+      "code": "PAGE_SIZE = 30"
+    },
+    {
+      "targets": [
+        "SYNC_COOLDOWN"
+      ],
+      "lineno": 6660,
+      "end_lineno": 6660,
+      "code": "SYNC_COOLDOWN = 1800"
+    },
+    {
+      "targets": [
+        "REFRESH_CURRENT_NODES"
+      ],
+      "lineno": 6830,
+      "end_lineno": 6830,
+      "code": "REFRESH_CURRENT_NODES = lambda: None"
+    },
+    {
+      "targets": [
+        "UI_ROW_REFS"
+      ],
+      "lineno": 7179,
+      "end_lineno": 7179,
+      "code": "UI_ROW_REFS = {}"
+    },
+    {
+      "targets": [
+        "CURRENT_VIEW_STATE"
+      ],
+      "lineno": 7180,
+      "end_lineno": 7180,
+      "code": "CURRENT_VIEW_STATE = {'scope': 'DASHBOARD', 'data': None}"
+    },
+    {
+      "targets": [
+        "batch_ssh_manager"
+      ],
+      "lineno": 8101,
+      "end_lineno": 8101,
+      "code": "batch_ssh_manager = BatchSSH()"
+    },
+    {
+      "targets": [
+        "SIDEBAR_UI_REFS"
+      ],
+      "lineno": 8325,
+      "end_lineno": 8328,
+      "code": "SIDEBAR_UI_REFS = {\n    'groups': {},      # 存储格式: {'默认分组': ui_column_element, ...}\n    'rows': {}         # 存储格式: {'http://1.2.3.4': ui_row_element, ...}\n}"
+    },
+    {
+      "targets": [
+        "_current_dragged_group"
+      ],
+      "lineno": 8390,
+      "end_lineno": 8390,
+      "code": "_current_dragged_group = None"
+    },
+    {
+      "targets": [
+        "ALERT_CACHE"
+      ],
+      "lineno": 8938,
+      "end_lineno": 8938,
+      "code": "ALERT_CACHE = {}"
+    },
+    {
+      "targets": [
+        "FAILURE_COUNTS"
+      ],
+      "lineno": 8939,
+      "end_lineno": 8939,
+      "code": "FAILURE_COUNTS = {}"
+    },
+    {
+      "targets": [
+        "scheduler"
+      ],
+      "lineno": 9192,
+      "end_lineno": 9192,
+      "code": "scheduler = AsyncIOScheduler()"
+    },
+    {
+      "targets": [
+        "CURRENT_PROBE_TAB"
+      ],
+      "lineno": 9737,
+      "end_lineno": 9737,
+      "code": "CURRENT_PROBE_TAB = 'ALL'"
+    }
+  ],
+  "functions": [
+    {
+      "name": "sync_ping_worker",
+      "type": "FunctionDef",
+      "lineno": 54,
+      "end_lineno": 63
+    },
+    {
+      "name": "fetch_geo_from_ip",
+      "type": "FunctionDef",
+      "lineno": 66,
+      "end_lineno": 86
+    },
+    {
+      "name": "force_geoip_naming_task",
+      "type": "AsyncFunctionDef",
+      "lineno": 89,
+      "end_lineno": 147
+    },
+    {
+      "name": "get_dynamic_origin",
+      "type": "FunctionDef",
+      "lineno": 150,
+      "end_lineno": 183
+    },
+    {
+      "name": "get_coords_from_name",
+      "type": "FunctionDef",
+      "lineno": 238,
+      "end_lineno": 241
+    },
+    {
+      "name": "_resolve_dns_bg",
+      "type": "AsyncFunctionDef",
+      "lineno": 257,
+      "end_lineno": 277
+    },
+    {
+      "name": "get_real_ip_display",
+      "type": "FunctionDef",
+      "lineno": 279,
+      "end_lineno": 305
+    },
+    {
+      "name": "bind_ip_label",
+      "type": "FunctionDef",
+      "lineno": 307,
+      "end_lineno": 322
+    },
+    {
+      "name": "get_flag_for_country",
+      "type": "FunctionDef",
+      "lineno": 325,
+      "end_lineno": 340
+    },
+    {
+      "name": "auto_prepend_flag",
+      "type": "AsyncFunctionDef",
+      "lineno": 343,
+      "end_lineno": 375
+    },
+    {
+      "name": "generate_smart_name",
+      "type": "AsyncFunctionDef",
+      "lineno": 378,
+      "end_lineno": 409
+    },
+    {
+      "name": "open_cloudflare_settings_dialog",
+      "type": "FunctionDef",
+      "lineno": 413,
+      "end_lineno": 437
+    },
+    {
+      "name": "load_global_key",
+      "type": "FunctionDef",
+      "lineno": 443,
+      "end_lineno": 446
+    },
+    {
+      "name": "save_global_key",
+      "type": "FunctionDef",
+      "lineno": 448,
+      "end_lineno": 449
+    },
+    {
+      "name": "open_global_settings_dialog",
+      "type": "FunctionDef",
+      "lineno": 452,
+      "end_lineno": 469
+    },
+    {
+      "name": "parse_vless_link_to_node",
+      "type": "FunctionDef",
+      "lineno": 634,
+      "end_lineno": 718
+    },
+    {
+      "name": "open_deploy_xhttp_dialog",
+      "type": "AsyncFunctionDef",
+      "lineno": 721,
+      "end_lineno": 866
+    },
+    {
+      "name": "_ssh_exec_wrapper",
+      "type": "FunctionDef",
+      "lineno": 869,
+      "end_lineno": 879
+    },
+    {
+      "name": "open_deploy_hysteria_dialog",
+      "type": "AsyncFunctionDef",
+      "lineno": 1003,
+      "end_lineno": 1109
+    },
+    {
+      "name": "open_deploy_snell_dialog",
+      "type": "AsyncFunctionDef",
+      "lineno": 1209,
+      "end_lineno": 1294
+    },
+    {
+      "name": "record_ping_history",
+      "type": "FunctionDef",
+      "lineno": 1304,
+      "end_lineno": 1343
+    },
+    {
+      "name": "detect_country_group",
+      "type": "FunctionDef",
+      "lineno": 1670,
+      "end_lineno": 1714
+    },
+    {
+      "name": "get_echarts_region_name",
+      "type": "FunctionDef",
+      "lineno": 1960,
+      "end_lineno": 1966
+    },
+    {
+      "name": "prepare_map_data",
+      "type": "FunctionDef",
+      "lineno": 1969,
+      "end_lineno": 2149
+    },
+    {
+      "name": "init_data",
+      "type": "FunctionDef",
+      "lineno": 2160,
+      "end_lineno": 2226
+    },
+    {
+      "name": "_save_file_sync_internal",
+      "type": "FunctionDef",
+      "lineno": 2229,
+      "end_lineno": 2238
+    },
+    {
+      "name": "safe_save",
+      "type": "AsyncFunctionDef",
+      "lineno": 2240,
+      "end_lineno": 2243
+    },
+    {
+      "name": "save_servers",
+      "type": "AsyncFunctionDef",
+      "lineno": 2248,
+      "end_lineno": 2258
+    },
+    {
+      "name": "save_admin_config",
+      "type": "AsyncFunctionDef",
+      "lineno": 2261,
+      "end_lineno": 2268
+    },
+    {
+      "name": "save_subs",
+      "type": "AsyncFunctionDef",
+      "lineno": 2270,
+      "end_lineno": 2270
+    },
+    {
+      "name": "save_nodes_cache",
+      "type": "AsyncFunctionDef",
+      "lineno": 2272,
+      "end_lineno": 2281
+    },
+    {
+      "name": "safe_notify",
+      "type": "FunctionDef",
+      "lineno": 2286,
+      "end_lineno": 2288
+    },
+    {
+      "name": "get_ssh_client",
+      "type": "FunctionDef",
+      "lineno": 2291,
+      "end_lineno": 2356
+    },
+    {
+      "name": "get_ssh_client_sync",
+      "type": "FunctionDef",
+      "lineno": 2359,
+      "end_lineno": 2360
+    },
+    {
+      "name": "open_ssh_interface",
+      "type": "FunctionDef",
+      "lineno": 2554,
+      "end_lineno": 2626
+    },
+    {
+      "name": "_exec",
+      "type": "FunctionDef",
+      "lineno": 2628,
+      "end_lineno": 2656
+    },
+    {
+      "name": "get_manager",
+      "type": "FunctionDef",
+      "lineno": 2908,
+      "end_lineno": 2929
+    },
+    {
+      "name": "run_in_bg_executor",
+      "type": "AsyncFunctionDef",
+      "lineno": 3160,
+      "end_lineno": 3162
+    },
+    {
+      "name": "fetch_inbounds_safe",
+      "type": "AsyncFunctionDef",
+      "lineno": 3165,
+      "end_lineno": 3198
+    },
+    {
+      "name": "silent_refresh_all",
+      "type": "AsyncFunctionDef",
+      "lineno": 3201,
+      "end_lineno": 3248
+    },
+    {
+      "name": "open_probe_settings_dialog",
+      "type": "FunctionDef",
+      "lineno": 3252,
+      "end_lineno": 3309
+    },
+    {
+      "name": "install_probe_on_server",
+      "type": "AsyncFunctionDef",
+      "lineno": 3313,
+      "end_lineno": 3360
+    },
+    {
+      "name": "batch_install_all_probes",
+      "type": "AsyncFunctionDef",
+      "lineno": 3363,
+      "end_lineno": 3392
+    },
+    {
+      "name": "get_server_status",
+      "type": "AsyncFunctionDef",
+      "lineno": 3395,
+      "end_lineno": 3409
+    },
+    {
+      "name": "safe_base64",
+      "type": "FunctionDef",
+      "lineno": 3411,
+      "end_lineno": 3413
+    },
+    {
+      "name": "decode_base64_safe",
+      "type": "FunctionDef",
+      "lineno": 3415,
+      "end_lineno": 3424
+    },
+    {
+      "name": "generate_converted_link",
+      "type": "FunctionDef",
+      "lineno": 3427,
+      "end_lineno": 3439
+    },
+    {
+      "name": "generate_node_link",
+      "type": "FunctionDef",
+      "lineno": 3442,
+      "end_lineno": 3502
+    },
+    {
+      "name": "generate_detail_config",
+      "type": "FunctionDef",
+      "lineno": 3504,
+      "end_lineno": 3601
+    },
+    {
+      "name": "batch_ping_nodes",
+      "type": "AsyncFunctionDef",
+      "lineno": 3605,
+      "end_lineno": 3638
+    },
+    {
+      "name": "probe_push_data",
+      "type": "AsyncFunctionDef",
+      "lineno": 3642,
+      "end_lineno": 3745
+    },
+    {
+      "name": "sub_handler",
+      "type": "AsyncFunctionDef",
+      "lineno": 3749,
+      "end_lineno": 3796
+    },
+    {
+      "name": "group_sub_handler",
+      "type": "AsyncFunctionDef",
+      "lineno": 3800,
+      "end_lineno": 3843
+    },
+    {
+      "name": "short_group_handler",
+      "type": "AsyncFunctionDef",
+      "lineno": 3847,
+      "end_lineno": 3927
+    },
+    {
+      "name": "short_sub_handler",
+      "type": "AsyncFunctionDef",
+      "lineno": 3931,
+      "end_lineno": 4031
+    },
+    {
+      "name": "probe_register",
+      "type": "AsyncFunctionDef",
+      "lineno": 4035,
+      "end_lineno": 4116
+    },
+    {
+      "name": "fast_resolve_single_server",
+      "type": "AsyncFunctionDef",
+      "lineno": 4119,
+      "end_lineno": 4204
+    },
+    {
+      "name": "smart_detect_ssh_user_task",
+      "type": "AsyncFunctionDef",
+      "lineno": 4207,
+      "end_lineno": 4262
+    },
+    {
+      "name": "auto_register_node",
+      "type": "AsyncFunctionDef",
+      "lineno": 4267,
+      "end_lineno": 4354
+    },
+    {
+      "name": "show_loading",
+      "type": "FunctionDef",
+      "lineno": 4356,
+      "end_lineno": 4363
+    },
+    {
+      "name": "get_all_groups",
+      "type": "FunctionDef",
+      "lineno": 4365,
+      "end_lineno": 4370
+    },
+    {
+      "name": "safe_copy_to_clipboard",
+      "type": "AsyncFunctionDef",
+      "lineno": 4372,
+      "end_lineno": 4402
+    },
+    {
+      "name": "copy_group_link",
+      "type": "AsyncFunctionDef",
+      "lineno": 4405,
+      "end_lineno": 4426
+    },
+    {
+      "name": "open_inbound_dialog",
+      "type": "AsyncFunctionDef",
+      "lineno": 4566,
+      "end_lineno": 4567
+    },
+    {
+      "name": "delete_inbound",
+      "type": "AsyncFunctionDef",
+      "lineno": 4570,
+      "end_lineno": 4595
+    },
+    {
+      "name": "delete_inbound_with_confirm",
+      "type": "AsyncFunctionDef",
+      "lineno": 4599,
+      "end_lineno": 4614
+    },
+    {
+      "name": "open_sub_editor",
+      "type": "FunctionDef",
+      "lineno": 4814,
+      "end_lineno": 4815
+    },
+    {
+      "name": "open_advanced_sub_editor",
+      "type": "FunctionDef",
+      "lineno": 5169,
+      "end_lineno": 5170
+    },
+    {
+      "name": "open_quick_group_create_dialog",
+      "type": "FunctionDef",
+      "lineno": 5177,
+      "end_lineno": 5267
+    },
+    {
+      "name": "open_group_sort_dialog",
+      "type": "FunctionDef",
+      "lineno": 5270,
+      "end_lineno": 5343
+    },
+    {
+      "name": "open_unified_group_manager",
+      "type": "FunctionDef",
+      "lineno": 5347,
+      "end_lineno": 5556
+    },
+    {
+      "name": "render_probe_page",
+      "type": "AsyncFunctionDef",
+      "lineno": 5560,
+      "end_lineno": 5705
+    },
+    {
+      "name": "load_subs_view",
+      "type": "AsyncFunctionDef",
+      "lineno": 5708,
+      "end_lineno": 5835
+    },
+    {
+      "name": "save_server_config",
+      "type": "AsyncFunctionDef",
+      "lineno": 5838,
+      "end_lineno": 5949
+    },
+    {
+      "name": "open_server_dialog",
+      "type": "AsyncFunctionDef",
+      "lineno": 5954,
+      "end_lineno": 6357
+    },
+    {
+      "name": "open_data_mgmt_dialog",
+      "type": "AsyncFunctionDef",
+      "lineno": 6360,
+      "end_lineno": 6539
+    },
+    {
+      "name": "format_bytes",
+      "type": "FunctionDef",
+      "lineno": 6543,
+      "end_lineno": 6551
+    },
+    {
+      "name": "cn_to_arabic_str",
+      "type": "FunctionDef",
+      "lineno": 6558,
+      "end_lineno": 6568
+    },
+    {
+      "name": "to_safe_sort_list",
+      "type": "FunctionDef",
+      "lineno": 6570,
+      "end_lineno": 6578
+    },
+    {
+      "name": "smart_sort_key",
+      "type": "FunctionDef",
+      "lineno": 6580,
+      "end_lineno": 6624
+    },
+    {
+      "name": "refresh_content",
+      "type": "AsyncFunctionDef",
+      "lineno": 6663,
+      "end_lineno": 6754
+    },
+    {
+      "name": "_render_ui_internal",
+      "type": "AsyncFunctionDef",
+      "lineno": 6757,
+      "end_lineno": 6791
+    },
+    {
+      "name": "get_targets_by_scope",
+      "type": "FunctionDef",
+      "lineno": 6793,
+      "end_lineno": 6806
+    },
+    {
+      "name": "format_uptime",
+      "type": "FunctionDef",
+      "lineno": 6810,
+      "end_lineno": 6816
+    },
+    {
+      "name": "render_status_card",
+      "type": "FunctionDef",
+      "lineno": 6818,
+      "end_lineno": 6827
+    },
+    {
+      "name": "render_single_server_view",
+      "type": "AsyncFunctionDef",
+      "lineno": 6834,
+      "end_lineno": 7173
+    },
+    {
+      "name": "show_custom_node_info",
+      "type": "FunctionDef",
+      "lineno": 7182,
+      "end_lineno": 7196
+    },
+    {
+      "name": "draw_row",
+      "type": "FunctionDef",
+      "lineno": 7200,
+      "end_lineno": 7293
+    },
+    {
+      "name": "render_aggregated_view",
+      "type": "AsyncFunctionDef",
+      "lineno": 7297,
+      "end_lineno": 7395
+    },
+    {
+      "name": "get_dashboard_live_data",
+      "type": "FunctionDef",
+      "lineno": 7401,
+      "end_lineno": 7403
+    },
+    {
+      "name": "calculate_dashboard_data",
+      "type": "FunctionDef",
+      "lineno": 7407,
+      "end_lineno": 7512
+    },
+    {
+      "name": "refresh_dashboard_ui",
+      "type": "AsyncFunctionDef",
+      "lineno": 7515,
+      "end_lineno": 7568
+    },
+    {
+      "name": "load_dashboard_stats",
+      "type": "AsyncFunctionDef",
+      "lineno": 7571,
+      "end_lineno": 7756
+    },
+    {
+      "name": "open_bulk_edit_dialog",
+      "type": "FunctionDef",
+      "lineno": 7962,
+      "end_lineno": 7964
+    },
+    {
+      "name": "open_combined_group_management",
+      "type": "FunctionDef",
+      "lineno": 8105,
+      "end_lineno": 8289
+    },
+    {
+      "name": "open_create_group_dialog",
+      "type": "FunctionDef",
+      "lineno": 8292,
+      "end_lineno": 8321
+    },
+    {
+      "name": "on_server_click_handler",
+      "type": "AsyncFunctionDef",
+      "lineno": 8331,
+      "end_lineno": 8357
+    },
+    {
+      "name": "render_single_sidebar_row",
+      "type": "FunctionDef",
+      "lineno": 8361,
+      "end_lineno": 8387
+    },
+    {
+      "name": "render_sidebar_content",
+      "type": "FunctionDef",
+      "lineno": 8392,
+      "end_lineno": 8566
+    },
+    {
+      "name": "login_page",
+      "type": "FunctionDef",
+      "lineno": 8570,
+      "end_lineno": 8712
+    },
+    {
+      "name": "check_auth",
+      "type": "FunctionDef",
+      "lineno": 8715,
+      "end_lineno": 8733
+    },
+    {
+      "name": "main_page",
+      "type": "FunctionDef",
+      "lineno": 8737,
+      "end_lineno": 8932
+    },
+    {
+      "name": "send_telegram_message",
+      "type": "AsyncFunctionDef",
+      "lineno": 8941,
+      "end_lineno": 8961
+    },
+    {
+      "name": "job_monitor_status",
+      "type": "AsyncFunctionDef",
+      "lineno": 8964,
+      "end_lineno": 9040
+    },
+    {
+      "name": "job_sync_all_traffic",
+      "type": "AsyncFunctionDef",
+      "lineno": 9045,
+      "end_lineno": 9131
+    },
+    {
+      "name": "job_check_geo_ip",
+      "type": "AsyncFunctionDef",
+      "lineno": 9134,
+      "end_lineno": 9189
+    },
+    {
+      "name": "startup_sequence",
+      "type": "AsyncFunctionDef",
+      "lineno": 9195,
+      "end_lineno": 9222
+    },
+    {
+      "name": "open_mobile_server_detail",
+      "type": "FunctionDef",
+      "lineno": 9233,
+      "end_lineno": 9450
+    },
+    {
+      "name": "open_pc_server_detail",
+      "type": "FunctionDef",
+      "lineno": 9453,
+      "end_lineno": 9733
+    },
+    {
+      "name": "is_mobile_device",
+      "type": "FunctionDef",
+      "lineno": 9740,
+      "end_lineno": 9747
+    },
+    {
+      "name": "status_page_router",
+      "type": "AsyncFunctionDef",
+      "lineno": 9751,
+      "end_lineno": 9763
+    },
+    {
+      "name": "render_desktop_status_page",
+      "type": "AsyncFunctionDef",
+      "lineno": 9771,
+      "end_lineno": 10375
+    },
+    {
+      "name": "render_mobile_status_page",
+      "type": "AsyncFunctionDef",
+      "lineno": 10378,
+      "end_lineno": 10559
+    }
+  ],
+  "classes": [
+    {
+      "name": "WebSSH",
+      "lineno": 2362,
+      "end_lineno": 2549,
+      "methods": [
+        {
+          "name": "__init__",
+          "lineno": 2363,
+          "end_lineno": 2369
+        },
+        {
+          "name": "connect",
+          "lineno": 2371,
+          "end_lineno": 2487
+        },
+        {
+          "name": "_print_error",
+          "lineno": 2489,
+          "end_lineno": 2495
+        },
+        {
+          "name": "_write_to_ssh",
+          "lineno": 2497,
+          "end_lineno": 2500
+        },
+        {
+          "name": "_read_loop",
+          "lineno": 2502,
+          "end_lineno": 2539
+        },
+        {
+          "name": "close",
+          "lineno": 2541,
+          "end_lineno": 2549
+        }
+      ]
+    },
+    {
+      "name": "CloudflareHandler",
+      "lineno": 2658,
+      "end_lineno": 2757,
+      "methods": [
+        {
+          "name": "__init__",
+          "lineno": 2659,
+          "end_lineno": 2663
+        },
+        {
+          "name": "_headers",
+          "lineno": 2665,
+          "end_lineno": 2672
+        },
+        {
+          "name": "get_zone_id",
+          "lineno": 2674,
+          "end_lineno": 2690
+        },
+        {
+          "name": "set_ssl_flexible",
+          "lineno": 2692,
+          "end_lineno": 2699
+        },
+        {
+          "name": "auto_configure",
+          "lineno": 2701,
+          "end_lineno": 2718
+        },
+        {
+          "name": "delete_record_by_domain",
+          "lineno": 2721,
+          "end_lineno": 2757
+        }
+      ]
+    },
+    {
+      "name": "XUIManager",
+      "lineno": 2761,
+      "end_lineno": 2906,
+      "methods": [
+        {
+          "name": "__init__",
+          "lineno": 2762,
+          "end_lineno": 2771
+        },
+        {
+          "name": "_request",
+          "lineno": 2773,
+          "end_lineno": 2781
+        },
+        {
+          "name": "login",
+          "lineno": 2783,
+          "end_lineno": 2799
+        },
+        {
+          "name": "_try_login_at",
+          "lineno": 2801,
+          "end_lineno": 2806
+        },
+        {
+          "name": "get_inbounds",
+          "lineno": 2808,
+          "end_lineno": 2823
+        },
+        {
+          "name": "get_server_status",
+          "lineno": 2826,
+          "end_lineno": 2847
+        },
+        {
+          "name": "add_inbound",
+          "lineno": 2849,
+          "end_lineno": 2849
+        },
+        {
+          "name": "update_inbound",
+          "lineno": 2850,
+          "end_lineno": 2850
+        },
+        {
+          "name": "delete_inbound",
+          "lineno": 2851,
+          "end_lineno": 2851
+        },
+        {
+          "name": "_action",
+          "lineno": 2853,
+          "end_lineno": 2906
+        }
+      ]
+    },
+    {
+      "name": "SSHXUIManager",
+      "lineno": 2932,
+      "end_lineno": 3155,
+      "methods": [
+        {
+          "name": "__init__",
+          "lineno": 2940,
+          "end_lineno": 2941
+        },
+        {
+          "name": "_exec_remote_script",
+          "lineno": 2943,
+          "end_lineno": 3003
+        },
+        {
+          "name": "get_inbounds",
+          "lineno": 3005,
+          "end_lineno": 3033
+        },
+        {
+          "name": "add_inbound",
+          "lineno": 3035,
+          "end_lineno": 3096
+        },
+        {
+          "name": "update_inbound",
+          "lineno": 3098,
+          "end_lineno": 3138
+        },
+        {
+          "name": "delete_inbound",
+          "lineno": 3140,
+          "end_lineno": 3155
+        }
+      ]
+    },
+    {
+      "name": "InboundEditor",
+      "lineno": 4429,
+      "end_lineno": 4564,
+      "methods": [
+        {
+          "name": "__init__",
+          "lineno": 4430,
+          "end_lineno": 4446
+        },
+        {
+          "name": "ui",
+          "lineno": 4448,
+          "end_lineno": 4472
+        },
+        {
+          "name": "on_protocol_change",
+          "lineno": 4474,
+          "end_lineno": 4484
+        },
+        {
+          "name": "refresh_auth_ui",
+          "lineno": 4486,
+          "end_lineno": 4506
+        },
+        {
+          "name": "save",
+          "lineno": 4508,
+          "end_lineno": 4564
+        }
+      ]
+    },
+    {
+      "name": "SubEditor",
+      "lineno": 4616,
+      "end_lineno": 4812,
+      "methods": [
+        {
+          "name": "__init__",
+          "lineno": 4617,
+          "end_lineno": 4635
+        },
+        {
+          "name": "ui",
+          "lineno": 4637,
+          "end_lineno": 4692
+        },
+        {
+          "name": "on_search_change",
+          "lineno": 4695,
+          "end_lineno": 4697
+        },
+        {
+          "name": "load_data",
+          "lineno": 4699,
+          "end_lineno": 4736
+        },
+        {
+          "name": "render_list",
+          "lineno": 4738,
+          "end_lineno": 4798
+        },
+        {
+          "name": "on_check",
+          "lineno": 4800,
+          "end_lineno": 4802
+        },
+        {
+          "name": "toggle_all",
+          "lineno": 4805,
+          "end_lineno": 4812
+        }
+      ]
+    },
+    {
+      "name": "AdvancedSubEditor",
+      "lineno": 4818,
+      "end_lineno": 5166,
+      "methods": [
+        {
+          "name": "__init__",
+          "lineno": 4819,
+          "end_lineno": 4839
+        },
+        {
+          "name": "ui",
+          "lineno": 4841,
+          "end_lineno": 4950
+        },
+        {
+          "name": "_preload_data",
+          "lineno": 4954,
+          "end_lineno": 4963
+        },
+        {
+          "name": "_render_node_tree",
+          "lineno": 4965,
+          "end_lineno": 5035
+        },
+        {
+          "name": "toggle_node_from_left",
+          "lineno": 5037,
+          "end_lineno": 5045
+        },
+        {
+          "name": "remove_node",
+          "lineno": 5047,
+          "end_lineno": 5053
+        },
+        {
+          "name": "clear_all_selected",
+          "lineno": 5055,
+          "end_lineno": 5057
+        },
+        {
+          "name": "update_preview",
+          "lineno": 5059,
+          "end_lineno": 5098
+        },
+        {
+          "name": "sort_nodes",
+          "lineno": 5100,
+          "end_lineno": 5114
+        },
+        {
+          "name": "on_search",
+          "lineno": 5116,
+          "end_lineno": 5141
+        },
+        {
+          "name": "batch_select",
+          "lineno": 5143,
+          "end_lineno": 5166
+        }
+      ]
+    },
+    {
+      "name": "BulkEditor",
+      "lineno": 7759,
+      "end_lineno": 7961,
+      "methods": [
+        {
+          "name": "__init__",
+          "lineno": 7760,
+          "end_lineno": 7765
+        },
+        {
+          "name": "open",
+          "lineno": 7767,
+          "end_lineno": 7942
+        },
+        {
+          "name": "on_search",
+          "lineno": 7944,
+          "end_lineno": 7948
+        },
+        {
+          "name": "on_check",
+          "lineno": 7950,
+          "end_lineno": 7953
+        },
+        {
+          "name": "toggle_all",
+          "lineno": 7955,
+          "end_lineno": 7961
+        }
+      ]
+    },
+    {
+      "name": "BatchSSH",
+      "lineno": 7968,
+      "end_lineno": 8099,
+      "methods": [
+        {
+          "name": "__init__",
+          "lineno": 7969,
+          "end_lineno": 7972
+        },
+        {
+          "name": "open_dialog",
+          "lineno": 7974,
+          "end_lineno": 7987
+        },
+        {
+          "name": "render_selection_view",
+          "lineno": 7989,
+          "end_lineno": 8020
+        },
+        {
+          "name": "toggle_all",
+          "lineno": 8022,
+          "end_lineno": 8024
+        },
+        {
+          "name": "update_count",
+          "lineno": 8026,
+          "end_lineno": 8028
+        },
+        {
+          "name": "go_to_execution",
+          "lineno": 8030,
+          "end_lineno": 8033
+        },
+        {
+          "name": "render_execution_view",
+          "lineno": 8035,
+          "end_lineno": 8050
+        },
+        {
+          "name": "run_batch",
+          "lineno": 8052,
+          "end_lineno": 8057
+        },
+        {
+          "name": "_process_batch",
+          "lineno": 8059,
+          "end_lineno": 8099
+        }
+      ]
+    }
+  ]
+}
