@@ -202,11 +202,15 @@ def main_page(request: Request):
     with ui.left_drawer(value=True, fixed=True).classes(theme['drawer_classes']).props('width=360 bordered') as drawer:
         render_sidebar_content()
 
+    display_ip = app.storage.user.get('last_known_ip') or current_ip or 'Unknown'
+
     with ui.header().classes(theme['header_classes']):
         with ui.row().classes('w-full items-center justify-between'):
             with ui.row().classes('items-center gap-2'):
                 ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense').classes(theme['menu_btn_classes'])
-                ui.label('X-Fusion Panel').classes(theme['title_classes'])
+                with ui.column().classes('gap-0 leading-none'):
+                    ui.label('X-Fusion-pro').classes(theme['title_classes'])
+                    ui.label(f'登陆IP:{display_ip}').classes('text-[11px] font-mono font-bold text-emerald-500 self-end -mt-1 mr-1' if is_dark else 'text-[11px] font-mono font-bold text-emerald-600 self-end -mt-1 mr-1')
 
             with ui.row().classes('items-center gap-3 mr-2'):
                 with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm').classes(theme['security_btn_classes']).tooltip('安全重置'):
