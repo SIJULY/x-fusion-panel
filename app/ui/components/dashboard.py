@@ -250,10 +250,11 @@ async def refresh_dashboard_ui():
         if DASHBOARD_REFS.get('subs'):
             DASHBOARD_REFS['subs'].set_text(data['subs'])
 
-        text_strong = '#e5eefc' if app.storage.user.get('is_dark', True) else '#0f172a'
-        text_muted = '#94a3b8' if app.storage.user.get('is_dark', True) else '#475569'
-        split_line = '#1e3a5f' if app.storage.user.get('is_dark', True) else '#cbd5e1'
-        pie_border = '#070b14' if app.storage.user.get('is_dark', True) else '#ffffff'
+        is_dark = bool(app.storage.user.get('is_dark', True))
+        text_strong = '#f8fafc' if is_dark else '#111827'
+        text_muted = '#94a3b8' if is_dark else '#4b5563'
+        split_line = '#1e3a5f' if is_dark else '#d1d5db'
+        pie_border = '#070b14' if is_dark else '#ffffff'
 
         if DASHBOARD_REFS.get('bar_chart'):
             DASHBOARD_REFS['bar_chart'].options['xAxis']['data'] = data['bar_chart']['names']
@@ -402,13 +403,13 @@ async def load_dashboard_stats():
         }, 3000);
 
         window.applyDashboardTheme = function() {
-            const css = getComputedStyle(document.documentElement);
-            const textStrong = css.getPropertyValue('--xf-text-strong').trim() || '#0f172a';
-            const textMuted = css.getPropertyValue('--xf-text-muted').trim() || '#475569';
-            const cardBorder = css.getPropertyValue('--xf-card-border').trim() || '#cbd5e1';
-            const tooltipBg = css.getPropertyValue('--xf-tooltip-bg').trim() || '#ffffff';
-            const tooltipBorder = css.getPropertyValue('--xf-tooltip-border').trim() || '#cbd5e1';
-            const panelBg = css.getPropertyValue('--xf-panel-bg').trim() || '#ffffff';
+            const isDark = document.body.classList.contains('body--dark');
+            const textStrong = isDark ? '#f8fafc' : '#111827';
+            const textMuted = isDark ? '#94a3b8' : '#4b5563';
+            const cardBorder = isDark ? '#334155' : '#d1d5db';
+            const tooltipBg = isDark ? '#0f172a' : '#ffffff';
+            const tooltipBorder = isDark ? '#334155' : '#cbd5e1';
+            const panelBg = isDark ? '#0f172a' : '#ffffff';
 
             const barDom = document.getElementById('chart-bar');
             if (barDom) {
@@ -417,9 +418,15 @@ async def load_dashboard_stats():
                     chart.setOption({
                         textStyle: { color: textStrong },
                         tooltip: { backgroundColor: tooltipBg, borderColor: tooltipBorder, textStyle: { color: textStrong } },
-                        xAxis: { axisLine: { lineStyle: { color: cardBorder } }, axisLabel: { color: textStrong } },
-                        yAxis: { axisLabel: { color: textMuted }, splitLine: { lineStyle: { color: cardBorder } } }
-                    });
+                        xAxis: {
+                            axisLine: { lineStyle: { color: cardBorder } },
+                            axisLabel: { color: textStrong, margin: 14 }
+                        },
+                        yAxis: {
+                            axisLabel: { color: textMuted },
+                            splitLine: { lineStyle: { color: cardBorder } }
+                        }
+                    }, false, true);
                 }
             }
 
@@ -431,8 +438,12 @@ async def load_dashboard_stats():
                         textStyle: { color: textStrong },
                         tooltip: { backgroundColor: tooltipBg, borderColor: tooltipBorder, textStyle: { color: textStrong } },
                         legend: { textStyle: { color: textStrong } },
-                        series: [{ label: { color: textStrong }, itemStyle: { borderColor: panelBg }, emphasis: { label: { color: textStrong } } }]
-                    });
+                        series: [{
+                            label: { color: textStrong },
+                            itemStyle: { borderColor: panelBg },
+                            emphasis: { label: { color: textStrong } }
+                        }]
+                    }, false, true);
                 }
             }
 
@@ -482,8 +493,8 @@ async def load_dashboard_stats():
                     'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'},
                     'tooltip': {'trigger': 'axis', 'backgroundColor': '#0f172a' if is_dark else '#ffffff', 'borderColor': '#334155' if is_dark else '#cbd5e1', 'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'}},
                     'grid': {'left': '2%', 'right': '3%', 'bottom': '2%', 'top': '10%', 'containLabel': True},
-                    'xAxis': {'type': 'category', 'data': init_data['bar_chart']['names'], 'axisLine': {'lineStyle': {'color': '#334155' if is_dark else '#cbd5e1'}}, 'axisLabel': {'interval': 0, 'rotate': 30, 'color': '#e5eefc' if is_dark else '#0f172a', 'fontSize': 10}},
-                    'yAxis': {'type': 'value', 'axisLine': {'show': False}, 'splitLine': {'lineStyle': {'type': 'dashed', 'color': '#1e3a5f' if is_dark else '#cbd5e1'}}, 'axisLabel': {'color': '#94a3b8' if is_dark else '#475569'}},
+                    'xAxis': {'type': 'category', 'data': init_data['bar_chart']['names'], 'axisLine': {'lineStyle': {'color': '#334155' if is_dark else '#d1d5db'}}, 'axisLabel': {'interval': 0, 'rotate': 30, 'margin': 14, 'color': '#f8fafc' if is_dark else '#111827', 'fontSize': 10}},
+                    'yAxis': {'type': 'value', 'axisLine': {'show': False}, 'splitLine': {'lineStyle': {'type': 'dashed', 'color': '#1e3a5f' if is_dark else '#d1d5db'}}, 'axisLabel': {'color': '#94a3b8' if is_dark else '#4b5563'}},
                     'series': [{'type': 'bar', 'data': init_data['bar_chart']['values'], 'barWidth': '40%', 'itemStyle': {'borderRadius': [6, 6, 0, 0], 'color': '#06b6d4'}}]
                 }).classes('w-full h-64').props('id=chart-bar')
 
@@ -494,7 +505,7 @@ async def load_dashboard_stats():
                 DASHBOARD_REFS['pie_chart'] = ui.echart({
                     'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'},
                     'tooltip': {'trigger': 'item', 'formatter': '{b}: <br/><b>{c} 台</b> ({d}%)', 'backgroundColor': '#0f172a' if is_dark else '#ffffff', 'borderColor': '#334155' if is_dark else '#cbd5e1', 'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'}},
-                    'legend': {'bottom': '0%', 'left': 'center', 'icon': 'circle', 'itemGap': 10, 'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a', 'fontSize': 11}},
+                    'legend': {'bottom': '0%', 'left': 'center', 'icon': 'circle', 'itemGap': 10, 'textStyle': {'color': '#f8fafc' if is_dark else '#111827', 'fontSize': 11}},
                     'color': color_palette,
                     'series': [{
                         'name': '服务器分布',
@@ -503,8 +514,8 @@ async def load_dashboard_stats():
                         'center': ['50%', '45%'],
                         'avoidLabelOverlap': False,
                         'itemStyle': {'borderRadius': 4, 'borderColor': '#070b14' if is_dark else '#ffffff', 'borderWidth': 2},
-                        'label': {'show': False, 'position': 'center', 'color': '#e5eefc' if is_dark else '#0f172a'},
-                        'emphasis': {'label': {'show': True, 'fontSize': 16, 'fontWeight': 'bold', 'color': '#e5eefc' if is_dark else '#0f172a'}, 'scale': True, 'scaleSize': 5},
+                        'label': {'show': False, 'position': 'center', 'color': '#f8fafc' if is_dark else '#111827'},
+                        'emphasis': {'label': {'show': True, 'fontSize': 16, 'fontWeight': 'bold', 'color': '#f8fafc' if is_dark else '#111827'}, 'scale': True, 'scaleSize': 5},
                         'labelLine': {'show': False},
                         'data': init_data['pie_chart']
                     }]
