@@ -857,14 +857,6 @@ async def render_desktop_status_page():
         var focusedZoom = 4.0;
         var isZoomed = false;
         var myChart = null;
-        function tryIpLocation() {{
-            fetch('https://ipapi.co/json/').then(response => response.json()).then(data => {{
-                if(data.latitude && data.longitude) {{
-                    defaultPt = [data.longitude, data.latitude];
-                    if(!isZoomed && myChart) renderMap();
-                }}
-            }}).catch(e => {{}});
-        }}
         function checkAndRender() {{
             var chartDom = document.getElementById('public-map-container');
             if (!chartDom || typeof echarts === 'undefined') {{ setTimeout(checkAndRender, 100); return; }}
@@ -875,9 +867,10 @@ async def render_desktop_status_page():
                 if (navigator.geolocation) {{
                     navigator.geolocation.getCurrentPosition(
                         p => {{ defaultPt = [p.coords.longitude, p.coords.latitude]; if(!isZoomed) renderMap(); }},
-                        e => {{ tryIpLocation(); }}
+                        e => {{}},
+                        {{ enableHighAccuracy: false, timeout: 2500, maximumAge: 600000 }}
                     );
-                }} else {{ tryIpLocation(); }}
+                }}
                 renderMap();
                 function renderMap(center, zoomLevel, roamState) {{
                     var viewCenter = center || defaultPt;

@@ -92,12 +92,16 @@ def build_globe_js_logic(is_dark: bool) -> str:
     var myChart = echarts.init(container);
 
     if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-            myLat = position.coords.latitude;
-            myLon = position.coords.longitude;
-            var option = buildOption(window.cachedWorldJson, serverData, myLat, myLon);
-            myChart.setOption(option);
-        });
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                myLat = position.coords.latitude;
+                myLon = position.coords.longitude;
+                var option = buildOption(window.cachedWorldJson, serverData, myLat, myLon);
+                myChart.setOption(option);
+            },
+            function() {},
+            { enableHighAccuracy: false, timeout: 2500, maximumAge: 600000 }
+        );
     }
 
     window.updateDashboardMap = function(newData) {
