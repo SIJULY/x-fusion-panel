@@ -48,22 +48,45 @@ async def render_single_ssh_view(server_conf):
     except:
         pass
 
-    is_dark = bool(app.storage.user.get('is_dark', True))
+# 这一行绝对要保留，它是下面所有深色组件的灵魂
+    is_dark = bool(app.storage.user.get('is_dark', False))
+
+    current_client = None
+    try:
+        current_client = ui.context.client
+    except:
+        pass
 
     if content_container:
         content_container.clear()
         
-        # 核心修复点：彻底清除旧的背景类，并强行注入当前主题的背景类
-        bg_removes = 'overflow-y-auto block justify-start bg-[#030712] bg-[#eef4ff] bg-[#f8fbff] bg-white dark:bg-[#030712]'
-        bg_add = 'bg-[#030712]' if is_dark else 'bg-[#f8fbff]'
-        
+        # 1. 移除可能捣乱的 Tailwind 默认背景类
+        bg_removes = 'overflow-y-auto block justify-start bg-[#0f172a] bg-[#030712] bg-[#eef4ff] bg-[#f8fbff] bg-white dark:bg-[#030712]'
         content_container.classes(remove=bg_removes,
-                                  add=f'h-full flex-1 min-h-0 overflow-hidden flex flex-col p-4 gap-4 {bg_add}')
+                                  add='h-full flex-1 min-h-0 overflow-hidden flex flex-col p-4 gap-4')
         
-        # 双重保险：用内联 style 锁死背景色，无视全局 CSS 变量失效的问题
-        bg_color_hex = '#030712' if is_dark else '#f8fbff'
-        content_container.style(f'background-color: {bg_color_hex} !important;')
+        # 2. 暴力绑定 CSS 全局变量，外围大背景永不变白
+        content_container.style('background-color: var(--xf-bg-main) !important;')
 
+        # 3. 🔥 终极补丁：镇压 NiceGUI 的默认重绘，强行恢复深色顶栏和太阳图标
+        ui.run_javascript(f'''
+            setTimeout(() => {{
+                const isDark = {str(is_dark).lower()};
+                if (isDark) {{
+                    // 强行把被篡改的 🌙 改回太阳 ☀️
+                    const themeIcon = document.querySelector('#xf-theme-btn i');
+                    if (themeIcon) themeIcon.textContent = 'light_mode';
+                    
+                    // 强行把变白的顶栏重新刷成深色
+                    const header = document.getElementById('xf-header');
+                    if (header) {{
+                        header.style.cssText = 'background: linear-gradient(to right, #070e1a, #0a1526) !important; color: white !important; border-bottom: 1px solid rgba(30,58,95,0.60) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;';
+                    }}
+                }}
+            }}, 50);
+        ''')
+
+        
     terminal_state = {'instance': None}
     file_state = {'current_path': '/', 'entries': [], 'loading': False}
     tree_state = {'expanded': {'/'}, 'selected': '/', 'cache': {}, 'loading': set()}
