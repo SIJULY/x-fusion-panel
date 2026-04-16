@@ -422,6 +422,7 @@ def main_page(request: Request):
             window.applyXFusionTheme && window.applyXFusionTheme({js_theme});
             window.applyXFusionShellTheme && window.applyXFusionShellTheme({js_payload});
             window.applyXFusionDomTheme && window.applyXFusionDomTheme({str(new_is_dark).lower()});
+            window.dispatchEvent(new CustomEvent('xfusion-theme-change', {{ detail: {{ isDark: {str(new_is_dark).lower()} }} }}));
             window.applyDashboardTheme && window.applyDashboardTheme();
         ''')
 
