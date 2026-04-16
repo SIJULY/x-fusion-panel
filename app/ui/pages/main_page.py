@@ -217,8 +217,15 @@ def main_page(request: Request):
         new_is_dark = not bool(app.storage.user.get('is_dark', False))
         app.storage.user['is_dark'] = new_is_dark
         new_theme = build_theme(new_is_dark)
+        if new_is_dark:
+            dark.enable()
+        else:
+            dark.disable()
         await ui.run_javascript(f'window.applyXFusionTheme && window.applyXFusionTheme({json.dumps(new_theme, ensure_ascii=False)})')
-        render_page_shell.refresh()
+        try:
+            render_sidebar_content.refresh()
+        except:
+            pass
         await asyncio.sleep(0.05)
         await restore_last_view()
 
@@ -236,40 +243,31 @@ def main_page(request: Request):
 
     ui.timer(0.5, run_security_check, once=True)
 
-    @ui.refreshable
-    def render_page_shell():
-        current_is_dark = bool(app.storage.user.get('is_dark', False))
-        current_theme = build_theme(current_is_dark)
-        app.storage.user['is_dark'] = current_is_dark
+    current_theme = build_theme(bool(app.storage.user.get('is_dark', False)))
 
-        if current_is_dark:
-            dark.enable()
-        else:
-            dark.disable()
+    with ui.left_drawer(value=True, fixed=True).classes(current_theme['drawer_classes']).props('width=360 bordered') as drawer:
+        render_sidebar_content()
 
-        with ui.left_drawer(value=True, fixed=True).classes(current_theme['drawer_classes']).props('width=360 bordered') as drawer:
-            render_sidebar_content()
+    with ui.header().classes(current_theme['header_classes']):
+        with ui.row().classes('w-full items-center justify-between'):
+            with ui.row().classes('items-center gap-2'):
+                ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense').classes(current_theme['menu_btn_classes'])
+                ui.label('X-Fusion-Pro').classes(current_theme['title_classes'])
 
-        with ui.header().classes(current_theme['header_classes']):
-            with ui.row().classes('w-full items-center justify-between'):
-                with ui.row().classes('items-center gap-2'):
-                    ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense').classes(current_theme['menu_btn_classes'])
-                    ui.label('X-Fusion-Pro').classes(current_theme['title_classes'])
+            with ui.row().classes('items-center gap-3 mr-2'):
+                with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm').classes(current_theme['security_btn_classes']).tooltip('安全重置'):
+                    ui.badge('Reset', color='orange').props('floating rounded-sm').classes('text-[10px] font-black')
 
-                with ui.row().classes('items-center gap-3 mr-2'):
-                    with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm').classes(current_theme['security_btn_classes']).tooltip('安全重置'):
-                        ui.badge('Reset', color='orange').props('floating rounded-sm').classes('text-[10px] font-black')
+                with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round size=sm').classes(current_theme['key_btn_classes']).tooltip('复制通讯密钥'):
+                    ui.badge('Key', color='red').props('floating rounded-sm').classes('text-[10px] font-black')
 
-                    with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round size=sm').classes(current_theme['key_btn_classes']).tooltip('复制通讯密钥'):
-                        ui.badge('Key', color='red').props('floating rounded-sm').classes('text-[10px] font-black')
+                ui.button(icon=current_theme['theme_icon'], on_click=toggle_theme).props('flat round dense').classes(current_theme['theme_btn_classes']).tooltip(current_theme['theme_tooltip'])
+                ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense').classes(current_theme['logout_btn_classes']).tooltip('退出登录')
 
-                    ui.button(icon=current_theme['theme_icon'], on_click=toggle_theme).props('flat round dense').classes(current_theme['theme_btn_classes']).tooltip(current_theme['theme_tooltip'])
-                    ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense').classes(current_theme['logout_btn_classes']).tooltip('退出登录')
+    from app.ui.pages import content_router
 
-        from app.ui.pages import content_router
-
-        content_router.content_container = ui.column().classes('w-full h-full min-h-[calc(100vh-56px)] pl-4 pr-4 pt-4 overflow-y-auto').style(f'background-color: {current_theme["content_bg"]};')
-        logger.info(f"[MainPage] content_container assigned | id={id(content_router.content_container)}")
+    content_router.content_container = ui.column().classes('w-full h-full min-h-[calc(100vh-56px)] pl-4 pr-4 pt-4 overflow-y-auto').style(f'background-color: {current_theme["content_bg"]};')
+    logger.info(f"[MainPage] content_container assigned | id={id(content_router.content_container)}")
 
     async def auto_init_system_settings():
         try:
@@ -333,6 +331,5 @@ def main_page(request: Request):
             await refresh_content(last_scope, target_data, page_num=last_page)
         logger.info(f'♻️ 自动恢复视图: {last_scope}')
 
-    render_page_shell()
     ui.timer(0.1, lambda: asyncio.create_task(restore_last_view()), once=True)
     logger.info('✅ UI 已就绪')
