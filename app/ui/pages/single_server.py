@@ -534,7 +534,7 @@ PY'''
 
             # 🛠️ 科技风：重构顶部核心资产卡片
             with ui.row().classes(
-                    'w-full justify-between items-center bg-gradient-to-r from-[#070e1a] to-[#0a1526] p-4 border border-[#1e3a5f]/60 border-t-[3px] border-t-cyan-500 shadow-[0_4px_20px_rgba(0,0,0,0.6)] flex-shrink-0 rounded-sm relative overflow-hidden' if is_dark else 'w-full justify-between items-center bg-gradient-to-r from-white to-[#eef4ff] p-4 border border-slate-300/90 border-t-[3px] border-t-sky-500 shadow-[0_8px_24px_rgba(148,163,184,0.14)] flex-shrink-0 rounded-sm relative overflow-hidden'):
+                    'w-full justify-between items-center p-4 border border-t-[3px] flex-shrink-0 rounded-sm relative overflow-hidden').style('background: linear-gradient(to right, var(--xf-panel-bg), var(--xf-soft-bg)); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 8px 24px rgba(15,23,42,0.12);'):
                 # 顶部卡片的赛博背景纹理
                 ui.element('div').classes(
                     'absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
@@ -542,17 +542,17 @@ PY'''
                 with ui.row().classes('items-center gap-4 z-10'):
                     sys_icon = 'memory' if 'Oracle' in server_conf.get('name', '') else 'dns'
                     with ui.element('div').classes(
-                            'p-3 bg-[#030712] rounded-sm border border-cyan-900/50 shadow-[inset_0_0_15px_rgba(6,182,212,0.1)]' if is_dark else 'p-3 bg-sky-50 rounded-sm border border-sky-200 shadow-[inset_0_0_12px_rgba(56,189,248,0.08)]'):
-                        ui.icon(sys_icon, size='md').classes('text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]')
+                            'p-3 rounded-sm border').style('background: var(--xf-code-bg); border-color: var(--xf-card-border); box-shadow: inset 0 0 12px rgba(15,23,42,0.10);'):
+                        ui.icon(sys_icon, size='md').classes('drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]').style('color: var(--xf-accent);')
                     with ui.column().classes('gap-1 min-w-0'):
                         with ui.row().classes('items-center gap-3 no-wrap'):
                             ui.label(server_conf.get('name', '未命名服务器')).classes(
-                                'text-xl font-black text-slate-100 tracking-wide drop-shadow-md truncate max-w-[520px]' if is_dark else 'text-xl font-black text-slate-800 tracking-wide truncate max-w-[520px]')
+                                'text-xl font-black tracking-wide drop-shadow-md truncate max-w-[520px]').style('color: var(--xf-text-strong);')
                         with ui.row().classes('items-center gap-3 flex-wrap'):
                             raw_host = server_conf.get('ssh_host') or \
                                        server_conf.get('url', '').replace('http://', '').replace('https://', '').split(
                                            ':')[0]
-                            ui.label(raw_host).classes('text-[11px] font-mono font-bold text-cyan-500/85' if is_dark else 'text-[11px] font-mono font-bold text-sky-700/85')
+                            ui.label(raw_host).classes('text-[11px] font-mono font-bold').style('color: var(--xf-accent); opacity: 0.85;')
 
                             @ui.refreshable
                             def live_status_badge():
@@ -580,7 +580,7 @@ PY'''
                                         ui.element('img').props(f'src="{os_logo_url}"').classes(
                                             'w-3.5 h-3.5 object-contain shrink-0 filter brightness-125')
                                         ui.label(clean_os).classes(
-                                            'text-[11px] font-bold text-cyan-200/80 truncate max-w-[180px]')
+                                            'text-[11px] font-bold truncate max-w-[180px]').style('color: var(--xf-text-muted);')
 
                             live_status_badge()
                             ui.timer(3.0, live_status_badge.refresh)
@@ -598,8 +598,8 @@ PY'''
                 with ui.row().classes(
                         f'w-full items-center justify-between px-4 py-2 min-h-[48px] {shell_header_cls}'):
                     with ui.row().classes('items-center gap-2'):
-                        ui.icon('query_stats').classes('text-cyan-500 drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]')
-                        ui.label('VPS 运行信息').classes('text-xs font-black tracking-wide text-slate-200' if is_dark else 'text-xs font-black tracking-wide text-slate-800')
+                        ui.icon('query_stats').classes('drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]').style('color: var(--xf-accent);')
+                        ui.label('VPS 运行信息').classes('text-xs font-black tracking-wide').style('color: var(--xf-text-strong);')
 
                     @ui.refreshable
                     def render_sync_status():
@@ -628,7 +628,7 @@ PY'''
                             render_section_header('系统信息', 'developer_board', 'text-cyan-400',
                                                   '操作系统 / 架构 / 在线时间',
                                                   right_renderer=lambda: ui.label(f"{snap['cpu_cores']} C").classes(
-                                                      'text-[10px] font-black text-cyan-300 bg-cyan-900/30 px-2 py-1 rounded-sm border border-cyan-700/50 shadow-[0_0_8px_rgba(6,182,212,0.2)] tracking-widest' if is_dark else 'text-[10px] font-black text-sky-700 bg-sky-100 px-2 py-1 rounded-sm border border-sky-300 shadow-[0_4px_10px_rgba(56,189,248,0.10)] tracking-widest'))
+                                                      'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style('color: var(--xf-accent); background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
 
                             with ui.column().classes('w-full p-4 gap-4'):
                                 @ui.refreshable
@@ -652,7 +652,7 @@ PY'''
                                                       '系统内存 / 空闲 / SWAP 使用情况',
                                                       right_renderer=lambda: ui.label(
                                                           f"{fmt_gb(snap['mem_total_gb'])}").classes(
-                                                          'text-[10px] font-black text-emerald-300 bg-emerald-900/30 px-2 py-1 rounded-sm border border-emerald-700/50 shadow-[0_0_8px_rgba(16,185,129,0.2)] tracking-widest' if is_dark else 'text-[10px] font-black text-emerald-700 bg-emerald-100 px-2 py-1 rounded-sm border border-emerald-300 shadow-[0_4px_10px_rgba(16,185,129,0.10)] tracking-widest'))
+                                                          'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style('color: #10b981; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
                                 with ui.column().classes('w-full p-4 gap-4'):
                                     pct, val = snap['mem_usage_pct'], fmt_gb(snap['mem_used_gb'])
                                     render_progress_row('已使用内存', pct, f'{val} ({pct:.0f}%)', '#10b981' if pct <= 80 else '#facc15')
@@ -675,7 +675,7 @@ PY'''
                                                   '根分区容量、已用空间、剩余空间与占用率',
                                                   right_renderer=lambda: ui.label(
                                                       f"{fmt_gb(snap['disk_total_gb'])}").classes(
-                                                      'text-[10px] font-black text-amber-300 bg-amber-900/30 px-2 py-1 rounded-sm border border-amber-700/50 shadow-[0_0_8px_rgba(245,158,11,0.2)] tracking-widest' if is_dark else 'text-[10px] font-black text-amber-700 bg-amber-100 px-2 py-1 rounded-sm border border-amber-300 shadow-[0_4px_10px_rgba(245,158,11,0.10)] tracking-widest'))
+                                                      'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style('color: #f59e0b; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
                             with ui.grid().classes('w-full grid-cols-1 lg:grid-cols-3 gap-5 p-4'):
                                 render_metric_row('磁盘设备', snap.get('disk_device', '/'),
                                                   value_color='text-indigo-300')
