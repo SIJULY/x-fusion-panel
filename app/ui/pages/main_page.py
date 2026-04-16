@@ -8,7 +8,7 @@ from nicegui import app, run, ui
 
 from app.core.config import AUTO_REGISTER_SECRET
 from app.core.logging import logger
-from app.core.state import ADMIN_CONFIG, SERVERS_CACHE
+from app.core.state import ADMIN_CONFIG, CURRENT_VIEW_STATE, SERVERS_CACHE
 from app.storage.repositories import save_admin_config
 from app.ui.common.notifications import safe_copy_to_clipboard
 from app.ui.components.sidebar import render_sidebar_content
@@ -93,6 +93,25 @@ def main_page(request: Request):
                     '--xf-tooltip-shadow': theme.tooltip_shadow,
                 }};
                 Object.entries(pairs).forEach(([key, value]) => root.style.setProperty(key, value));
+            }};
+            window.applyXFusionShellTheme = function(payload) {{
+                if (!payload) return;
+                const setStyle = (id, styleText) => {{
+                    const el = document.getElementById(id);
+                    if (el && styleText) el.style.cssText = styleText;
+                }};
+                setStyle('xf-header', payload.header_style);
+                setStyle('xf-drawer', payload.drawer_style);
+                setStyle('xf-menu-btn', payload.menu_btn_style);
+                setStyle('xf-title', payload.title_style);
+                setStyle('xf-security-btn', payload.security_btn_style);
+                setStyle('xf-key-btn', payload.key_btn_style);
+                setStyle('xf-theme-btn', payload.theme_btn_style);
+                setStyle('xf-logout-btn', payload.logout_btn_style);
+                const themeIcon = document.querySelector('#xf-theme-btn i');
+                if (themeIcon) themeIcon.textContent = payload.theme_icon;
+                const content = document.getElementById('xf-content-container');
+                if (content) content.style.backgroundColor = payload.content_bg;
             }};
         </script>
         <style>
@@ -217,17 +236,62 @@ def main_page(request: Request):
         new_is_dark = not bool(app.storage.user.get('is_dark', False))
         app.storage.user['is_dark'] = new_is_dark
         new_theme = build_theme(new_is_dark)
+
         if new_is_dark:
             dark.enable()
         else:
             dark.disable()
-        await ui.run_javascript(f'window.applyXFusionTheme && window.applyXFusionTheme({json.dumps(new_theme, ensure_ascii=False)})')
+
+        payload = {
+            'header_style': 'background: linear-gradient(to right, #070e1a, #0a1526); color: white; border-bottom: 1px solid rgba(30,58,95,0.60); box-shadow: 0 4px 20px rgba(0,0,0,0.6);' if new_is_dark else 'background: linear-gradient(to right, #f8fbff, #eaf2ff); color: #0f172a; border-bottom: 1px solid #cbd5e1; box-shadow: 0 4px 16px rgba(148,163,184,0.18);',
+            'drawer_style': 'background-color: #070b14; border-right: 1px solid rgba(30,58,95,0.55);' if new_is_dark else 'background-color: #f8fbff; border-right: 1px solid rgba(203,213,225,0.80);',
+            'menu_btn_style': 'color: #cbd5e1;' if new_is_dark else 'color: #475569;',
+            'title_style': 'color: #22d3ee; text-shadow: 0 0 6px rgba(34,211,238,0.55);' if new_is_dark else 'color: #0369a1;',
+            'security_btn_style': 'color: #fb7185;' if new_is_dark else 'color: #f43f5e;',
+            'key_btn_style': 'color: #94a3b8;' if new_is_dark else 'color: #64748b;',
+            'theme_btn_style': 'color: #fcd34d;' if new_is_dark else 'color: #64748b;',
+            'logout_btn_style': 'color: #94a3b8;' if new_is_dark else 'color: #64748b;',
+            'theme_icon': new_theme['theme_icon'],
+            'content_bg': new_theme['content_bg'],
+        }
+        js_payload = json.dumps(payload, ensure_ascii=False)
+        js_theme = json.dumps(new_theme, ensure_ascii=False)
+        await ui.run_javascript(f'''
+            window.applyXFusionTheme && window.applyXFusionTheme({js_theme});
+            window.applyXFusionShellTheme && window.applyXFusionShellTheme({js_payload});
+        ''')
+
         try:
             render_sidebar_content.refresh()
-        except:
+        except Exception:
             pass
+
+        from app.ui.pages import content_router
+        if content_router.content_container:
+            content_router.content_container.style(f'background-color: {new_theme["content_bg"]};')
+
+        current_scope = CURRENT_VIEW_STATE.get('scope', app.storage.user.get('last_view_scope', 'DASHBOARD'))
+        current_data = CURRENT_VIEW_STATE.get('data', app.storage.user.get('last_view_data'))
+        current_page = CURRENT_VIEW_STATE.get('page', app.storage.user.get('last_view_page', 1))
+
+        if current_scope in ['SINGLE', 'SSH_SINGLE'] and isinstance(current_data, dict):
+            current_data = next((s for s in SERVERS_CACHE if s.get('url') == current_data.get('url')), current_data)
+
         await asyncio.sleep(0.05)
-        await restore_last_view()
+
+        from app.ui.components.dashboard import load_dashboard_stats
+        from app.ui.pages.content_router import refresh_content
+        from app.ui.pages.probe_page import render_probe_page
+        from app.ui.pages.subs_page import load_subs_view
+
+        if current_scope == 'DASHBOARD':
+            await load_dashboard_stats()
+        elif current_scope == 'PROBE':
+            await render_probe_page()
+        elif current_scope == 'SUBS':
+            await load_subs_view()
+        else:
+            await refresh_content(current_scope, current_data, page_num=current_page)
 
     async def run_security_check():
         if last_ip and last_ip != current_ip:
@@ -245,28 +309,28 @@ def main_page(request: Request):
 
     current_theme = build_theme(bool(app.storage.user.get('is_dark', False)))
 
-    with ui.left_drawer(value=True, fixed=True).classes(current_theme['drawer_classes']).props('width=360 bordered') as drawer:
+    with ui.left_drawer(value=True, fixed=True).classes(current_theme['drawer_classes']).props('width=360 bordered id=xf-drawer') as drawer:
         render_sidebar_content()
 
-    with ui.header().classes(current_theme['header_classes']):
+    with ui.header().classes(current_theme['header_classes']).props('id=xf-header'):
         with ui.row().classes('w-full items-center justify-between'):
             with ui.row().classes('items-center gap-2'):
-                ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense').classes(current_theme['menu_btn_classes'])
-                ui.label('X-Fusion-Pro').classes(current_theme['title_classes'])
+                ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense id=xf-menu-btn').classes(current_theme['menu_btn_classes'])
+                ui.label('X-Fusion-Pro').classes(current_theme['title_classes']).props('id=xf-title')
 
             with ui.row().classes('items-center gap-3 mr-2'):
-                with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm').classes(current_theme['security_btn_classes']).tooltip('安全重置'):
+                with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm id=xf-security-btn').classes(current_theme['security_btn_classes']).tooltip('安全重置'):
                     ui.badge('Reset', color='orange').props('floating rounded-sm').classes('text-[10px] font-black')
 
-                with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round size=sm').classes(current_theme['key_btn_classes']).tooltip('复制通讯密钥'):
+                with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round size=sm id=xf-key-btn').classes(current_theme['key_btn_classes']).tooltip('复制通讯密钥'):
                     ui.badge('Key', color='red').props('floating rounded-sm').classes('text-[10px] font-black')
 
-                ui.button(icon=current_theme['theme_icon'], on_click=toggle_theme).props('flat round dense').classes(current_theme['theme_btn_classes']).tooltip(current_theme['theme_tooltip'])
-                ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense').classes(current_theme['logout_btn_classes']).tooltip('退出登录')
+                ui.button(icon=current_theme['theme_icon'], on_click=toggle_theme).props('flat round dense id=xf-theme-btn').classes(current_theme['theme_btn_classes']).tooltip(current_theme['theme_tooltip'])
+                ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense id=xf-logout-btn').classes(current_theme['logout_btn_classes']).tooltip('退出登录')
 
     from app.ui.pages import content_router
 
-    content_router.content_container = ui.column().classes('w-full h-full min-h-[calc(100vh-56px)] pl-4 pr-4 pt-4 overflow-y-auto').style(f'background-color: {current_theme["content_bg"]};')
+    content_router.content_container = ui.column().classes('w-full h-full min-h-[calc(100vh-56px)] pl-4 pr-4 pt-4 overflow-y-auto').props('id=xf-content-container').style(f'background-color: {current_theme["content_bg"]};')
     logger.info(f"[MainPage] content_container assigned | id={id(content_router.content_container)}")
 
     async def auto_init_system_settings():
