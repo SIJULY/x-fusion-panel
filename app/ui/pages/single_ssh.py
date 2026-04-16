@@ -953,7 +953,7 @@ async def render_single_ssh_view(server_conf):
                 render_quick_commands()
 
             with ui.card().classes(
-                    'w-full h-[46vh] min-h-[420px] p-0 rounded-sm border overflow-hidden flex flex-col flex-shrink-0 mt-4').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+                    'w-full h-[46vh] min-h-[300px] p-0 rounded-sm border overflow-hidden flex flex-col flex-shrink-0 mt-4').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
                 with ui.row().classes(
                         'w-full items-center justify-between px-3 py-2 border-b gap-2 flex-nowrap').style('background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border);'):
                     path_input = ui.input(value=file_state['current_path']).classes(
