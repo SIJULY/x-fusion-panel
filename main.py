@@ -8404,17 +8404,8 @@ def render_sidebar_content():
     with ui.column().classes('w-full p-4 border-b border-slate-700 bg-[#1e293b] flex-shrink-0 relative overflow-hidden'):
         ui.label('X-Fusion').classes('absolute top-2 right-6 text-[3rem] font-black text-slate-800 opacity-20 pointer-events-none -rotate-12 select-none z-0 tracking-tighter leading-tight')
         
-        # ✨✨✨ 修改点：原本这里只是一个控制中心文字，现在改为了文字+IP显示 ✨✨✨
-        sidebar_ip = app.storage.user.get('last_known_ip', 'Unknown')
-        with ui.row().classes('w-full items-center justify-between mb-4 z-10 relative'):
+        with ui.row().classes('w-full items-center mb-4 z-10 relative'):
             ui.label('控制中心').classes('text-sm font-black text-blue-500 tracking-widest uppercase')
-            
-            # 右侧：登陆IP显示 (深色背景，蓝色字体，绿色盾牌)
-            with ui.row().classes('items-center gap-1 bg-[#0f172a] px-2 py-0.5 rounded border border-slate-700 shadow-sm'):
-                ui.label('登陆IP:').classes('text-[11px] font-bold text-blue-500')
-                ui.icon('security', color='green-500').classes('text-xs')
-                ui.label(sidebar_ip).classes('text-[11px] font-mono font-bold text-blue-500')
-        # ✨✨✨ 修改点结束 ✨✨✨
 
         with ui.column().classes('w-full gap-2 z-10 relative'):
             ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(load_dashboard_stats())).props('flat align=left').classes(btn_top_style)

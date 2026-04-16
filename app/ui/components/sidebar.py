@@ -125,16 +125,10 @@ def render_sidebar_content():
 
     with ui.column().classes(theme['top_wrap']):
         ui.element('div').classes('absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
-        ui.label('X-Fusion').classes(theme['logo_text'])
+        ui.label('X-Fusion-pro').classes(theme['logo_text'])
 
-        sidebar_ip = app.storage.user.get('last_known_ip', 'Unknown')
-        with ui.row().classes('w-full items-center justify-between mb-4 z-10 relative'):
+        with ui.row().classes('w-full items-center mb-4 z-10 relative'):
             ui.label('控制中心').classes(theme['title'])
-
-            with ui.row().classes(theme['ip_wrap']):
-                ui.label('登陆IP:').classes(theme['ip_label'])
-                ui.icon('security', color='green-500').classes('text-xs')
-                ui.label(sidebar_ip).classes(theme['ip_value'])
 
         with ui.column().classes('w-full gap-2 z-10 relative'):
             ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(_load_dashboard())).props('flat align=left').classes(theme['top_btn'])
