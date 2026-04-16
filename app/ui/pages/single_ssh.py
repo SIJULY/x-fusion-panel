@@ -765,11 +765,11 @@ async def render_single_ssh_view(server_conf):
             children = tree_state['cache'].get(path, []) if is_expanded else []
             loading = path in tree_state['loading']
 
-            row_classes = 'w-full items-center gap-1 px-2 py-1 rounded-sm cursor-pointer transition-colors no-wrap border'
+            row_classes = 'w-full items-center gap-1 px-2 py-1 rounded-sm cursor-pointer transition-colors no-wrap'
             row_classes += ' bg-transparent'
 
             with ui.column().classes('w-full gap-0'):
-                with ui.row().classes(row_classes).style(f'padding-left: {5 + depth * 16}px; background: {"var(--xf-soft-bg)" if is_selected else "transparent"}; border-color: var(--xf-card-border);'):
+                with ui.row().classes(row_classes).style(f'padding-left: {5 + depth * 16}px; background: {"var(--xf-soft-bg)" if is_selected else "transparent"};'):
                     ui.button(icon='expand_more' if is_expanded else 'chevron_right',
                               on_click=lambda _, p=path: toggle_tree_node(p)).props(
                         'flat dense round size=xs color=grey').classes('!min-w-0 !p-0 opacity-80 shrink-0')

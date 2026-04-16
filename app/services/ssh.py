@@ -137,18 +137,27 @@ class WebSSH:
                     el.style.display = 'block';
                     el.style.position = 'relative';
 
+                    var darkTheme = {{
+                        background: '#000000',
+                        foreground: '#ffffff',
+                        cursor: '#22d3ee',
+                        cursorAccent: '#000000',
+                        selectionBackground: 'rgba(34, 211, 238, 0.28)'
+                    }};
+                    var lightTheme = {{
+                        background: '#eef4ff',
+                        foreground: '#0f172a',
+                        cursor: '#2563eb',
+                        cursorAccent: '#eef4ff',
+                        selectionBackground: 'rgba(37, 99, 235, 0.18)'
+                    }};
+
                     var term = new Terminal({{
                         cursorBlink: true,
                         fontSize: 13,
                         lineHeight: 1.2,
                         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-                        theme: {{
-                            background: '{term_bg}',
-                            foreground: '{term_fg}',
-                            cursor: '{term_cursor}',
-                            cursorAccent: '{term_bg}',
-                            selectionBackground: '{term_selection}'
-                        }},
+                        theme: {str({'background': term_bg, 'foreground': term_fg, 'cursor': term_cursor, 'cursorAccent': term_bg, 'selectionBackground': term_selection}).replace("'", '"')},
                         convertEol: true,
                         scrollback: 5000
                     }});
@@ -161,14 +170,31 @@ class WebSSH:
                     }}
 
                     term.open(el);
-                    var viewport = el.querySelector('.xterm-viewport');
-                    var screen = el.querySelector('.xterm-screen');
-                    var xtermRoot = el.querySelector('.xterm');
-                    if (xtermRoot) xtermRoot.style.backgroundColor = '{term_bg}';
-                    if (viewport) viewport.style.backgroundColor = '{term_bg}';
-                    if (screen) screen.style.backgroundColor = '{term_bg}';
-                    el.style.backgroundColor = '{term_bg}';
-                    el.style.color = '{term_fg}';
+
+                    var applyTermTheme = function(isDark) {{
+                        var theme = isDark ? darkTheme : lightTheme;
+                        var bg = theme.background;
+                        var fg = theme.foreground;
+                        var viewport = el.querySelector('.xterm-viewport');
+                        var screen = el.querySelector('.xterm-screen');
+                        var xtermRoot = el.querySelector('.xterm');
+                        if (term && term.options) term.options.theme = theme;
+                        if (xtermRoot) xtermRoot.style.backgroundColor = bg;
+                        if (viewport) viewport.style.backgroundColor = bg;
+                        if (screen) screen.style.backgroundColor = bg;
+                        el.style.backgroundColor = bg;
+                        el.style.color = fg;
+                        if (typeof term.refresh === 'function') {{
+                            try {{ term.refresh(0, Math.max((term.rows || 1) - 1, 0)); }} catch (e) {{}}
+                        }}
+                    }};
+
+                    window.{self.term_id}_applyTheme = applyTermTheme;
+                    window.{self.term_id}_themeListener = function(event) {{
+                        applyTermTheme(!!(event && event.detail && event.detail.isDark));
+                    }};
+                    window.addEventListener('xfusion-theme-change', window.{self.term_id}_themeListener);
+                    applyTermTheme({str(is_dark).lower()});
                     term.write('{term_ready}');
 
                     var doFit = function() {{
@@ -317,7 +343,13 @@ class WebSSH:
                 pass
         try:
             with self.container.client:
-                ui.run_javascript(f'if(window.{self.term_id}) window.{self.term_id}.dispose();')
+                ui.run_javascript(f"""
+                    if (window.{self.term_id}_themeListener) {{
+                        window.removeEventListener('xfusion-theme-change', window.{self.term_id}_themeListener);
+                        window.{self.term_id}_themeListener = null;
+                    }}
+                    if (window.{self.term_id}) window.{self.term_id}.dispose();
+                """)
         except:
             pass
 
