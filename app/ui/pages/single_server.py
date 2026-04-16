@@ -552,8 +552,9 @@ PY'''
                             'text-[11px] font-bold text-cyan-500/80 tracking-wide mb-[-6px]' if is_dark else 'text-[11px] font-bold text-sky-700/80 tracking-wide mb-[-6px]')
                         with ui.element('div').classes(
                                 'w-full rounded-sm border border-[#1e3a5f]/45 bg-[#08101d]/80 px-3 py-2 shadow-[0_0_8px_rgba(0,0,0,0.35)] transition-all hover:border-cyan-500/35' if is_dark else 'w-full rounded-sm border border-slate-300/90 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(148,163,184,0.10)] transition-all hover:border-sky-400/60'):
+                            # 修复点：移除导致 AST 崩溃的 bg-color="[#050b14]"
                             name_input = ui.input(value=node_data.get('remark', '')).classes('w-full').props(
-                                'dense outlined dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'dense outlined color=blue')
+                                'dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
 
                     async def save():
                         node_data['remark'] = name_input.value.strip()
