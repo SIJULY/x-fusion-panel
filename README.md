@@ -170,19 +170,33 @@ docker compose up -d --build
 - 面板：`8081 -> 8080`
 - 数据卷：`./data:/app/data`
 
-### install.sh 一键安装
+### install.sh 一键安装 / 更新
+
+仓库地址：
 
 ```bash README.md
-bash <(curl -Ls https://raw.githubusercontent.com/SIJULY/x-fusion-panel-pro/main/install.sh)
+https://github.com/SIJULY/x-fusion-panel.git
 ```
 
-或：
+直接执行安装脚本：
 
 ```bash README.md
-wget -O install.sh https://raw.githubusercontent.com/SIJULY/x-fusion-panel-pro/main/install.sh
+bash <(curl -Ls https://raw.githubusercontent.com/SIJULY/x-fusion-panel/main/install.sh)
+```
+
+或手动下载后执行：
+
+```bash README.md
+wget -O install.sh https://raw.githubusercontent.com/SIJULY/x-fusion-panel/main/install.sh
 chmod +x install.sh
 ./install.sh
 ```
+
+脚本菜单说明：
+
+- `1. 新安装面板`：用于全新部署，会初始化安装目录并生成部署配置
+- `2. 更新面板（保留数据）`：仅更新程序文件，保留 `data/`、现有 `docker-compose.yml` 和 `Caddyfile`
+- `3. 卸载面板`：停止并删除安装目录
 
 ---
 

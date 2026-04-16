@@ -52,17 +52,37 @@ check_docker() {
     fi
 }
 
-sync_source_code() {
+install_source_code() {
     if ! command -v git &> /dev/null; then
         apt-get update && apt-get install -y git
     fi
-    print_info "正在同步源码仓库..."
-    if [ -d "${INSTALL_DIR}/.git" ]; then
-        cd "${INSTALL_DIR}" && git reset --hard HEAD && git pull
-    else
-        rm -rf "${INSTALL_DIR}"
-        git clone "${GIT_REPO_URL}" "${INSTALL_DIR}"
+    print_info "正在拉取源码仓库..."
+    rm -rf "${INSTALL_DIR}"
+    git clone "${GIT_REPO_URL}" "${INSTALL_DIR}"
+}
+
+update_source_code() {
+    if ! command -v git &> /dev/null; then
+        apt-get update && apt-get install -y git
     fi
+
+    [ ! -d "${INSTALL_DIR}/.git" ] && print_error "未检测到已安装面板，请先执行安装"
+
+    print_info "正在更新程序文件（保留 data 与本地配置）..."
+    local backup_dir
+    backup_dir=$(mktemp -d)
+
+    [ -f "${INSTALL_DIR}/docker-compose.yml" ] && cp "${INSTALL_DIR}/docker-compose.yml" "${backup_dir}/docker-compose.yml"
+    [ -f "${INSTALL_DIR}/Caddyfile" ] && cp "${INSTALL_DIR}/Caddyfile" "${backup_dir}/Caddyfile"
+
+    cd "${INSTALL_DIR}"
+    git fetch origin
+    git reset --hard origin/main
+
+    [ -f "${backup_dir}/docker-compose.yml" ] && cp "${backup_dir}/docker-compose.yml" "${INSTALL_DIR}/docker-compose.yml"
+    [ -f "${backup_dir}/Caddyfile" ] && cp "${backup_dir}/Caddyfile" "${INSTALL_DIR}/Caddyfile"
+
+    rm -rf "${backup_dir}"
 }
 
 generate_compose() {
@@ -146,7 +166,7 @@ EOF
 install_panel() {
     [ "$(id -u)" -ne 0 ] && print_error "请用 root 运行"
     check_docker
-    sync_source_code
+    install_source_code
     mkdir -p ${INSTALL_DIR}/data
 
     # 账号配置
@@ -191,19 +211,37 @@ install_panel() {
     echo -e "初始密码: ${admin_pass}"
 }
 
+update_panel() {
+    [ "$(id -u)" -ne 0 ] && print_error "请用 root 运行"
+    check_docker
+    update_source_code
+    mkdir -p ${INSTALL_DIR}/data
+
+    print_info "开始重建并更新服务..."
+    cd ${INSTALL_DIR}
+    COMPOSE_CMD="$(get_compose_cmd)"
+    ${COMPOSE_CMD} up -d --build
+
+    print_success "X-Fusion Panel 更新完成！"
+    echo -e "数据目录已保留: ${GREEN}${INSTALL_DIR}/data${PLAIN}"
+    echo -e "本地部署配置已保留: ${GREEN}${INSTALL_DIR}/docker-compose.yml${PLAIN}"
+}
+
 # --- 菜单逻辑 ---
 clear
 echo "========================================="
 echo -e "${BLUE}    X-Fusion Panel 管理脚本 ${PLAIN}"
 echo "========================================="
-echo "  1. 安装/更新面板"
-echo "  2. 卸载面板"
+echo "  1. 新安装面板"
+echo "  2. 更新面板（保留数据）"
+echo "  3. 卸载面板"
 echo "  0. 退出"
 read -p "选择: " choice
 
 case $choice in
     1) install_panel ;;
-    2)
+    2) update_panel ;;
+    3)
         if [ -d "${INSTALL_DIR}" ]; then
             if get_compose_cmd &> /dev/null; then
                 COMPOSE_CMD="$(get_compose_cmd)"
