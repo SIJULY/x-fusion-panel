@@ -55,31 +55,40 @@ def build_globe_structure(is_dark: bool) -> str:
 
 
 def build_globe_js_logic(is_dark: bool) -> str:
-    background_color = 'transparent'
-    geo_area_color = '#1B2631' if is_dark else '#dbeafe'
-    geo_border_color = '#404a59' if is_dark else '#94a3b8'
-    geo_emphasis_color = '#2a333d' if is_dark else '#bfdbfe'
-    highlight_area_color = '#0055ff' if is_dark else '#60a5fa'
-    highlight_border_color = '#00ffff' if is_dark else '#0284c7'
-    scatter_color = '#00ffff' if is_dark else '#0284c7'
-    scatter_shadow = '#333' if is_dark else '#94a3b8'
-    scatter_label_color = '#fff' if is_dark else '#0f172a'
-    me_color = '#FFD700' if is_dark else '#f59e0b'
-    line_color = '#00ffff' if is_dark else '#38bdf8'
-    script = """
+    return """
 (function() {
     var container = document.getElementById('earth-render-area');
     if (!container) return;
 
     var serverData = window.DASHBOARD_DATA || [];
-
     var myLat = 39.9;
     var myLon = 116.4;
-
     var emojiFont = '"Twemoji Country Flags", "Noto Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif';
-
     var nodeCountEl = document.getElementById('node-count');
     var regionCountEl = document.getElementById('region-count');
+
+    function xfVar(name, fallback) {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return v || fallback;
+    }
+
+    function getPalette() {
+        const isLight = document.documentElement.classList.contains('light');
+        return {
+            background: 'transparent',
+            geoArea: isLight ? '#dbeafe' : '#172033',
+            geoBorder: isLight ? '#94a3b8' : '#334155',
+            geoEmphasis: isLight ? '#bfdbfe' : '#1e293b',
+            highlightArea: isLight ? '#60a5fa' : '#2563eb',
+            highlightBorder: xfVar('--xf-accent', isLight ? '#0284c7' : '#22d3ee'),
+            scatter: xfVar('--xf-accent', isLight ? '#0284c7' : '#22d3ee'),
+            scatterShadow: isLight ? 'rgba(148,163,184,0.65)' : 'rgba(15,23,42,0.9)',
+            scatterLabel: xfVar('--xf-text-strong', isLight ? '#0f172a' : '#e5eefc'),
+            me: isLight ? '#f59e0b' : '#facc15',
+            line: isLight ? '#38bdf8' : '#22d3ee'
+        };
+    }
+
     function updateStats(data) {
         if (nodeCountEl) nodeCountEl.textContent = data.length;
         const uniqueRegions = new Set(data.map(s => s.name));
@@ -90,27 +99,7 @@ def build_globe_js_logic(is_dark: bool) -> str:
     var existing = echarts.getInstanceByDom(container);
     if (existing) existing.dispose();
     var myChart = echarts.init(container);
-
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                myLat = position.coords.latitude;
-                myLon = position.coords.longitude;
-                var option = buildOption(window.cachedWorldJson, serverData, myLat, myLon);
-                myChart.setOption(option);
-            },
-            function() {},
-            { enableHighAccuracy: false, timeout: 2500, maximumAge: 600000 }
-        );
-    }
-
-    window.updateDashboardMap = function(newData) {
-        if (!window.cachedWorldJson || !myChart) return;
-        serverData = newData;
-        updateStats(newData);
-        var option = buildOption(window.cachedWorldJson, newData, myLat, myLon);
-        myChart.setOption(option);
-    };
+    window.dashboardMapChart = myChart;
 
     const searchKeys = {
         '🇺🇸': 'United States', '🇨🇳': 'China', '🇭🇰': 'China', '🇹🇼': 'China', '🇯🇵': 'Japan', '🇰🇷': 'Korea',
@@ -119,6 +108,7 @@ def build_globe_js_logic(is_dark: bool) -> str:
     };
 
     function buildOption(mapGeoJSON, data, userLat, userLon) {
+        const colors = getPalette();
         const mapFeatureNames = mapGeoJSON.features.map(f => f.properties.name);
         const activeMapNames = new Set();
 
@@ -137,37 +127,35 @@ def build_globe_js_logic(is_dark: bool) -> str:
 
         const highlightRegions = Array.from(activeMapNames).map(name => ({
             name: name,
-            itemStyle: { areaColor: '__HIGHLIGHT_AREA__', borderColor: '__HIGHLIGHT_BORDER__', borderWidth: 1.5, opacity: 0.9 }
+            itemStyle: { areaColor: colors.highlightArea, borderColor: colors.highlightBorder, borderWidth: 1.5, opacity: 0.9 }
         }));
 
         const scatterData = data.map(s => ({
             name: s.name,
             value: [s.lon, s.lat],
-            itemStyle: { color: '__SCATTER_COLOR__' }
+            itemStyle: { color: colors.scatter }
         }));
 
         scatterData.push({
             name: 'ME',
             value: [userLon, userLat],
-            itemStyle: { color: '__ME_COLOR__' },
+            itemStyle: { color: colors.me },
             symbolSize: 15,
-            label: { show: true, position: 'top', formatter: 'My PC', color: '__ME_COLOR__' }
+            label: { show: true, position: 'top', formatter: 'My PC', color: colors.me }
         });
 
-        const linesData = data.map(s => ({
-            coords: [[s.lon, s.lat], [userLon, userLat]]
-        }));
+        const linesData = data.map(s => ({ coords: [[s.lon, s.lat], [userLon, userLat]] }));
 
         return {
-            backgroundColor: '__BACKGROUND_COLOR__',
+            backgroundColor: colors.background,
             geo: {
                 map: 'world',
                 roam: false,
                 zoom: 1.2,
                 center: [15, 10],
                 label: { show: false },
-                itemStyle: { areaColor: '__GEO_AREA__', borderColor: '__GEO_BORDER__', borderWidth: 1 },
-                emphasis: { itemStyle: { areaColor: '__GEO_EMPHASIS__' }, label: { show: false } },
+                itemStyle: { areaColor: colors.geoArea, borderColor: colors.geoBorder, borderWidth: 1 },
+                emphasis: { itemStyle: { areaColor: colors.geoEmphasis }, label: { show: false } },
                 regions: highlightRegions
             },
             series: [
@@ -175,8 +163,8 @@ def build_globe_js_logic(is_dark: bool) -> str:
                     type: 'lines',
                     coordinateSystem: 'geo',
                     zlevel: 2,
-                    effect: { show: true, period: 4, trailLength: 0.5, color: '__LINE_COLOR__', symbol: 'arrow', symbolSize: 6 },
-                    lineStyle: { color: '__LINE_COLOR__', width: 1, opacity: 0, curveness: 0.2 },
+                    effect: { show: true, period: 4, trailLength: 0.5, color: colors.line, symbol: 'arrow', symbolSize: 6 },
+                    lineStyle: { color: colors.line, width: 1, opacity: 0, curveness: 0.2 },
                     data: linesData
                 },
                 {
@@ -185,12 +173,12 @@ def build_globe_js_logic(is_dark: bool) -> str:
                     zlevel: 3,
                     symbol: 'circle',
                     symbolSize: 12,
-                    itemStyle: { color: '__SCATTER_COLOR__', shadowBlur: 10, shadowColor: '__SCATTER_SHADOW__' },
+                    itemStyle: { color: colors.scatter, shadowBlur: 10, shadowColor: colors.scatterShadow },
                     label: {
                         show: true,
                         position: 'right',
                         formatter: '{b}',
-                        color: '__SCATTER_LABEL__',
+                        color: colors.scatterLabel,
                         fontSize: 16,
                         fontWeight: 'bold',
                         fontFamily: emojiFont
@@ -201,30 +189,44 @@ def build_globe_js_logic(is_dark: bool) -> str:
         };
     }
 
+    function applyMap(data) {
+        if (!window.cachedWorldJson || !myChart) return;
+        updateStats(data);
+        myChart.setOption(buildOption(window.cachedWorldJson, data, myLat, myLon), true);
+    }
+
+    window.updateDashboardMap = function(newData) {
+        serverData = newData;
+        applyMap(newData);
+    };
+
+    window.updateDashboardMapTheme = function() {
+        applyMap(serverData);
+    };
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                myLat = position.coords.latitude;
+                myLon = position.coords.longitude;
+                applyMap(serverData);
+            },
+            function() {},
+            { enableHighAccuracy: false, timeout: 2500, maximumAge: 600000 }
+        );
+    }
+
     fetch('/static/world.json')
         .then(response => response.json())
         .then(worldJson => {
             echarts.registerMap('world', worldJson);
             window.cachedWorldJson = worldJson;
-            var option = buildOption(worldJson, serverData, myLat, myLon);
-            myChart.setOption(option);
+            applyMap(serverData);
             window.addEventListener('resize', () => myChart.resize());
             new ResizeObserver(() => myChart.resize()).observe(container);
         });
 })();
 """
-    return (script
-        .replace('__BACKGROUND_COLOR__', background_color)
-        .replace('__GEO_AREA__', geo_area_color)
-        .replace('__GEO_BORDER__', geo_border_color)
-        .replace('__GEO_EMPHASIS__', geo_emphasis_color)
-        .replace('__HIGHLIGHT_AREA__', highlight_area_color)
-        .replace('__HIGHLIGHT_BORDER__', highlight_border_color)
-        .replace('__SCATTER_COLOR__', scatter_color)
-        .replace('__SCATTER_SHADOW__', scatter_shadow)
-        .replace('__SCATTER_LABEL__', scatter_label_color)
-        .replace('__ME_COLOR__', me_color)
-        .replace('__LINE_COLOR__', line_color))
 
 
 async def refresh_dashboard_ui():
@@ -249,12 +251,23 @@ async def refresh_dashboard_ui():
         if DASHBOARD_REFS.get('subs'):
             DASHBOARD_REFS['subs'].set_text(data['subs'])
 
+        text_strong = '#e5eefc' if app.storage.user.get('is_dark', True) else '#0f172a'
+        text_muted = '#94a3b8' if app.storage.user.get('is_dark', True) else '#475569'
+        split_line = '#1e3a5f' if app.storage.user.get('is_dark', True) else '#cbd5e1'
+        pie_border = '#070b14' if app.storage.user.get('is_dark', True) else '#ffffff'
+
         if DASHBOARD_REFS.get('bar_chart'):
             DASHBOARD_REFS['bar_chart'].options['xAxis']['data'] = data['bar_chart']['names']
+            DASHBOARD_REFS['bar_chart'].options['xAxis']['axisLabel']['color'] = text_muted
+            DASHBOARD_REFS['bar_chart'].options['yAxis']['axisLabel']['color'] = text_muted
+            DASHBOARD_REFS['bar_chart'].options['yAxis']['splitLine']['lineStyle']['color'] = split_line
             DASHBOARD_REFS['bar_chart'].options['series'][0]['data'] = data['bar_chart']['values']
             DASHBOARD_REFS['bar_chart'].update()
 
         if DASHBOARD_REFS.get('pie_chart'):
+            DASHBOARD_REFS['pie_chart'].options['legend']['textStyle']['color'] = text_muted
+            DASHBOARD_REFS['pie_chart'].options['series'][0]['itemStyle']['borderColor'] = pie_border
+            DASHBOARD_REFS['pie_chart'].options['series'][0]['emphasis']['label']['color'] = text_strong
             DASHBOARD_REFS['pie_chart'].options['series'][0]['data'] = data['pie_chart']
             DASHBOARD_REFS['pie_chart'].update()
 
@@ -283,7 +296,7 @@ async def refresh_dashboard_ui():
 
         if CURRENT_VIEW_STATE.get('scope') == 'DASHBOARD':
             json_data = json.dumps(globe_data_list, ensure_ascii=False)
-            ui.run_javascript(f'if(window.updateDashboardMap) window.updateDashboardMap({json_data});')
+            ui.run_javascript(f'if(window.updateDashboardMap) window.updateDashboardMap({json_data}); if(window.updateDashboardMapTheme) window.updateDashboardMapTheme();')
 
     except Exception as e:
         logger.error(f"UI 更新失败: {e}")
@@ -398,22 +411,30 @@ async def load_dashboard_stats():
                 ui.label('Dashboard Overview').classes(overview_sub_cls).style('color: var(--xf-accent); opacity: 0.7;')
 
         with ui.row().classes('w-full gap-4 mb-6 items-stretch'):
-            def create_stat_card(ref_key, dom_id, title, sub_text, icon, dark_gradient, light_gradient, init_val):
+            def create_stat_card(ref_key, dom_id, title, sub_text, icon, dark_gradient, light_gradient, dark_badge, light_badge, dark_icon_bg, light_icon_bg, init_val):
                 gradient = dark_gradient if is_dark else light_gradient
-                with ui.card().classes(stat_card_base).style(f'background: {gradient}; border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);'):
-                    ui.element('div').classes('absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl').style('background: color-mix(in srgb, white 18%, transparent); opacity: 0.5;')
-                    ui.element('div').classes('absolute inset-0 pointer-events-none').style('background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 45%);')
+                badge_color = dark_badge if is_dark else light_badge
+                icon_bg = dark_icon_bg if is_dark else light_icon_bg
+                title_color = 'rgba(226, 232, 240, 0.88)' if is_dark else '#334155'
+                value_color = '#f8fafc' if is_dark else '#0f172a'
+                sub_color = 'rgba(191, 219, 254, 0.82)' if is_dark else '#475569'
+                with ui.card().classes(stat_card_base).style(f'background: {gradient}; border-color: color-mix(in srgb, {badge_color} 32%, var(--xf-card-border)); box-shadow: 0 14px 30px rgba(15,23,42,0.14);'):
+                    ui.element('div').classes('absolute -right-8 -top-8 w-28 h-28 rounded-full blur-2xl').style(f'background: color-mix(in srgb, {badge_color} 28%, white 12%); opacity: 0.95;')
+                    ui.element('div').classes('absolute inset-0 pointer-events-none').style('background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 50%);')
                     with ui.row().classes('items-center justify-between w-full relative z-10'):
                         with ui.column().classes('gap-0'):
-                            ui.label(title).classes(stat_title_cls).style('color: var(--xf-text-muted);')
-                            DASHBOARD_REFS[ref_key] = ui.label(init_val).props(f'id={dom_id}').classes(stat_value_cls).style('color: var(--xf-text-strong);')
-                            ui.label(sub_text).classes(stat_subtext_cls).style('color: var(--xf-text-muted);')
-                        ui.icon(icon).classes(stat_icon_cls).style('color: var(--xf-accent);')
+                            with ui.row().classes('items-center gap-2 mb-1'):
+                                ui.element('div').classes('h-2 w-2 rounded-full').style(f'background: {badge_color}; box-shadow: 0 0 10px {badge_color};')
+                                ui.label(title).classes(stat_title_cls).style(f'color: {title_color};')
+                            DASHBOARD_REFS[ref_key] = ui.label(init_val).props(f'id={dom_id}').classes(stat_value_cls).style(f'color: {value_color}; text-shadow: 0 2px 12px rgba(15,23,42,0.18);')
+                            ui.label(sub_text).classes(stat_subtext_cls).style(f'color: {sub_color};')
+                        with ui.element('div').classes('w-14 h-14 rounded-2xl flex items-center justify-center border').style(f'background: {icon_bg}; border-color: color-mix(in srgb, {badge_color} 40%, transparent);'):
+                            ui.icon(icon).classes(stat_icon_cls).style(f'color: {badge_color}; opacity: 1;')
 
-            create_stat_card('servers', 'stat-servers', '在线服务器', 'Online / Total', 'dns', 'bg-gradient-to-br from-[#123a67] to-[#09162a]', 'bg-gradient-to-br from-[#eff6ff] to-[#dbeafe]', init_data['servers'])
-            create_stat_card('nodes', 'stat-nodes', '节点总数', 'Active Nodes', 'hub', 'bg-gradient-to-br from-[#3a1d67] to-[#120a24]', 'bg-gradient-to-br from-[#f5f3ff] to-[#ede9fe]', init_data['nodes'])
-            create_stat_card('traffic', 'stat-traffic', '总流量消耗', 'Total Usage', 'bolt', 'bg-gradient-to-br from-[#0f5132] to-[#071b14]', 'bg-gradient-to-br from-[#ecfdf5] to-[#d1fae5]', init_data['traffic'])
-            create_stat_card('subs', 'stat-subs', '订阅配置', 'Subscriptions', 'rss_feed', 'bg-gradient-to-br from-[#7a3412] to-[#220a08]', 'bg-gradient-to-br from-[#fff7ed] to-[#ffedd5]', init_data['subs'])
+            create_stat_card('servers', 'stat-servers', '在线服务器', 'Online / Total', 'dns', 'linear-gradient(135deg, #0f172a 0%, #102a43 45%, #155e75 100%)', 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #bfdbfe 100%)', '#38bdf8', '#0284c7', 'rgba(14, 165, 233, 0.14)', 'rgba(255,255,255,0.72)', init_data['servers'])
+            create_stat_card('nodes', 'stat-nodes', '节点总数', 'Active Nodes', 'hub', 'linear-gradient(135deg, #1e1b4b 0%, #312e81 45%, #6d28d9 100%)', 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 55%, #ddd6fe 100%)', '#a78bfa', '#7c3aed', 'rgba(139, 92, 246, 0.14)', 'rgba(255,255,255,0.76)', init_data['nodes'])
+            create_stat_card('traffic', 'stat-traffic', '总流量消耗', 'Total Usage', 'bolt', 'linear-gradient(135deg, #052e2b 0%, #065f46 50%, #0f766e 100%)', 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 55%, #ccfbf1 100%)', '#34d399', '#059669', 'rgba(16, 185, 129, 0.14)', 'rgba(255,255,255,0.76)', init_data['traffic'])
+            create_stat_card('subs', 'stat-subs', '订阅配置', 'Subscriptions', 'rss_feed', 'linear-gradient(135deg, #431407 0%, #9a3412 55%, #ea580c 100%)', 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 55%, #fed7aa 100%)', '#fb923c', '#ea580c', 'rgba(249, 115, 22, 0.14)', 'rgba(255,255,255,0.76)', init_data['subs'])
             logger.info(f"[Dashboard] stat refs assigned | refs_now={list(DASHBOARD_REFS.keys())}")
 
         with ui.row().classes('w-full gap-6 mb-6 flex-wrap xl:flex-nowrap items-stretch'):
@@ -425,11 +446,12 @@ async def load_dashboard_stats():
                         ui.label('Live').classes(live_text_cls).style('color: #22c55e;')
 
                 DASHBOARD_REFS['bar_chart'] = ui.echart({
-                    'tooltip': {'trigger': 'axis'},
+                    'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'},
+                    'tooltip': {'trigger': 'axis', 'backgroundColor': '#0f172a' if is_dark else '#ffffff', 'borderColor': '#334155' if is_dark else '#cbd5e1', 'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'}},
                     'grid': {'left': '2%', 'right': '3%', 'bottom': '2%', 'top': '10%', 'containLabel': True},
-                    'xAxis': {'type': 'category', 'data': init_data['bar_chart']['names'], 'axisLabel': {'interval': 0, 'rotate': 30, 'color': '#94a3b8' if is_dark else '#475569', 'fontSize': 10}},
-                    'yAxis': {'type': 'value', 'splitLine': {'lineStyle': {'type': 'dashed', 'color': '#1e3a5f' if is_dark else '#cbd5e1'}}, 'axisLabel': {'color': '#94a3b8' if is_dark else '#475569'}},
-                    'series': [{'type': 'bar', 'data': init_data['bar_chart']['values'], 'barWidth': '40%', 'itemStyle': {'borderRadius': [3, 3, 0, 0], 'color': '#06b6d4'}}]
+                    'xAxis': {'type': 'category', 'data': init_data['bar_chart']['names'], 'axisLine': {'lineStyle': {'color': '#334155' if is_dark else '#cbd5e1'}}, 'axisLabel': {'interval': 0, 'rotate': 30, 'color': '#94a3b8' if is_dark else '#475569', 'fontSize': 10}},
+                    'yAxis': {'type': 'value', 'axisLine': {'show': False}, 'splitLine': {'lineStyle': {'type': 'dashed', 'color': '#1e3a5f' if is_dark else '#cbd5e1'}}, 'axisLabel': {'color': '#94a3b8' if is_dark else '#475569'}},
+                    'series': [{'type': 'bar', 'data': init_data['bar_chart']['values'], 'barWidth': '40%', 'itemStyle': {'borderRadius': [6, 6, 0, 0], 'color': '#06b6d4'}}]
                 }).classes('w-full h-64').props('id=chart-bar')
 
             with ui.card().classes(f'xl:w-1/3 {chart_card_cls}').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);'):
@@ -437,8 +459,9 @@ async def load_dashboard_stats():
                 color_palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6', '#f97316']
 
                 DASHBOARD_REFS['pie_chart'] = ui.echart({
-                    'tooltip': {'trigger': 'item', 'formatter': '{b}: <br/><b>{c} 台</b> ({d}%)'},
-                    'legend': {'bottom': '0%', 'left': 'center', 'icon': 'circle', 'itemGap': 10, 'textStyle': {'color': '#e2e8f0' if is_dark else '#334155', 'fontSize': 11}},
+                    'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'},
+                    'tooltip': {'trigger': 'item', 'formatter': '{b}: <br/><b>{c} 台</b> ({d}%)', 'backgroundColor': '#0f172a' if is_dark else '#ffffff', 'borderColor': '#334155' if is_dark else '#cbd5e1', 'textStyle': {'color': '#e5eefc' if is_dark else '#0f172a'}},
+                    'legend': {'bottom': '0%', 'left': 'center', 'icon': 'circle', 'itemGap': 10, 'textStyle': {'color': '#94a3b8' if is_dark else '#475569', 'fontSize': 11}},
                     'color': color_palette,
                     'series': [{
                         'name': '服务器分布',
@@ -448,7 +471,7 @@ async def load_dashboard_stats():
                         'avoidLabelOverlap': False,
                         'itemStyle': {'borderRadius': 4, 'borderColor': '#070b14' if is_dark else '#ffffff', 'borderWidth': 2},
                         'label': {'show': False, 'position': 'center'},
-                        'emphasis': {'label': {'show': True, 'fontSize': 16, 'fontWeight': 'bold', 'color': '#fff'}, 'scale': True, 'scaleSize': 5},
+                        'emphasis': {'label': {'show': True, 'fontSize': 16, 'fontWeight': 'bold', 'color': '#e5eefc' if is_dark else '#0f172a'}, 'scale': True, 'scaleSize': 5},
                         'labelLine': {'show': False},
                         'data': init_data['pie_chart']
                     }]
@@ -490,3 +513,4 @@ async def load_dashboard_stats():
                 ui.html(build_globe_structure(is_dark), sanitize=False).classes('w-full h-[650px] overflow-hidden')
                 ui.run_javascript(f'window.DASHBOARD_DATA = {json_data};')
                 ui.run_javascript(build_globe_js_logic(is_dark))
+                ui.run_javascript('setTimeout(() => { if(window.updateDashboardMapTheme) window.updateDashboardMapTheme(); }, 60)')
