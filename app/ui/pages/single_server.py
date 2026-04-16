@@ -96,9 +96,13 @@ async def render_single_server_view(server_conf, force_refresh=False):
                 return 'color: var(--xf-text-strong); text-shadow: 0 1px 1px rgba(15,23,42,0.35);'
 
             def render_progress_row(label, pct, text, accent='#22d3ee'):
-                with ui.row().classes('w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm border border-l-[3px] flex-nowrap').style(f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {accent}; box-shadow: 0 6px 18px rgba(15,23,42,0.10);'):
-                    ui.label(label).classes('text-[11px] font-bold tracking-wider leading-none shrink-0').style(f'color: {accent};')
-                    with ui.element('div').classes('w-1/2 max-w-[190px] ml-auto rounded-none h-[24px] relative overflow-hidden border shrink-0').style('background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
+                progress_row_cls = 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm border border-l-[3px] flex-nowrap relative overflow-hidden group transition-all'
+                progress_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
+                glow_shadow = f'0 0 0 1px color-mix(in srgb, {accent} 18%, transparent), 0 0 16px color-mix(in srgb, {accent} {36 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
+                with ui.row().classes(progress_row_cls).style(f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {accent}; box-shadow: {glow_shadow};'):
+                    ui.element('div').classes(progress_overlay_cls).style(f'background: linear-gradient(to right, color-mix(in srgb, {accent} 16%, transparent), transparent);')
+                    ui.label(label).classes('text-[11px] font-bold tracking-wider leading-none shrink-0 z-10').style(f'color: {accent};')
+                    with ui.element('div').classes('w-1/2 max-w-[190px] ml-auto rounded-none h-[24px] relative overflow-hidden border shrink-0 z-10').style('background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
                         ui.element('div').classes('h-full transition-all duration-500').style(f'width: {pct}%; background: {accent}; box-shadow: 0 0 10px color-mix(in srgb, {accent} 60%, transparent);')
                         ui.label(text).classes(progress_text_class(pct)).style(progress_text_style(pct))
 
@@ -351,30 +355,32 @@ PY'''
                                 server_conf.get('probe_installed') and server_conf.get('ssh_host'))
 
                         # 🛠️ 科技风：节点列表行
-                        row_tech_cls = 'grid w-full gap-4 py-2.5 px-3 mb-2 items-center group border border-l-[3px] transition-all duration-300 cursor-default rounded-sm'
+                        row_tech_cls = 'grid w-full gap-4 py-2.5 px-3 mb-2 items-center group border border-l-[3px] transition-all duration-300 cursor-default rounded-sm relative overflow-hidden'
+                        row_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
                         row_accent = '#a855f7' if is_custom else ('#14b8a6' if is_ssh_mode else '#3b82f6')
                         row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
                         with ui.element('div').classes(row_tech_cls).style(f'{SINGLE_COLS_NO_PING} background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
+                            ui.element('div').classes(row_overlay_cls).style(f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
                             ui.label(n.get('remark', '未命名')).classes(
-                                'font-bold truncate w-full text-left pl-1 text-[13px] transition-colors').style('color: var(--xf-text-strong);')
+                                'font-bold truncate w-full text-left pl-1 text-[13px] transition-colors relative z-10').style('color: var(--xf-text-strong);')
                             if is_custom:
                                 ui.label('独立').classes(
-                                    'text-[10px] text-purple-400 font-black w-fit mx-auto tracking-wider')
+                                    'text-[10px] text-purple-400 font-black w-fit mx-auto tracking-wider relative z-10')
                             elif is_ssh_mode:
                                 ui.label('Root').classes(
-                                    'text-[10px] text-teal-400 font-black w-fit mx-auto tracking-wider')
+                                    'text-[10px] text-teal-400 font-black w-fit mx-auto tracking-wider relative z-10')
                             else:
                                 ui.label('API').classes(
-                                    'text-[10px] text-blue-300 font-black w-fit mx-auto tracking-wider')
+                                    'text-[10px] text-blue-300 font-black w-fit mx-auto tracking-wider relative z-10')
 
                             traffic = format_bytes(n.get('up', 0) + n.get('down', 0)) if not is_custom else '--'
                             ui.label(traffic).classes(
-                                'text-[11px] w-full text-center font-mono font-bold tracking-wide').style('color: var(--xf-accent); opacity: 0.8;')
+                                'text-[11px] w-full text-center font-mono font-bold tracking-wide relative z-10').style('color: var(--xf-accent); opacity: 0.8;')
                             proto = str(n.get('protocol', 'unk')).upper()
                             ui.label(proto).classes(
-                                'text-[10px] font-black w-full text-center tracking-widest').style('color: var(--xf-text-muted);')
+                                'text-[10px] font-black w-full text-center tracking-widest relative z-10').style('color: var(--xf-text-muted);')
                             ui.label(str(n.get('port', 0))).classes(
-                                'font-mono w-full text-center font-bold text-[11px]').style('color: var(--xf-accent);')
+                                'font-mono w-full text-center font-bold text-[11px] relative z-10').style('color: var(--xf-accent);')
                             is_enable = n.get('enable', True)
                             with ui.row().classes('w-full justify-center items-center gap-1.5'):
                                 color = 'emerald' if is_enable else 'rose'
