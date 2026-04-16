@@ -38,7 +38,7 @@ def _sidebar_theme():
         'btn_settings_text': '',
         'top_btn': 'w-full border rounded-sm font-bold px-3 py-2 transition-all',
         'top_wrap': 'w-full p-4 border-b flex-shrink-0 relative overflow-hidden',
-        'logo_text': 'absolute top-2 right-6 text-[3rem] font-black opacity-40 pointer-events-none -rotate-12 select-none z-0 tracking-tighter leading-tight',
+        'logo_text': 'hidden',
         'title': 'text-sm font-black tracking-widest uppercase z-10',
         'ip_wrap': 'items-center gap-1 px-2 py-0.5 rounded-sm border z-10',
         'ip_label': 'text-[11px] font-bold',
@@ -128,10 +128,10 @@ def render_sidebar_content():
         ui.element('div').classes('absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
         ui.label('X-Fusion-pro').classes(theme['logo_text']).style('color: var(--xf-accent);')
 
-        with ui.row().classes('w-full items-center mb-4 z-10 relative'):
+        with ui.row().classes('w-full items-center mb-2 z-10 relative'):
             ui.label('控制中心').classes(theme['title']).style('color: var(--xf-accent);')
 
-        with ui.column().classes('w-full gap-2 z-10 relative'):
+        with ui.column().classes('w-full gap-2 z-10 relative -mt-1'):
             ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(_load_dashboard())).props('flat align=left').classes(theme['top_btn']).style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); color: var(--xf-text-strong);')
             ui.button('探针设置', icon='tune', on_click=lambda: asyncio.create_task(_render_probe())).props('flat align=left').classes(theme['top_btn']).style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); color: var(--xf-text-strong);')
             ui.button('订阅管理', icon='rss_feed', on_click=lambda: asyncio.create_task(_load_subs())).props('flat align=left').classes(theme['top_btn']).style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); color: var(--xf-text-strong);')
@@ -197,7 +197,7 @@ def render_sidebar_content():
                 with ui.element('div').classes('w-full').on('dragover.prevent', lambda _: None).on('drop', lambda e, n=tag_group: on_tag_drop(e, n)):
                     with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_custom']).props(theme['expansion_header_props']).style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                         with exp.add_slot('header'):
-                            with ui.row().classes('w-full h-full items-center justify-between no-wrap p-3 cursor-pointer group/header transition-all').style('background: var(--xf-elevated-bg); color: var(--xf-text-strong);').on('click', lambda _, g=tag_group: open_tag_group(g)):
+                            with ui.row().classes('w-full h-full items-center justify-between no-wrap py-2 px-3 cursor-pointer group/header transition-all').style('background: var(--xf-elevated-bg); color: var(--xf-text-strong);').on('click', lambda _, g=tag_group: open_tag_group(g)):
                                 with ui.row().classes('items-center gap-3 flex-grow overflow-hidden no-wrap'):
                                     ui.icon('drag_indicator').props('draggable="true"').classes(theme['drag_icon']).on('dragstart', lambda e, n=tag_group: on_drag_start(e, n)).on('click.stop').tooltip('按住拖拽')
 
@@ -260,7 +260,7 @@ def render_sidebar_content():
                 with ui.element('div').classes('w-full').on('dragover.prevent', lambda _: None).on('drop', lambda e, n=c_name: on_region_drop(e, n)):
                     with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_region']).props(theme['expansion_header_props']).style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(lambda e, g=c_name: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                         with exp.add_slot('header'):
-                            with ui.row().classes('w-full h-full items-center justify-between no-wrap p-3 cursor-pointer group/header transition-all').style('background: var(--xf-elevated-bg); color: var(--xf-text-strong);').on('click', lambda _, g=c_name: open_country_group(g)):
+                            with ui.row().classes('w-full h-full items-center justify-between no-wrap py-2 px-3 cursor-pointer group/header transition-all').style('background: var(--xf-elevated-bg); color: var(--xf-text-strong);').on('click', lambda _, g=c_name: open_country_group(g)):
                                 with ui.row().classes('items-center gap-3 flex-grow overflow-hidden'):
                                     ui.icon('drag_indicator').props('draggable="true"').classes(theme['drag_icon']).on('dragstart', lambda e, n=c_name: on_drag_start(e, n)).on('click.stop').tooltip('按住拖拽')
                                     with ui.row().classes('items-center gap-2 flex-grow'):
