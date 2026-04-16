@@ -943,7 +943,7 @@ async def render_single_ssh_view(server_conf):
                     render_conn_btn()
 
                 terminal_box = ui.element('div').classes('w-full overflow-hidden border-t').style(
-                    'height: 580px; min-height: 580px; position: relative; background: var(--xf-code-bg); border-top-color: var(--xf-card-border);')
+                    'height: 550px; min-height: 550px; position: relative; background: var(--xf-code-bg); border-top-color: var(--xf-card-border);')
                 with terminal_box:
                     with ui.column().classes('w-full h-full items-center justify-center text-slate-500'):
                         ui.label('正在初始化 SSH 终端...').classes('text-sm')
