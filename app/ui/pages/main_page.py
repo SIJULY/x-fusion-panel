@@ -1,4 +1,5 @@
 import asyncio
+import json
 import uuid
 
 from fastapi import Request
@@ -17,6 +18,33 @@ from app.utils.network import get_dynamic_origin
 
 
 def main_page(request: Request):
+    def build_theme(is_dark: bool):
+        return {
+            'body_bg': 'radial-gradient(circle at top, rgba(34,211,238,0.08), transparent 28%), linear-gradient(180deg, #050a14 0%, #030712 100%)' if is_dark else 'radial-gradient(circle at top, rgba(59,130,246,0.10), transparent 24%), linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%)',
+            'body_text': '#e2e8f0' if is_dark else '#0f172a',
+            'card_bg': '#070b14' if is_dark else '#ffffff',
+            'card_border': 'rgba(30,58,95,0.55)' if is_dark else 'rgba(148,163,184,0.35)',
+            'drawer_bg': '#070b14' if is_dark else '#f8fbff',
+            'scroll_track': '#030712' if is_dark else '#e2e8f0',
+            'scroll_thumb': '#1e3a5f' if is_dark else '#94a3b8',
+            'scroll_thumb_hover': '#2563eb' if is_dark else '#64748b',
+            'content_bg': '#030712' if is_dark else '#eef4ff',
+            'tooltip_bg': '#050b14' if is_dark else '#f8fbff',
+            'tooltip_text': '#f1f5f9' if is_dark else '#334155',
+            'tooltip_border': 'rgba(6,182,212,0.35)' if is_dark else '#cbd5e1',
+            'tooltip_shadow': '0 6px 18px rgba(0,0,0,0.35)' if is_dark else '0 8px 20px rgba(148,163,184,0.18)',
+            'header_classes': 'bg-gradient-to-r from-[#070e1a] to-[#0a1526] text-white h-14 border-b border-[#1e3a5f]/60 shadow-[0_4px_20px_rgba(0,0,0,0.6)]' if is_dark else 'bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] text-slate-900 h-14 border-b border-[#cbd5e1] shadow-[0_4px_16px_rgba(148,163,184,0.18)]',
+            'drawer_classes': 'bg-[#070b14] border-r border-[#1e3a5f]/55' if is_dark else 'bg-[#f8fbff] border-r border-[#cbd5e1]/80',
+            'menu_btn_classes': 'text-slate-300 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-600 hover:text-blue-600 hover:bg-blue-100/80',
+            'title_classes': 'text-xl font-black ml-2 tracking-wide text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.55)]' if is_dark else 'text-xl font-black ml-2 tracking-wide text-sky-700',
+            'security_btn_classes': 'text-rose-400 hover:bg-rose-950/30 hover:text-rose-300' if is_dark else 'text-rose-500 hover:bg-rose-100 hover:text-rose-600',
+            'key_btn_classes': 'text-slate-400 hover:bg-cyan-950/30 hover:text-cyan-300' if is_dark else 'text-slate-500 hover:bg-sky-100 hover:text-sky-600',
+            'theme_btn_classes': 'text-amber-300 hover:bg-amber-950/30 hover:text-yellow-200' if is_dark else 'text-slate-500 hover:bg-indigo-100 hover:text-indigo-600',
+            'logout_btn_classes': 'text-slate-400 hover:bg-slate-800/50 hover:text-cyan-300' if is_dark else 'text-slate-500 hover:bg-slate-200 hover:text-slate-700',
+            'theme_icon': 'light_mode' if is_dark else 'dark_mode',
+            'theme_tooltip': '切换到浅色模式' if is_dark else '切换到深色模式',
+        }
+
     is_dark = bool(app.storage.user.get('is_dark', False))
     app.storage.user['is_dark'] = is_dark
 
@@ -26,27 +54,7 @@ def main_page(request: Request):
     else:
         dark.disable()
 
-    theme = {
-        'body_bg': 'radial-gradient(circle at top, rgba(34,211,238,0.08), transparent 28%), linear-gradient(180deg, #050a14 0%, #030712 100%)' if is_dark else 'radial-gradient(circle at top, rgba(59,130,246,0.10), transparent 24%), linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%)',
-        'body_text': '#e2e8f0' if is_dark else '#0f172a',
-        'card_bg': '#070b14' if is_dark else '#ffffff',
-        'card_border': 'rgba(30,58,95,0.55)' if is_dark else 'rgba(148,163,184,0.35)',
-        'drawer_bg': '#070b14' if is_dark else '#f8fbff',
-        'scroll_track': '#030712' if is_dark else '#e2e8f0',
-        'scroll_thumb': '#1e3a5f' if is_dark else '#94a3b8',
-        'scroll_thumb_hover': '#2563eb' if is_dark else '#64748b',
-        'content_bg': '#030712' if is_dark else '#eef4ff',
-        'header_classes': 'bg-gradient-to-r from-[#070e1a] to-[#0a1526] text-white h-14 border-b border-[#1e3a5f]/60 shadow-[0_4px_20px_rgba(0,0,0,0.6)]' if is_dark else 'bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] text-slate-900 h-14 border-b border-[#cbd5e1] shadow-[0_4px_16px_rgba(148,163,184,0.18)]',
-        'drawer_classes': 'bg-[#070b14] border-r border-[#1e3a5f]/55' if is_dark else 'bg-[#f8fbff] border-r border-[#cbd5e1]/80',
-        'menu_btn_classes': 'text-slate-300 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-600 hover:text-blue-600 hover:bg-blue-100/80',
-        'title_classes': 'text-xl font-black ml-2 tracking-wide text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.55)]' if is_dark else 'text-xl font-black ml-2 tracking-wide text-sky-700',
-        'security_btn_classes': 'text-rose-400 hover:bg-rose-950/30 hover:text-rose-300' if is_dark else 'text-rose-500 hover:bg-rose-100 hover:text-rose-600',
-        'key_btn_classes': 'text-slate-400 hover:bg-cyan-950/30 hover:text-cyan-300' if is_dark else 'text-slate-500 hover:bg-sky-100 hover:text-sky-600',
-        'theme_btn_classes': 'text-amber-300 hover:bg-amber-950/30 hover:text-yellow-200' if is_dark else 'text-slate-500 hover:bg-indigo-100 hover:text-indigo-600',
-        'logout_btn_classes': 'text-slate-400 hover:bg-slate-800/50 hover:text-cyan-300' if is_dark else 'text-slate-500 hover:bg-slate-200 hover:text-slate-700',
-        'theme_icon': 'light_mode' if is_dark else 'dark_mode',
-        'theme_tooltip': '切换到浅色模式' if is_dark else '切换到深色模式',
-    }
+    theme = build_theme(is_dark)
 
     ui.colors(
         primary='#22d3ee',
@@ -65,13 +73,43 @@ def main_page(request: Request):
         <script src="/static/xterm-addon-fit.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+        <script>
+            window.applyXFusionTheme = function(theme) {{
+                if (!theme) return;
+                const root = document.documentElement;
+                const pairs = {{
+                    '--xf-body-bg': theme.body_bg,
+                    '--xf-bg-main': theme.content_bg,
+                    '--xf-card-bg': theme.card_bg,
+                    '--xf-card-border': theme.card_border,
+                    '--xf-drawer-bg': theme.drawer_bg,
+                    '--xf-text-main': theme.body_text,
+                    '--xf-scroll-track': theme.scroll_track,
+                    '--xf-scroll-thumb': theme.scroll_thumb,
+                    '--xf-scroll-thumb-hover': theme.scroll_thumb_hover,
+                    '--xf-tooltip-bg': theme.tooltip_bg,
+                    '--xf-tooltip-text': theme.tooltip_text,
+                    '--xf-tooltip-border': theme.tooltip_border,
+                    '--xf-tooltip-shadow': theme.tooltip_shadow,
+                }};
+                Object.entries(pairs).forEach(([key, value]) => root.style.setProperty(key, value));
+            }};
+        </script>
         <style>
             :root {{
+                --xf-body-bg: {theme['body_bg']};
                 --xf-bg-main: {theme['content_bg']};
                 --xf-card-bg: {theme['card_bg']};
                 --xf-card-border: {theme['card_border']};
                 --xf-drawer-bg: {theme['drawer_bg']};
                 --xf-text-main: {theme['body_text']};
+                --xf-scroll-track: {theme['scroll_track']};
+                --xf-scroll-thumb: {theme['scroll_thumb']};
+                --xf-scroll-thumb-hover: {theme['scroll_thumb_hover']};
+                --xf-tooltip-bg: {theme['tooltip_bg']};
+                --xf-tooltip-text: {theme['tooltip_text']};
+                --xf-tooltip-border: {theme['tooltip_border']};
+                --xf-tooltip-shadow: {theme['tooltip_shadow']};
             }}
             @font-face {{
                 font-family: 'Twemoji Country Flags';
@@ -79,19 +117,19 @@ def main_page(request: Request):
                 unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E007F;
             }}
             html, body, #app {{
-                background: {theme['body_bg']} !important;
+                background: var(--xf-body-bg) !important;
             }}
             body {{
-                color: {theme['body_text']} !important;
+                color: var(--xf-text-main) !important;
                 font-family: 'Twemoji Country Flags', 'Noto Sans SC', "Roboto", "Helvetica", "Arial", sans-serif, "Noto Color Emoji";
             }}
             .nicegui-connection-lost {{ display: none !important; }}
             ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
-            ::-webkit-scrollbar-track {{ background: {theme['scroll_track']}; }}
-            ::-webkit-scrollbar-thumb {{ background: {theme['scroll_thumb']}; border-radius: 3px; }}
-            ::-webkit-scrollbar-thumb:hover {{ background: {theme['scroll_thumb_hover']}; }}
-            .q-card {{ background-color: {theme['card_bg']} !important; border: 1px solid {theme['card_border']} !important; }}
-            .q-drawer {{ background-color: {theme['drawer_bg']} !important; }}
+            ::-webkit-scrollbar-track {{ background: var(--xf-scroll-track); }}
+            ::-webkit-scrollbar-thumb {{ background: var(--xf-scroll-thumb); border-radius: 3px; }}
+            ::-webkit-scrollbar-thumb:hover {{ background: var(--xf-scroll-thumb-hover); }}
+            .q-card {{ background-color: var(--xf-card-bg) !important; border: 1px solid var(--xf-card-border) !important; }}
+            .q-drawer {{ background-color: var(--xf-drawer-bg) !important; }}
             .q-layout,
             .q-page-container,
             .q-page,
@@ -119,16 +157,10 @@ def main_page(request: Request):
                 background-color: transparent !important;
             }}
             .q-tooltip {{
-                background: #050b14 !important;
-                color: #f1f5f9 !important;
-                border: 1px solid rgba(6,182,212,0.35) !important;
-                box-shadow: 0 6px 18px rgba(0,0,0,0.35) !important;
-            }}
-            body:not(.body--dark) .q-tooltip {{
-                background: #f8fbff !important;
-                color: #334155 !important;
-                border: 1px solid #cbd5e1 !important;
-                box-shadow: 0 8px 20px rgba(148,163,184,0.18) !important;
+                background: var(--xf-tooltip-bg) !important;
+                color: var(--xf-tooltip-text) !important;
+                border: 1px solid var(--xf-tooltip-border) !important;
+                box-shadow: var(--xf-tooltip-shadow) !important;
             }}
         </style>
     ''')
@@ -182,8 +214,13 @@ def main_page(request: Request):
         d.open()
 
     async def toggle_theme():
-        app.storage.user['is_dark'] = not is_dark
-        ui.navigate.reload()
+        new_is_dark = not bool(app.storage.user.get('is_dark', False))
+        app.storage.user['is_dark'] = new_is_dark
+        new_theme = build_theme(new_is_dark)
+        await ui.run_javascript(f'window.applyXFusionTheme && window.applyXFusionTheme({json.dumps(new_theme, ensure_ascii=False)})')
+        render_page_shell.refresh()
+        await asyncio.sleep(0.05)
+        await restore_last_view()
 
     async def run_security_check():
         if last_ip and last_ip != current_ip:
@@ -199,29 +236,40 @@ def main_page(request: Request):
 
     ui.timer(0.5, run_security_check, once=True)
 
-    with ui.left_drawer(value=True, fixed=True).classes(theme['drawer_classes']).props('width=360 bordered') as drawer:
-        render_sidebar_content()
+    @ui.refreshable
+    def render_page_shell():
+        current_is_dark = bool(app.storage.user.get('is_dark', False))
+        current_theme = build_theme(current_is_dark)
+        app.storage.user['is_dark'] = current_is_dark
 
-    with ui.header().classes(theme['header_classes']):
-        with ui.row().classes('w-full items-center justify-between'):
-            with ui.row().classes('items-center gap-2'):
-                ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense').classes(theme['menu_btn_classes'])
-                ui.label('X-Fusion-Pro').classes(theme['title_classes'])
+        if current_is_dark:
+            dark.enable()
+        else:
+            dark.disable()
 
-            with ui.row().classes('items-center gap-3 mr-2'):
-                with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm').classes(theme['security_btn_classes']).tooltip('安全重置'):
-                    ui.badge('Reset', color='orange').props('floating rounded-sm').classes('text-[10px] font-black')
+        with ui.left_drawer(value=True, fixed=True).classes(current_theme['drawer_classes']).props('width=360 bordered') as drawer:
+            render_sidebar_content()
 
-                with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round size=sm').classes(theme['key_btn_classes']).tooltip('复制通讯密钥'):
-                    ui.badge('Key', color='red').props('floating rounded-sm').classes('text-[10px] font-black')
+        with ui.header().classes(current_theme['header_classes']):
+            with ui.row().classes('w-full items-center justify-between'):
+                with ui.row().classes('items-center gap-2'):
+                    ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense').classes(current_theme['menu_btn_classes'])
+                    ui.label('X-Fusion-Pro').classes(current_theme['title_classes'])
 
-                ui.button(icon=theme['theme_icon'], on_click=toggle_theme).props('flat round dense').classes(theme['theme_btn_classes']).tooltip(theme['theme_tooltip'])
-                ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense').classes(theme['logout_btn_classes']).tooltip('退出登录')
+                with ui.row().classes('items-center gap-3 mr-2'):
+                    with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm').classes(current_theme['security_btn_classes']).tooltip('安全重置'):
+                        ui.badge('Reset', color='orange').props('floating rounded-sm').classes('text-[10px] font-black')
 
-    from app.ui.pages import content_router
+                    with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round size=sm').classes(current_theme['key_btn_classes']).tooltip('复制通讯密钥'):
+                        ui.badge('Key', color='red').props('floating rounded-sm').classes('text-[10px] font-black')
 
-    content_router.content_container = ui.column().classes('w-full h-full min-h-[calc(100vh-56px)] pl-4 pr-4 pt-4 overflow-y-auto').style(f'background-color: {theme["content_bg"]};')
-    logger.info(f"[MainPage] content_container assigned | id={id(content_router.content_container)}")
+                    ui.button(icon=current_theme['theme_icon'], on_click=toggle_theme).props('flat round dense').classes(current_theme['theme_btn_classes']).tooltip(current_theme['theme_tooltip'])
+                    ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense').classes(current_theme['logout_btn_classes']).tooltip('退出登录')
+
+        from app.ui.pages import content_router
+
+        content_router.content_container = ui.column().classes('w-full h-full min-h-[calc(100vh-56px)] pl-4 pr-4 pt-4 overflow-y-auto').style(f'background-color: {current_theme["content_bg"]};')
+        logger.info(f"[MainPage] content_container assigned | id={id(content_router.content_container)}")
 
     async def auto_init_system_settings():
         try:
@@ -285,5 +333,6 @@ def main_page(request: Request):
             await refresh_content(last_scope, target_data, page_num=last_page)
         logger.info(f'♻️ 自动恢复视图: {last_scope}')
 
+    render_page_shell()
     ui.timer(0.1, lambda: asyncio.create_task(restore_last_view()), once=True)
     logger.info('✅ UI 已就绪')
