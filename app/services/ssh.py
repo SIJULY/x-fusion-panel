@@ -112,7 +112,7 @@ class WebSSH:
                 term_selection = 'rgba(34, 211, 238, 0.28)' if is_dark else 'rgba(37, 99, 235, 0.18)'
                 term_ready = '\\x1b[32m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n' if is_dark else '\\x1b[34m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n'
 
-                ui.element('div').props(f'id={self.term_id}').classes('w-full h-full rounded overflow-hidden relative').style(f'min-height: 420px; height: 100%; width: 100%; display: block; position: relative; background: {term_bg}; color: {term_fg};')
+                ui.element('div').props(f'id={self.term_id}').classes('w-full h-full rounded overflow-hidden relative').style('min-height: 420px; height: 100%; width: 100%; display: block; position: relative; background: transparent; color: inherit;')
 
                 init_js = f"""
                 try {{
@@ -180,6 +180,13 @@ class WebSSH:
                         var screen = el.querySelector('.xterm-screen');
                         var xtermRoot = el.querySelector('.xterm');
 
+                        var paintElement = function(target) {{
+                            if (!target) return;
+                            target.style.background = bg;
+                            target.style.backgroundColor = bg;
+                            target.style.color = fg;
+                        }};
+
                         try {{
                             if (term && term.options) term.options.theme = theme;
                             if (term && term._core && term._core._themeService && typeof term._core._themeService.setTheme === 'function') {{
@@ -189,15 +196,16 @@ class WebSSH:
                             console.warn('xterm theme apply failed', e);
                         }}
 
-                        if (xtermRoot) xtermRoot.style.backgroundColor = bg;
-                        if (viewport) viewport.style.backgroundColor = bg;
-                        if (screen) screen.style.backgroundColor = bg;
-                        el.style.backgroundColor = bg;
-                        el.style.color = fg;
+                        paintElement(el);
+                        paintElement(el.parentElement);
+                        paintElement(xtermRoot);
+                        paintElement(viewport);
+                        paintElement(screen);
 
                         try {{
                             var canvases = el.querySelectorAll('canvas');
                             canvases.forEach(function(canvas) {{
+                                canvas.style.background = bg;
                                 canvas.style.backgroundColor = bg;
                             }});
                         }} catch (e) {{}}
@@ -209,7 +217,10 @@ class WebSSH:
 
                     window.{self.term_id}_applyTheme = applyTermTheme;
                     window.{self.term_id}_themeListener = function(event) {{
-                        applyTermTheme(!!(event && event.detail && event.detail.isDark));
+                        var isDark = !!(event && event.detail && event.detail.isDark);
+                        applyTermTheme(isDark);
+                        setTimeout(function() {{ applyTermTheme(isDark); }}, 30);
+                        setTimeout(function() {{ applyTermTheme(isDark); }}, 160);
                     }};
                     window.addEventListener('xfusion-theme-change', window.{self.term_id}_themeListener);
                     applyTermTheme({str(is_dark).lower()});
