@@ -176,8 +176,10 @@ XHTTP_INSTALL_SCRIPT_TEMPLATE = r"""
 export DEBIAN_FRONTEND=noninteractive
 export PATH=$PATH:/usr/local/bin
 
+# 0. 自我清洗 (防止 Windows 换行符 \r 导致脚本执行异常)
 sed -i 's/\r$//' "$0"
 
+# 1. 基础环境检查与依赖安装
 if [ -f /etc/debian_version ]; then
     apt-get update -y >/dev/null 2>&1
     apt-get install -y net-tools lsof curl unzip jq uuid-runtime openssl psmisc dnsutils >/dev/null 2>&1
@@ -185,6 +187,7 @@ elif [ -f /etc/redhat-release ]; then
     yum install -y net-tools lsof curl unzip jq psmisc bind-utils >/dev/null 2>&1
 fi
 
+# 定义日志
 log() { echo -e "\033[32m[DEBUG]\033[0m $1"; }
 err() { echo -e "\033[31m[ERROR]\033[0m $1"; }
 
@@ -193,23 +196,335 @@ if [ -z "$DOMAIN" ]; then err "域名参数缺失"; exit 1; fi
 
 log "========== 开始部署 XHTTP (V76 稳定版) =========="
 log "目标域名: $DOMAIN"
+
+# 2. 端口强制清理 (霸道模式)
+if netstat -tlpn | grep -q ":80 "; then
+    log "⚠️ 清理 80 端口..."
+    fuser -k 80/tcp >/dev/null 2>&1; killall -9 nginx >/dev/null 2>&1; killall -9 xray >/dev/null 2>&1
+    sleep 1
+fi
+if netstat -tlpn | grep -q ":443 "; then
+    log "⚠️ 清理 443 端口..."
+    fuser -k 443/tcp >/dev/null 2>&1
+    sleep 1
+fi
+
+PORT_REALITY=443
+PORT_XHTTP=80
+
+# 3. 安装/更新 Xray
+log "安装最新版 Xray..."
+xray_bin="/usr/local/bin/xray"
+rm -f "$xray_bin"
+arch=$(uname -m); case "$arch" in x86_64) a="64";; aarch64) a="arm64-v8a";; esac
+curl -fsSL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${a}.zip -o /tmp/xray.zip
+unzip -qo /tmp/xray.zip -d /tmp/xray
+install -m 755 /tmp/xray/xray "$xray_bin"
+
+# 4. 生成密钥与ID
+KEYS=$($xray_bin x25519)
+PRI_KEY=$(echo "$KEYS" | grep -i "Private" | awk '{print $NF}')
+PUB_KEY=$(echo "$KEYS" | grep -i "Public" | awk '{print $NF}')
+[ -z "$PUB_KEY" ] && { PRI_KEY=$(echo "$KEYS" | head -n1 | awk '{print $NF}'); PUB_KEY=$(echo "$KEYS" | tail -n1 | awk '{print $NF}'); }
+
+UUID_XHTTP=$(cat /proc/sys/kernel/random/uuid)
+UUID_REALITY=$(cat /proc/sys/kernel/random/uuid)
+XHTTP_PATH="/$(echo "$UUID_XHTTP" | cut -d- -f1 | tr -d '\n')"
+SHORT_ID=$(openssl rand -hex 4)
+
+REALITY_SNI="www.icloud.com"
+YOUXUAN_DOMAIN="www.visa.com.hk"
+
+mkdir -p /usr/local/etc/xray
+CONFIG_FILE="/usr/local/etc/xray/config.json"
+
+# 5. 写入配置文件 (使用 EOF 块，避免转义错误)
+cat > $CONFIG_FILE <<EOF
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [
+    {
+      "port": $PORT_XHTTP,
+      "protocol": "vless",
+      "settings": { "clients": [{ "id": "$UUID_XHTTP" }], "decryption": "none" },
+      "streamSettings": { "network": "xhttp", "security": "none", "xhttpSettings": { "path": "$XHTTP_PATH", "mode": "auto" } }
+    },
+    {
+      "port": $PORT_REALITY,
+      "protocol": "vless",
+      "settings": {
+        "clients": [{ "id": "$UUID_REALITY", "flow": "xtls-rprx-vision" }],
+        "decryption": "none",
+        "fallbacks": [{ "dest": $PORT_XHTTP }]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": { "privateKey": "$PRI_KEY", "serverNames": ["$REALITY_SNI"], "shortIds": ["$SHORT_ID"], "target": "$REALITY_SNI:443" }
+      }
+    }
+  ],
+  "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+# 6. 启动服务
+cat > /etc/systemd/system/xray.service <<EOF
+[Unit]
+Description=Xray Service
+After=network.target
+[Service]
+ExecStart=$xray_bin run -c $CONFIG_FILE
+Restart=on-failure
+LimitNOFILE=1048576
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable xray >/dev/null 2>&1
+systemctl restart xray
+sleep 2
+
+# 7. 检查 DNS (诊断)
+log "正在检查域名解析: $DOMAIN"
+nslookup $DOMAIN 8.8.8.8 >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    log "⚠️ 警告: 域名 $DOMAIN 尚未在全球 DNS 生效，连接可能会失败。请稍等几分钟。"
+else
+    log "✅ 域名解析正常。"
+fi
+
+# 8. 生成链接 (JSON 构造优化)
+VPS_IP=$(curl -fsSL https://api.ipify.org)
+
+# 使用 cat 生成 JSON，避免 Python 字符串转义干扰
+EXTRA_JSON_RAW=$(cat <<EOF
+{
+  "downloadSettings": {
+    "address": "$VPS_IP",
+    "port": $PORT_REALITY,
+    "network": "xhttp",
+    "xhttpSettings": { "path": "$XHTTP_PATH", "mode": "auto" },
+    "security": "reality",
+    "realitySettings": {
+      "serverName": "$REALITY_SNI",
+      "fingerprint": "chrome",
+      "show": false,
+      "publicKey": "$PUB_KEY",
+      "shortId": "$SHORT_ID",
+      "spiderX": "/",
+      "mldsa65Verify": ""
+    }
+  }
+}
+EOF
+)
+
+# 压缩并编码 JSON
+ENC_EXTRA=$(echo "$EXTRA_JSON_RAW" | jq -c . | jq -sRr @uri)
+ENC_PATH=$(printf '%s' "$XHTTP_PATH" | jq -sRr @uri)
+
+LINK="vless://${UUID_XHTTP}@${YOUXUAN_DOMAIN}:443?encryption=none&security=tls&sni=${DOMAIN}&type=xhttp&host=${DOMAIN}&path=${ENC_PATH}&mode=auto&extra=${ENC_EXTRA}#XHTTP-Reality"
+
+echo "DEPLOY_SUCCESS_LINK: $LINK"
 """
 
 HYSTERIA_INSTALL_SCRIPT_TEMPLATE = r"""
 #!/bin/bash
+# 1. 接收参数
 PASSWORD="{password}"
 SNI="{sni}"
 ENABLE_PORT_HOPPING="{enable_hopping}"
 PORT_RANGE_START="{port_range_start}"
 PORT_RANGE_END="{port_range_end}"
+
+# 2. 环境清理与依赖安装 (修复核心：同时安装 iptables 和 net-tools)
+if [ -f /etc/debian_version ]; then
+    apt-get update -y
+    # net-tools 包含 netstat，iptables 用于端口跳跃
+    apt-get install -y iptables net-tools
+elif [ -f /etc/redhat-release ]; then
+    yum install -y iptables net-tools
+fi
+
+systemctl stop hysteria-server.service 2>/dev/null
+rm -rf /etc/hysteria
+bash <(curl -fsSL https://get.hy2.sh/)
+
+# 3. 证书生成 (自签)
+mkdir -p /etc/hysteria
+openssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) \
+  -keyout /etc/hysteria/server.key \
+  -out /etc/hysteria/server.crt \
+  -subj "/CN=$SNI" \
+  -days 3650
+chown hysteria /etc/hysteria/server.key
+chown hysteria /etc/hysteria/server.crt
+
+# 4. 端口检测 (现在有了 net-tools，这里就不会报错了)
+HY2_PORT=443
+if netstat -ulpn | grep -q ":443 "; then
+    echo "⚠️ UDP 443 占用，切换至 8443"
+    HY2_PORT=8443
+fi
+
+# 5. 写入配置
+cat << EOF > /etc/hysteria/config.yaml
+listen: :$HY2_PORT
+tls:
+  cert: /etc/hysteria/server.crt
+  key: /etc/hysteria/server.key
+auth:
+  type: password
+  password: $PASSWORD
+masquerade:
+  type: proxy
+  proxy:
+    url: https://$SNI
+    rewriteHost: true
+quic:
+  initStreamReceiveWindow: 26843545
+  maxStreamReceiveWindow: 26843545
+  initConnReceiveWindow: 67108864
+  maxConnReceiveWindow: 67108864
+EOF
+
+# 6. 端口跳跃 (iptables 转发)
+if [ "$ENABLE_PORT_HOPPING" == "true" ]; then
+    # 清理旧规则
+    iptables -t nat -D PREROUTING -p udp --dport $PORT_RANGE_START:$PORT_RANGE_END -j REDIRECT --to-ports $HY2_PORT 2>/dev/null || true
+    # 添加新规则 (不限制网卡，强制生效)
+    iptables -t nat -A PREROUTING -p udp --dport $PORT_RANGE_START:$PORT_RANGE_END -j REDIRECT --to-ports $HY2_PORT
+    
+    mkdir -p /etc/iptables
+    if command -v iptables-save >/dev/null; then
+        iptables-save > /etc/iptables/rules.v4
+    fi
+fi
+
+# 7. 启动
+systemctl enable --now hysteria-server.service
+sleep 2
+
+# 8. 输出链接
+if systemctl is-active --quiet hysteria-server.service; then
+    PUBLIC_IP=$(curl -s https://api.ipify.org)
+    
+    CLIENT_PORT=$HY2_PORT
+    MPORT_PARAM=""
+    
+    if [ "$ENABLE_PORT_HOPPING" == "true" ]; then
+        if command -v shuf > /dev/null; then
+            CLIENT_PORT=$(shuf -i $PORT_RANGE_START-$PORT_RANGE_END -n 1)
+        else
+            RANGE=$(($PORT_RANGE_END - $PORT_RANGE_START + 1))
+            CLIENT_PORT=$(($PORT_RANGE_START + $RANDOM % $RANGE))
+        fi
+        MPORT_PARAM="&mport=$PORT_RANGE_START-$PORT_RANGE_END"
+    fi
+
+    LINK="hy2://$PASSWORD@$PUBLIC_IP:$CLIENT_PORT?peer=$SNI&insecure=1&sni=$SNI$MPORT_PARAM#Hy2-Node"
+    echo "HYSTERIA_DEPLOY_SUCCESS_LINK: $LINK"
+else
+    echo "HYSTERIA_DEPLOY_FAILED"
+fi
 """
 
 SNELL_INSTALL_SCRIPT_TEMPLATE = r"""
 #!/bin/bash
 export DEBIAN_FRONTEND=noninteractive
+
+# 接收参数
 PORT="{port}"
 PSK="{psk}"
 TARGET_IP="{target_ip}"
+
+# 1. 安装基础依赖
+if [ -f /etc/debian_version ]; then
+    apt-get update -y >/dev/null 2>&1
+    apt-get install -y curl unzip iptables >/dev/null 2>&1
+elif [ -f /etc/redhat-release ]; then
+    yum install -y curl unzip iptables >/dev/null 2>&1
+fi
+
+# 2. 检测系统架构
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64) S_ARCH="amd64" ;;
+    aarch64|arm64) S_ARCH="aarch64" ;;
+    *) echo "不支持的架构: $ARCH"; exit 1 ;;
+esac
+
+# 3. 停止旧服务并清理环境
+systemctl stop snell 2>/dev/null
+rm -rf /usr/local/bin/snell-server
+
+# 4. 安全下载 (使用 curl -f 遇到 404 直接失败)
+DOWNLOAD_URL="https://dl.nssurge.com/snell/snell-server-v5.0.1-linux-${S_ARCH}.zip"
+
+echo "正在下载: $DOWNLOAD_URL"
+curl -fsSL "$DOWNLOAD_URL" -o /tmp/snell.zip
+if [ $? -ne 0 ]; then echo "❌ 下载失败，请检查网络或版本是否已更新"; exit 1; fi
+
+unzip -o /tmp/snell.zip -d /usr/local/bin/ >/dev/null 2>&1
+if [ ! -f /usr/local/bin/snell-server ]; then echo "❌ 解压失败，未找到二进制文件"; exit 1; fi
+
+chmod +x /usr/local/bin/snell-server
+rm -f /tmp/snell.zip
+
+# 5. 生成配置文件
+mkdir -p /etc/snell
+cat > /etc/snell/snell-server.conf << EOF
+[snell-server]
+listen = 0.0.0.0:$PORT
+psk = $PSK
+ipv6 = false
+EOF
+
+# 6. 配置防火墙放行
+if command -v ufw >/dev/null 2>&1; then
+    ufw allow $PORT/tcp >/dev/null 2>&1
+    ufw allow $PORT/udp >/dev/null 2>&1
+fi
+if command -v iptables >/dev/null 2>&1; then
+    iptables -I INPUT -p tcp --dport $PORT -j ACCEPT
+    iptables -I INPUT -p udp --dport $PORT -j ACCEPT
+    netfilter-persistent save >/dev/null 2>&1 || service iptables save >/dev/null 2>&1
+fi
+
+# 7. 配置 Systemd 守护进程
+cat > /etc/systemd/system/snell.service << EOF
+[Unit]
+Description=Snell Proxy Service
+After=network.target
+
+[Service]
+Type=simple
+LimitNOFILE=32768
+ExecStart=/usr/local/bin/snell-server -c /etc/snell/snell-server.conf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 8. 启动服务并验证
+systemctl daemon-reload
+systemctl enable --now snell >/dev/null 2>&1
+sleep 1.5
+
+# 9. 核心修复：检查进程是否真的在运行
+if systemctl is-active --quiet snell; then
+    # 尝试获取公网IP，如果超时失败，则使用Python传入的兜底IP
+    PUBLIC_IP=$(curl -s --max-time 3 https://api.ipify.org)
+    [ -z "$PUBLIC_IP" ] && PUBLIC_IP="$TARGET_IP"
+    
+    echo "SNELL_DEPLOY_SUCCESS_LINK: snell://$PSK@$PUBLIC_IP:$PORT?version=5#Snell-Node"
+else
+    echo "❌ 服务启动失败！可能端口被占用，请执行 journalctl -u snell 查看原因。"
+    exit 1
+fi
 """
 
 PROBE_INSTALL_SCRIPT = r"""
