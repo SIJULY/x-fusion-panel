@@ -56,14 +56,15 @@ def login_page(request: Request):
 
             with ui.column().classes(body_cls):
                 username = ui.input('账号').props(input_props).classes('w-full')
-                password = ui.input('密码', password=True).props(input_props).classes('w-full').on('keydown.enter', lambda: check_cred())
+                password = ui.input('密码', password=True).props(input_props).classes('w-full')
 
-            def check_cred():
-                if username.value == ADMIN_USER and password.value == ADMIN_PASS:
-                    check_mfa()
-                else:
-                    ui.notify('账号或密码错误', color='negative', position='top')
+                def check_cred():
+                    if username.value == ADMIN_USER and password.value == ADMIN_PASS:
+                        check_mfa()
+                    else:
+                        ui.notify('账号或密码错误', color='negative', position='top')
 
+                password.on('keydown.enter', lambda: check_cred())
                 ui.button('下一步', on_click=check_cred).props('flat').classes(primary_btn_cls)
                 ui.label('© Powered by 小龙女她爸').classes(footer_cls)
 
@@ -99,16 +100,17 @@ def login_page(request: Request):
 
                 code = ui.input('验证码', placeholder='6位数字').props(code_input_props).classes('w-full')
 
-            async def confirm():
-                totp = pyotp.TOTP(secret)
-                if totp.verify(code.value):
-                    ADMIN_CONFIG['mfa_secret'] = secret
-                    await save_admin_config()
-                    ui.notify('绑定成功', type='positive')
-                    finish()
-                else:
-                    ui.notify('验证码错误', type='negative')
+                async def confirm():
+                    totp = pyotp.TOTP(secret)
+                    if totp.verify(code.value):
+                        ADMIN_CONFIG['mfa_secret'] = secret
+                        await save_admin_config()
+                        ui.notify('绑定成功', type='positive')
+                        finish()
+                    else:
+                        ui.notify('验证码错误', type='negative')
 
+                code.on('keydown.enter', lambda: confirm())
                 ui.button('确认绑定', on_click=confirm).props('flat').classes(success_btn_cls)
 
     def render_verify(secret):
@@ -122,19 +124,19 @@ def login_page(request: Request):
                     ui.label('请输入 Authenticator 动态码').classes('text-xs text-slate-400' if is_dark else 'text-xs text-slate-500')
 
                 code = ui.input(placeholder='------').props(otp_input_props).classes('w-full')
-            code.on('keydown.enter', lambda: verify())
-            ui.timer(0.1, lambda: ui.run_javascript('document.querySelector(".q-field__native").focus()'), once=True)
 
-            def verify():
-                totp = pyotp.TOTP(secret)
-                if totp.verify(code.value):
-                    finish()
-                else:
-                    ui.notify('无效的验证码', type='negative', position='top')
-                    code.value = ''
+                def verify():
+                    totp = pyotp.TOTP(secret)
+                    if totp.verify(code.value):
+                        finish()
+                    else:
+                        ui.notify('无效的验证码', type='negative', position='top')
+                        code.value = ''
 
+                code.on('keydown.enter', lambda: verify())
                 ui.button('验证登录', on_click=verify).props('flat').classes(primary_btn_cls)
                 ui.button('返回', on_click=render_step1).props('outline dense color=grey').classes(back_btn_cls)
+            ui.timer(0.1, lambda: ui.run_javascript('document.querySelector(".q-field__native").focus()'), once=True)
 
     def finish():
         app.storage.user['authenticated'] = True
