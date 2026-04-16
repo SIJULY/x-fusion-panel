@@ -52,8 +52,9 @@ async def render_single_ssh_view(server_conf):
 
     if content_container:
         content_container.clear()
-        content_container.classes(remove='overflow-y-auto block bg-[#030712] bg-[#eef4ff]',
-                                  add='h-full min-h-0 overflow-hidden flex flex-col p-4 gap-4')
+        # 修复点：移除暴力的背景类清理（去掉了 remove bg-[#030712] bg-[#eef4ff]），防止背景变黑
+        content_container.classes(remove='overflow-y-auto block justify-start',
+                                  add='h-full flex-1 min-h-0 overflow-hidden flex flex-col p-4 gap-4')
         content_container.style('background-color: var(--xf-bg-main);')
 
     terminal_state = {'instance': None}
@@ -765,7 +766,6 @@ async def render_single_ssh_view(server_conf):
             children = tree_state['cache'].get(path, []) if is_expanded else []
             loading = path in tree_state['loading']
 
-            # 修复点 1：增大侧边栏文件树的点击热区 (py-1 -> py-2)
             row_classes = 'w-full items-center gap-1 px-2 py-2 rounded-sm cursor-pointer transition-colors no-wrap'
             row_classes += ' bg-transparent'
 
@@ -775,7 +775,6 @@ async def render_single_ssh_view(server_conf):
                               on_click=lambda _, p=path: toggle_tree_node(p)).props(
                         'flat dense round size=xs color=grey').classes('!min-w-0 !p-0 opacity-80 shrink-0')
 
-                    # 修复点 2：增大文件夹图标和文字字号 (text-[13px] -> text-[14px])
                     ui.icon('folder_open' if is_expanded else 'folder').classes('text-amber-400 text-[18px] shrink-0')
                     ui.label(display_name).classes('text-[14px] cursor-pointer select-none truncate').style('color: var(--xf-text-strong);').on(
                         'click', lambda _, p=path: select_tree_node(p))
@@ -819,7 +818,6 @@ async def render_single_ssh_view(server_conf):
 
             for index, item in enumerate(sorted_entries):
                 is_dir = item.get('is_dir', False)
-                # 修复点 3：增大右侧文件列表的行高与点击热区 (py-1.5 -> py-2.5)
                 row_classes = 'w-full items-center px-2 py-2.5 cursor-default transition-colors flex-nowrap no-wrap'
 
                 with ui.row().classes(row_classes) as row:
@@ -850,7 +848,6 @@ async def render_single_ssh_view(server_conf):
                             ui.menu_item('🗑️ 删除 (Delete)', on_click=make_delete_handler(item)).classes(
                                 'text-red-400 hover:bg-slate-700 py-1.5' if is_dark else 'text-rose-600 hover:bg-rose-50 py-1.5')
 
-                    # 修复点 4：调大文件列表中的图标尺寸和文字字号
                     with ui.row().classes('w-[26%] items-center gap-2 min-w-0 flex-nowrap no-wrap pl-2'):
                         icon_name = 'folder' if is_dir else 'description'
                         icon_color = 'text-amber-400' if is_dir else 'text-cyan-400'
