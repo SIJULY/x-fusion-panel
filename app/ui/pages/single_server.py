@@ -32,7 +32,8 @@ async def render_single_server_view(server_conf, force_refresh=False):
 
     def apply_tooltip(target, text):
         tip = target.tooltip(text)
-        tip.classes('bg-[#050b14] text-slate-100 border border-cyan-500/35 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_6px_18px_rgba(0,0,0,0.35)]' if is_dark else 'bg-[#f8fbff] text-slate-700 border border-slate-300 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_8px_20px_rgba(148,163,184,0.18)]')
+        tip.classes('text-[11px] font-bold px-2 py-1 rounded-sm')
+        tip.style('background:#050b14;color:#f1f5f9;border:1px solid rgba(6,182,212,0.35);box-shadow:0 6px 18px rgba(0,0,0,0.35);' if is_dark else 'background:#f8fbff;color:#334155;border:1px solid #cbd5e1;box-shadow:0 8px 20px rgba(148,163,184,0.18);')
         return tip
 
     SINGLE_COLS_NO_PING = _server_dialog.SINGLE_COLS_NO_PING
@@ -347,13 +348,13 @@ PY'''
                                 'font-bold truncate w-full text-left pl-1 text-slate-300 text-[13px] group-hover:text-cyan-300 transition-colors' if is_dark else 'font-bold truncate w-full text-left pl-1 text-slate-800 text-[13px] group-hover:text-sky-700 transition-colors')
                             if is_custom:
                                 ui.label('独立').classes(
-                                    'text-[10px] bg-purple-950/50 text-purple-400 font-black px-2 py-0.5 rounded-sm w-fit mx-auto border border-purple-700/50 tracking-wider shadow-[0_0_5px_rgba(168,85,247,0.3)]')
+                                    'text-[10px] text-purple-400 font-black w-fit mx-auto tracking-wider')
                             elif is_ssh_mode:
                                 ui.label('Root').classes(
-                                    'text-[10px] bg-teal-950/50 text-teal-400 font-black px-2 py-0.5 rounded-sm w-fit mx-auto border border-teal-700/50 tracking-wider shadow-[0_0_5px_rgba(20,184,166,0.3)]')
+                                    'text-[10px] text-teal-400 font-black w-fit mx-auto tracking-wider')
                             else:
                                 ui.label('API').classes(
-                                    'text-[10px] bg-[#1e3a5f]/50 text-blue-300 font-black px-2 py-0.5 rounded-sm w-fit mx-auto border border-blue-700/50 tracking-wider shadow-[0_0_5px_rgba(59,130,246,0.3)]')
+                                    'text-[10px] text-blue-300 font-black w-fit mx-auto tracking-wider')
 
                             traffic = format_bytes(n.get('up', 0) + n.get('down', 0)) if not is_custom else '--'
                             ui.label(traffic).classes(

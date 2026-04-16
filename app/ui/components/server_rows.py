@@ -49,7 +49,8 @@ def show_custom_node_info(node):
 
 def _apply_tooltip(target, text, is_dark):
     tip = target.tooltip(text)
-    tip.classes('bg-[#050b14] text-slate-100 border border-cyan-500/35 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_6px_18px_rgba(0,0,0,0.35)]' if is_dark else 'bg-[#f8fbff] text-slate-700 border border-slate-300 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_8px_20px_rgba(148,163,184,0.18)]')
+    tip.classes('text-[11px] font-bold px-2 py-1 rounded-sm' if is_dark else 'text-[11px] font-bold px-2 py-1 rounded-sm')
+    tip.style('background:#050b14;color:#f1f5f9;border:1px solid rgba(6,182,212,0.35);box-shadow:0 6px 18px rgba(0,0,0,0.35);' if is_dark else 'background:#f8fbff;color:#334155;border:1px solid #cbd5e1;box-shadow:0 8px 20px rgba(148,163,184,0.18);')
     return tip
 
 
