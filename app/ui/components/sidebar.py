@@ -47,7 +47,7 @@ def _sidebar_theme():
         'new_group_btn': '',
         'new_server_btn': '',
 
-        # 修复点 1：添加 shrink-0 严禁浏览器压缩该元素的高度
+        # 保持外层菜单的固定高度和禁止垂直收缩
         'list_item': 'w-full h-[52px] shrink-0 items-center justify-between px-3 border rounded-sm mb-1 cursor-pointer group transition-all duration-200',
 
         'list_icon_box': 'p-1.5 rounded-sm border transition-colors',
@@ -55,17 +55,18 @@ def _sidebar_theme():
         'list_label': 'font-bold text-sm',
         'section_label': 'text-xs font-bold mt-4 mb-2 px-2 uppercase tracking-wider',
 
-        # 修复点 2：给折叠面板外层也加上 shrink-0，防止整个分组框被挤压
+        # 保持分组外层卡片的固定高度和禁止垂直收缩
         'expansion_custom': 'w-full shrink-0 border rounded-sm mb-2 transition-all',
         'expansion_region': 'w-full shrink-0 border rounded-sm',
 
-        'expansion_header_props': 'expand-icon-toggle header-style="padding: 0px; min-height: 52px;"',
+        # 关键修复 1：为右侧的折叠箭头保留 12px 的安全边距（padding-right）
+        'expansion_header_props': 'expand-icon-toggle header-style="padding: 0 12px 0 0; min-height: 52px;"',
 
         'drag_icon': 'cursor-move p-0.5 rounded transition-colors',
         'group_name': 'font-bold truncate text-sm',
 
-        # 修复点 3：同样给分组头部加上 shrink-0
-        'group_header_row': 'w-full h-[52px] shrink-0 items-center justify-between px-3 cursor-pointer group transition-all duration-200',
+        # 关键修复 2：移除 shrink-0。因为在水平 Flex 布局中，它必须允许适度收缩，才能给右侧箭头留出位置！
+        'group_header_row': 'w-full h-[52px] items-center justify-between pl-3 pr-2 cursor-pointer group transition-all duration-200',
 
         'icon_btn': '',
         'expansion_body': 'w-full gap-2 p-2 border-t',
