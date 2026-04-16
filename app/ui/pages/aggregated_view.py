@@ -13,10 +13,12 @@ COLS_SPECIAL_WITH_PING = 'grid-template-columns: 2fr 2fr 1.5fr 1fr 0.8fr 0.8fr 1
 async def render_aggregated_view(server_list, show_ping=False, token=None, initial_page=1):
 
     is_dark = bool(app.storage.user.get('is_dark', True))
-    summary_cls = 'text-xs text-cyan-500/70 font-black tracking-wide' if is_dark else 'text-xs text-sky-700/80 font-black tracking-wide'
+    summary_cls = 'text-xs font-black tracking-wide'
+    summary_style = 'color: var(--xf-accent); opacity: 0.75;'
     pagination_props = 'dense flat color=blue text-color=slate-400 active-text-color=white' if is_dark else 'dense flat color=blue text-color=slate-600 active-text-color=blue-8'
     pagination_cls = 'text-slate-300' if is_dark else 'text-slate-600'
-    head_row_cls = 'grid w-full gap-4 font-black text-slate-500 border-b border-[#1e3a5f]/55 pb-2 px-6 mb-1 uppercase tracking-wider text-xs bg-[#070b14] rounded-sm pt-3 shadow-[0_0_10px_rgba(0,0,0,0.2)]' if is_dark else 'grid w-full gap-4 font-black text-slate-500 border-b border-slate-300/90 pb-2 px-6 mb-1 uppercase tracking-wider text-xs bg-white rounded-sm pt-3 shadow-[0_6px_18px_rgba(148,163,184,0.12)]'
+    head_row_cls = 'grid w-full gap-4 font-black pb-2 px-6 mb-1 uppercase tracking-wider text-xs rounded-sm pt-3'
+    head_row_style = 'color: var(--xf-text-muted); background: var(--xf-panel-bg); border-bottom: 1px solid var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.08);'
 
     parent_client = ui.context.client
     list_container = ui.column().classes('w-full max-w-[1440px] mx-auto gap-3 p-1')
@@ -45,11 +47,11 @@ async def render_aggregated_view(server_list, show_ping=False, token=None, initi
 
         with list_container:
             with ui.row().classes('w-full justify-between items-center px-2 mb-2'):
-                ui.label(f'共 {total_items} 台服务器 (第 {page_num}/{total_pages} 页)').classes(summary_cls)
+                ui.label(f'共 {total_items} 台服务器 (第 {page_num}/{total_pages} 页)').classes(summary_cls).style(summary_style)
                 if total_pages > 1:
                     ui.pagination(1, total_pages, direction_links=True, value=page_num).props(pagination_props).classes(pagination_cls).on_value_change(lambda e: handle_pagination_click(e.value))
 
-            with ui.element('div').classes(head_row_cls).style(current_css):
+            with ui.element('div').classes(head_row_cls).style(f'{current_css} {head_row_style}'):
                 ui.label('服务器').classes('text-left pl-1')
                 ui.label('节点名称').classes('text-left pl-1')
                 if use_special_mode:

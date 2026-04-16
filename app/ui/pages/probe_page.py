@@ -21,7 +21,7 @@ async def render_probe_page():
 
     content_container.clear()
     content_container.classes(replace='w-full h-full overflow-y-auto p-6 relative flex flex-col justify-center items-center')
-    content_container.style(f'background-color: {"#030712" if is_dark else "#eef4ff"};')
+    content_container.style('background-color: var(--xf-bg-main);')
 
     if not ADMIN_CONFIG.get('probe_enabled'):
         ADMIN_CONFIG['probe_enabled'] = True
@@ -29,37 +29,46 @@ async def render_probe_page():
 
     with content_container:
         with ui.column().classes('w-full max-w-7xl gap-6'):
-            card_style = 'w-full p-6 bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_0_16px_rgba(0,0,0,0.28)] rounded-sm' if is_dark else 'w-full p-6 bg-white border border-slate-300/90 shadow-[0_8px_24px_rgba(148,163,184,0.14)] rounded-sm'
-            title_wrap_cls = 'w-full items-center gap-3 border-b border-[#1e3a5f]/60 pb-3' if is_dark else 'w-full items-center gap-3 border-b border-slate-300/90 pb-3'
-            title_icon_cls = 'w-11 h-11 rounded-sm flex items-center justify-center bg-[#050b14] border border-[#1e3a5f] text-cyan-400 shadow-[0_0_10px_rgba(0,0,0,0.45)] relative overflow-hidden' if is_dark else 'w-11 h-11 rounded-sm flex items-center justify-center bg-sky-50 border border-slate-300 text-sky-600 shadow-[0_4px_12px_rgba(148,163,184,0.12)] relative overflow-hidden'
-            page_title_cls = 'text-2xl font-black text-slate-100 tracking-wide' if is_dark else 'text-2xl font-black text-slate-800 tracking-wide'
-            page_sub_cls = 'text-xs font-black text-cyan-500/70 uppercase tracking-[0.25em]' if is_dark else 'text-xs font-black text-sky-700/70 uppercase tracking-[0.25em]'
-            section_header_cls = 'items-center gap-2 mb-4 border-b border-[#1e3a5f]/55 pb-2 w-full' if is_dark else 'items-center gap-2 mb-4 border-b border-slate-300/90 pb-2 w-full'
-            section_title_cls = 'text-lg font-black text-slate-100 tracking-wide' if is_dark else 'text-lg font-black text-slate-800 tracking-wide'
-            input_label_cls = 'text-sm font-bold text-slate-400' if is_dark else 'text-sm font-bold text-slate-700'
-            hint_cls = 'text-xs text-slate-500' if is_dark else 'text-xs text-slate-500'
+            card_style = 'w-full p-6 border rounded-sm'
+            card_style_inline = 'background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);'
+            title_wrap_cls = 'w-full items-center gap-3 border-b pb-3'
+            title_wrap_style = 'border-color: var(--xf-card-border);'
+            title_icon_cls = 'w-11 h-11 rounded-sm flex items-center justify-center border text-cyan-400 relative overflow-hidden'
+            title_icon_style = 'background: var(--xf-code-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.12); color: var(--xf-accent);'
+            page_title_cls = 'text-2xl font-black tracking-wide'
+            page_title_style = 'color: var(--xf-text-strong);'
+            page_sub_cls = 'text-xs font-black uppercase tracking-[0.25em]'
+            page_sub_style = 'color: var(--xf-accent); opacity: 0.7;'
+            section_header_cls = 'items-center gap-2 mb-4 border-b pb-2 w-full'
+            section_header_style = 'border-color: var(--xf-card-border);'
+            section_title_cls = 'text-lg font-black tracking-wide'
+            section_title_style = 'color: var(--xf-text-strong);'
+            input_label_cls = 'text-sm font-bold'
+            input_label_style = 'color: var(--xf-text-muted);'
+            hint_cls = 'text-xs'
+            hint_style = 'color: var(--xf-text-subtle);'
             input_props = 'outlined dense dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'outlined dense color=blue'
             action_btn_cls = 'border border-[#1e3a5f]/45 text-slate-300 bg-[#0a1120] hover:bg-cyan-950/20 hover:text-cyan-300 rounded-sm font-black' if is_dark else 'border border-slate-300/90 text-slate-700 bg-white hover:bg-sky-50 hover:text-sky-700 rounded-sm font-black'
 
-            with ui.row().classes(title_wrap_cls):
-                with ui.element('div').classes(title_icon_cls):
-                    ui.element('div').classes('absolute inset-0 bg-cyan-400/10' if is_dark else 'absolute inset-0 bg-sky-400/10')
+            with ui.row().classes(title_wrap_cls).style(title_wrap_style):
+                with ui.element('div').classes(title_icon_cls).style(title_icon_style):
+                    ui.element('div').classes('absolute inset-0').style('background: var(--xf-accent-soft);')
                     ui.icon('tune').classes('text-[20px] drop-shadow-[0_0_5px_currentColor]')
                 with ui.column().classes('gap-0'):
-                    ui.label('探针管理与设置').classes(page_title_cls)
-                    ui.label('Configuration & Management').classes(page_sub_cls)
+                    ui.label('探针管理与设置').classes(page_title_cls).style(page_title_style)
+                    ui.label('Configuration & Management').classes(page_sub_cls).style(page_sub_style)
 
             with ui.grid().classes('w-full grid-cols-1 lg:grid-cols-7 gap-6 items-stretch'):
                 with ui.column().classes('lg:col-span-4 w-full gap-6'):
-                    with ui.card().classes(card_style):
-                        with ui.row().classes(section_header_cls):
+                    with ui.card().classes(card_style).style(card_style_inline):
+                        with ui.row().classes(section_header_cls).style(section_header_style):
                             ui.icon('hub').classes('text-xl text-cyan-400' if is_dark else 'text-xl text-sky-600')
-                            ui.label('基础连接设置').classes(section_title_cls)
+                            ui.label('基础连接设置').classes(section_title_cls).style(section_title_style)
 
                         with ui.column().classes('w-full gap-2'):
-                            ui.label('📡 主控端地址 (Agent连接用)').classes(input_label_cls)
+                            ui.label('📡 主控端地址 (Agent连接用)').classes(input_label_cls).style(input_label_style)
                             url_input = ui.input(value=ADMIN_CONFIG.get('manager_base_url', 'http://xui-manager:8080')).props(input_props).classes('w-full')
-                            ui.label('请填写公网 IP 或域名，带端口').classes(hint_cls)
+                            ui.label('请填写公网 IP 或域名，带端口').classes(hint_cls).style(hint_style)
 
                         async def save_url():
                             ADMIN_CONFIG['manager_base_url'] = url_input.value.strip().rstrip('/')
@@ -69,10 +78,10 @@ async def render_probe_page():
                         with ui.row().classes('w-full justify-end mt-4'):
                             ui.button('保存', icon='save', on_click=save_url).props('flat').classes(f'px-4 {action_btn_cls}')
 
-                    with ui.card().classes(card_style):
-                        with ui.row().classes(section_header_cls):
+                    with ui.card().classes(card_style).style(card_style_inline):
+                        with ui.row().classes(section_header_cls).style(section_header_style):
                             ui.icon('speed').classes('text-xl text-amber-400')
-                            ui.label('三网延迟测速目标').classes(section_title_cls)
+                            ui.label('三网延迟测速目标').classes(section_title_cls).style(section_title_style)
 
                         with ui.grid().classes('w-full grid-cols-1 sm:grid-cols-3 gap-4'):
                             ping_ct = ui.input('电信 IP', value=ADMIN_CONFIG.get('ping_target_ct', '202.102.192.68')).props(input_props)
@@ -89,10 +98,10 @@ async def render_probe_page():
                         with ui.row().classes('w-full justify-end mt-4'):
                             ui.button('保存', icon='save', on_click=save_ping).props('flat').classes(f'px-4 {action_btn_cls}')
 
-                    with ui.card().classes(card_style):
-                        with ui.row().classes(section_header_cls):
+                    with ui.card().classes(card_style).style(card_style_inline):
+                        with ui.row().classes(section_header_cls).style(section_header_style):
                             ui.icon('notifications').classes('text-xl text-fuchsia-400')
-                            ui.label('Telegram 通知').classes(section_title_cls)
+                            ui.label('Telegram 通知').classes(section_title_cls).style(section_title_style)
 
                         with ui.grid().classes('w-full grid-cols-1 sm:grid-cols-2 gap-4'):
                             tg_token = ui.input('Bot Token', value=ADMIN_CONFIG.get('tg_bot_token', '')).props(input_props)
@@ -108,8 +117,8 @@ async def render_probe_page():
                             ui.button('保存', icon='save', on_click=save_tg).props('flat').classes(f'px-4 {action_btn_cls}')
 
                 with ui.column().classes('lg:col-span-3 w-full gap-6 h-full'):
-                    with ui.card().classes(card_style + ' flex-shrink-0'):
-                        ui.label('快捷操作').classes('text-lg font-black mb-4 border-l-4 border-cyan-500 pl-2 tracking-wide text-slate-100' if is_dark else 'text-lg font-black mb-4 border-l-4 border-sky-500 pl-2 tracking-wide text-slate-800')
+                    with ui.card().classes(card_style + ' flex-shrink-0').style(card_style_inline):
+                        ui.label('快捷操作').classes('text-lg font-black mb-4 border-l-4 pl-2 tracking-wide').style('border-color: var(--xf-accent); color: var(--xf-text-strong);')
                         with ui.column().classes('w-full gap-3'):
                             async def copy_cmd():
                                 try:
@@ -138,23 +147,23 @@ async def render_probe_page():
 
                             ui.button('更新所有探针', icon='system_update_alt', on_click=batch_install_all_probes).props('flat').classes(f'w-full align-left justify-start {action_btn_cls}')
 
-                    with ui.card().classes('w-full p-6 bg-gradient-to-br from-[#10203d] to-[#050b14] text-white rounded-sm shadow-[0_0_18px_rgba(0,0,0,0.35)] relative overflow-hidden group cursor-pointer flex-grow flex flex-col justify-center border border-cyan-500/25' if is_dark else 'w-full p-6 bg-gradient-to-br from-[#eff6ff] to-[#dbeafe] text-slate-800 rounded-sm shadow-[0_8px_24px_rgba(148,163,184,0.14)] relative overflow-hidden group cursor-pointer flex-grow flex flex-col justify-center border border-sky-300/80').on('click', lambda: ui.navigate.to('/status', new_tab=True)):
-                        ui.icon('public', size='10rem').classes('absolute -right-8 -bottom-8 text-white opacity-5 group-hover:rotate-12 transition transform duration-500' if is_dark else 'absolute -right-8 -bottom-8 text-sky-300 opacity-20 group-hover:rotate-12 transition transform duration-500')
-                        ui.label('公开监控墙').classes('text-2xl font-black mb-2 tracking-wide text-white' if is_dark else 'text-2xl font-black mb-2 tracking-wide text-slate-800')
-                        ui.label('点击前往查看实时状态').classes('text-sm text-cyan-200/80 mb-6' if is_dark else 'text-sm text-sky-700/80 mb-6')
-                        with ui.row().classes('items-center gap-2 text-cyan-300 font-black' if is_dark else 'items-center gap-2 text-sky-700 font-black'):
+                    with ui.card().classes('w-full p-6 rounded-sm relative overflow-hidden group cursor-pointer flex-grow flex flex-col justify-center border').style('background: linear-gradient(to bottom right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);').on('click', lambda: ui.navigate.to('/status', new_tab=True)):
+                        ui.icon('public', size='10rem').classes('absolute -right-8 -bottom-8 opacity-10 group-hover:rotate-12 transition transform duration-500').style('color: var(--xf-accent);')
+                        ui.label('公开监控墙').classes('text-2xl font-black mb-2 tracking-wide').style('color: var(--xf-text-strong);')
+                        ui.label('点击前往查看实时状态').classes('text-sm mb-6').style('color: var(--xf-accent); opacity: 0.8;')
+                        with ui.row().classes('items-center gap-2 font-black').style('color: var(--xf-accent);'):
                             ui.label('立即前往')
                             ui.icon('arrow_forward')
 
                     online_count = len([s for s in SERVERS_CACHE if s.get('_status') == 'online'])
                     probe_count = len([s for s in SERVERS_CACHE if s.get('probe_installed')])
 
-                    with ui.card().classes(card_style + ' flex-shrink-0'):
-                        ui.label('数据概览').classes('text-lg font-black mb-4 border-l-4 border-emerald-500 pl-2 tracking-wide text-slate-100' if is_dark else 'text-lg font-black mb-4 border-l-4 border-emerald-500 pl-2 tracking-wide text-slate-800')
+                    with ui.card().classes(card_style + ' flex-shrink-0').style(card_style_inline):
+                        ui.label('数据概览').classes('text-lg font-black mb-4 border-l-4 border-emerald-500 pl-2 tracking-wide').style('color: var(--xf-text-strong);')
 
                         def stat_row(label, val, color):
-                            with ui.row().classes('w-full justify-between items-center border-b border-[#1e3a5f]/45 pb-3 mb-3 last:border-0 last:mb-0' if is_dark else 'w-full justify-between items-center border-b border-slate-200 pb-3 mb-3 last:border-0 last:mb-0'):
-                                ui.label(label).classes('text-slate-500 text-sm font-bold')
+                            with ui.row().classes('w-full justify-between items-center border-b pb-3 mb-3 last:border-0 last:mb-0').style('border-color: var(--xf-card-border);'):
+                                ui.label(label).classes('text-sm font-bold').style('color: var(--xf-text-muted);')
                                 ui.label(str(val)).classes(f'font-bold text-xl {color}')
 
                         stat_row('总服务器', len(SERVERS_CACHE), 'text-slate-200' if is_dark else 'text-slate-800')

@@ -24,16 +24,16 @@ async def render_single_server_view(server_conf, force_refresh=False):
 
     from nicegui import app
     is_dark = bool(app.storage.user.get('is_dark', True))
-    page_bg = '#030712' if is_dark else '#eef4ff'
-    shell_card_cls = 'rounded-sm border border-[#1e3a5f]/50 shadow-[0_10px_30px_rgba(0,0,0,0.8)] overflow-hidden bg-[#070b14]' if is_dark else 'rounded-sm border border-slate-300/90 shadow-[0_10px_28px_rgba(148,163,184,0.16)] overflow-hidden bg-white'
-    shell_header_cls = 'bg-gradient-to-r from-[#0a1526] to-[#050a14] border-b border-[#1e3a5f]/60' if is_dark else 'bg-gradient-to-r from-[#f8fbff] to-[#eef4ff] border-b border-slate-300/90'
-    shell_body_cls = 'bg-[#030712]' if is_dark else 'bg-[#f8fbff]'
-    section_card_cls = 'bg-gradient-to-br from-[#0a1120] to-[#050a14] border border-[#1e3a5f]/40 rounded-sm shadow-xl p-0 gap-0 overflow-hidden' if is_dark else 'bg-gradient-to-br from-white to-[#f8fbff] border border-slate-300/90 rounded-sm shadow-[0_8px_24px_rgba(148,163,184,0.14)] p-0 gap-0 overflow-hidden'
+    page_bg = 'var(--xf-bg-main)'
+    shell_card_cls = 'rounded-sm border overflow-hidden'
+    shell_header_cls = 'border-b'
+    shell_body_cls = ''
+    section_card_cls = 'rounded-sm p-0 gap-0 overflow-hidden border'
 
     def apply_tooltip(target, text):
         tip = target.tooltip(text)
         tip.classes('text-[11px] font-bold px-2 py-1 rounded-sm')
-        tip.style('background:#050b14;color:#f1f5f9;border:1px solid rgba(6,182,212,0.35);box-shadow:0 6px 18px rgba(0,0,0,0.35);' if is_dark else 'background:#f8fbff;color:#334155;border:1px solid #cbd5e1;box-shadow:0 8px 20px rgba(148,163,184,0.18);')
+        tip.style('background:var(--xf-tooltip-bg);color:var(--xf-tooltip-text);border:1px solid var(--xf-tooltip-border);box-shadow:var(--xf-tooltip-shadow);')
         return tip
 
     SINGLE_COLS_NO_PING = _server_dialog.SINGLE_COLS_NO_PING
@@ -92,37 +92,33 @@ async def render_single_server_view(server_conf, force_refresh=False):
 
             # 🛠️ 科技风：重构指标数据行（带发光左边框和悬浮高亮）
             def render_metric_row(label, value, sub_text='', value_color='text-cyan-300'):
-                metric_row_cls = 'w-full min-h-[62px] items-center justify-between gap-4 px-4 py-4 bg-[#0a1120]/80 border border-[#1e3a5f]/45 border-l-[3px] border-l-cyan-700/80 shadow-[0_0_8px_rgba(0,0,0,0.45)] transition-all hover:border-cyan-500/40 hover:shadow-[0_0_12px_rgba(34,211,238,0.10)] hover:border-l-cyan-500 flex-nowrap relative overflow-hidden group' if is_dark else 'w-full min-h-[62px] items-center justify-between gap-4 px-4 py-4 bg-white border border-slate-300/90 border-l-[3px] border-l-sky-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] transition-all hover:border-sky-400/70 hover:shadow-[0_8px_20px_rgba(56,189,248,0.10)] hover:border-l-sky-600 flex-nowrap relative overflow-hidden group'
-                metric_overlay_cls = 'absolute inset-0 bg-gradient-to-r from-cyan-500/4 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none' if is_dark else 'absolute inset-0 bg-gradient-to-r from-sky-400/8 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
-                metric_label_cls = 'text-[11px] font-bold tracking-wide text-cyan-500/85 group-hover:text-cyan-400 transition-colors leading-none' if is_dark else 'text-[11px] font-bold tracking-wide text-sky-700/85 group-hover:text-sky-700 transition-colors leading-none'
-                metric_sub_cls = 'text-[10px] text-slate-400 break-all leading-relaxed font-mono' if is_dark else 'text-[10px] text-slate-500 break-all leading-relaxed font-mono'
-                with ui.row().classes(metric_row_cls):
-                    ui.element('div').classes(metric_overlay_cls)
+                metric_row_cls = 'w-full min-h-[62px] items-center justify-between gap-4 px-4 py-4 border border-l-[3px] transition-all flex-nowrap relative overflow-hidden group'
+                metric_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
+                with ui.row().classes(metric_row_cls).style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);'):
+                    ui.element('div').classes(metric_overlay_cls).style('background: linear-gradient(to right, var(--xf-accent-soft), transparent);')
                     with ui.column().classes('gap-0.5 min-w-0 flex-1 justify-center z-10'):
-                        ui.label(label).classes(metric_label_cls)
+                        ui.label(label).classes('text-[11px] font-bold tracking-wide leading-none').style('color: var(--xf-accent); opacity: 0.85;')
                         if sub_text:
-                            ui.label(sub_text).classes(metric_sub_cls)
+                            ui.label(sub_text).classes('text-[10px] break-all leading-relaxed font-mono').style('color: var(--xf-text-muted);')
                     ui.label(str(value)).classes(
                         f'text-sm font-black text-right shrink-0 font-mono tracking-wide z-10 {value_color}')
 
             # 🛠️ 科技风：重构模块标题（发光图标与机械感）
             def render_section_header(title, icon, accent_class, desc='', right_renderer=None):
-                header_row_cls = 'w-full items-center justify-between px-4 py-2.5 border-b border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1120] to-transparent min-h-[56px] relative overflow-hidden' if is_dark else 'w-full items-center justify-between px-4 py-2.5 border-b border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-transparent min-h-[56px] relative overflow-hidden'
-                header_line_cls = 'absolute top-0 left-0 w-1/3 h-[1px] bg-gradient-to-r from-cyan-500/65 to-transparent' if is_dark else 'absolute top-0 left-0 w-1/3 h-[1px] bg-gradient-to-r from-sky-400/65 to-transparent'
+                header_row_cls = 'w-full items-center justify-between px-4 py-2.5 border-b min-h-[56px] relative overflow-hidden'
+                header_line_cls = 'absolute top-0 left-0 w-1/3 h-[1px]'
                 icon_wrap_base = 'w-8 h-8 rounded-sm flex items-center justify-center relative overflow-hidden group'
-                icon_wrap_cls = f'{icon_wrap_base} bg-[#050b14] border border-[#1e3a5f] shadow-[0_0_8px_rgba(0,0,0,0.75)] {accent_class}' if is_dark else f'{icon_wrap_base} bg-sky-50 border border-slate-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] {accent_class}'
-                title_cls = 'text-sm font-black text-slate-200 tracking-wide' if is_dark else 'text-sm font-black text-slate-800 tracking-wide'
-                desc_cls = 'text-[10px] text-slate-500 tracking-wide' if is_dark else 'text-[10px] text-slate-500 tracking-wide'
-                with ui.row().classes(header_row_cls):
-                    ui.element('div').classes(header_line_cls)
+                icon_wrap_cls = f'{icon_wrap_base} border {accent_class}'
+                with ui.row().classes(header_row_cls).style('border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), transparent);'):
+                    ui.element('div').classes(header_line_cls).style('background: linear-gradient(to right, var(--xf-accent), transparent); opacity: 0.65;')
                     with ui.row().classes('items-center gap-3 z-10'):
-                        with ui.element('div').classes(icon_wrap_cls):
+                        with ui.element('div').classes(icon_wrap_cls).style('background: var(--xf-code-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.12);'):
                             ui.element('div').classes('absolute inset-0 bg-current opacity-10')
                             ui.icon(icon).classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
                         with ui.column().classes('gap-0 justify-center'):
-                            ui.label(title).classes(title_cls)
+                            ui.label(title).classes('text-sm font-black tracking-wide').style('color: var(--xf-text-strong);')
                             if desc:
-                                ui.label(desc).classes(desc_cls)
+                                ui.label(desc).classes('text-[10px] tracking-wide').style('color: var(--xf-text-muted);')
                     if right_renderer:
                         with ui.element('div').classes('z-10'):
                             right_renderer()
@@ -332,9 +328,8 @@ PY'''
 
                 if not all_nodes:
                     with ui.column().classes('w-full py-12 items-center justify-center opacity-50'):
-                        ui.icon('radar', size='4rem').classes(
-                            'text-cyan-900 mb-2 drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]')
-                        ui.label('暂无节点 (可直接新建)').classes('text-cyan-600/80 text-xs font-mono tracking-widest')
+                        ui.icon('radar', size='4rem').classes('mb-2 drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]').style('color: var(--xf-accent);')
+                        ui.label('暂无节点 (可直接新建)').classes('text-xs font-mono tracking-widest').style('color: var(--xf-accent); opacity: 0.8;')
                 else:
                     for n in all_nodes:
                         is_custom = n.get('_is_custom', False)
@@ -342,10 +337,10 @@ PY'''
                                 server_conf.get('probe_installed') and server_conf.get('ssh_host'))
 
                         # 🛠️ 科技风：节点列表行
-                        row_tech_cls = 'grid w-full gap-4 py-2.5 px-3 mb-2 items-center group bg-[#0a1120]/60 border border-[#1e3a5f]/40 border-l-[3px] border-l-transparent hover:border-[#1e3a5f] hover:border-l-cyan-400 hover:bg-[#0d172a] hover:shadow-[0_0_15px_rgba(34,211,238,0.15)] transition-all duration-300 cursor-default rounded-sm' if is_dark else 'grid w-full gap-4 py-2.5 px-3 mb-2 items-center group bg-white border border-slate-300/90 border-l-[3px] border-l-transparent hover:border-slate-300 hover:border-l-sky-500 hover:bg-sky-50 hover:shadow-[0_8px_20px_rgba(56,189,248,0.10)] transition-all duration-300 cursor-default rounded-sm'
-                        with ui.element('div').classes(row_tech_cls).style(SINGLE_COLS_NO_PING):
+                        row_tech_cls = 'grid w-full gap-4 py-2.5 px-3 mb-2 items-center group border border-l-[3px] transition-all duration-300 cursor-default rounded-sm'
+                        with ui.element('div').classes(row_tech_cls).style(f'{SINGLE_COLS_NO_PING} background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);'):
                             ui.label(n.get('remark', '未命名')).classes(
-                                'font-bold truncate w-full text-left pl-1 text-slate-300 text-[13px] group-hover:text-cyan-300 transition-colors' if is_dark else 'font-bold truncate w-full text-left pl-1 text-slate-800 text-[13px] group-hover:text-sky-700 transition-colors')
+                                'font-bold truncate w-full text-left pl-1 text-[13px] transition-colors').style('color: var(--xf-text-strong);')
                             if is_custom:
                                 ui.label('独立').classes(
                                     'text-[10px] text-purple-400 font-black w-fit mx-auto tracking-wider')
@@ -358,12 +353,12 @@ PY'''
 
                             traffic = format_bytes(n.get('up', 0) + n.get('down', 0)) if not is_custom else '--'
                             ui.label(traffic).classes(
-                                'text-[11px] text-cyan-500/70 w-full text-center font-mono font-bold tracking-wide' if is_dark else 'text-[11px] text-sky-700/80 w-full text-center font-mono font-bold tracking-wide')
+                                'text-[11px] w-full text-center font-mono font-bold tracking-wide').style('color: var(--xf-accent); opacity: 0.8;')
                             proto = str(n.get('protocol', 'unk')).upper()
                             ui.label(proto).classes(
-                                'text-[10px] font-black w-full text-center text-slate-500 tracking-widest' if is_dark else 'text-[10px] font-black w-full text-center text-slate-600 tracking-widest')
+                                'text-[10px] font-black w-full text-center tracking-widest').style('color: var(--xf-text-muted);')
                             ui.label(str(n.get('port', 0))).classes(
-                                'text-blue-400 font-mono w-full text-center font-bold text-[11px] drop-shadow-[0_0_3px_rgba(96,165,250,0.5)]' if is_dark else 'text-sky-700 font-mono w-full text-center font-bold text-[11px]')
+                                'font-mono w-full text-center font-bold text-[11px]').style('color: var(--xf-accent);')
                             is_enable = n.get('enable', True)
                             with ui.row().classes('w-full justify-center items-center gap-1.5'):
                                 color = 'emerald' if is_enable else 'rose'
@@ -379,7 +374,7 @@ PY'''
                                 if raw_link:
                                     raw_btn = ui.button(icon='link', on_click=lambda u=raw_link: safe_copy_to_clipboard(u)).props(
                                         btn_props).classes(
-                                        'text-slate-400 hover:bg-[#1e3a5f]/50 hover:text-cyan-400 hover:shadow-[0_0_8px_rgba(34,211,238,0.4)] transition-all' if is_dark else 'text-slate-400 hover:bg-sky-100 hover:text-sky-700 transition-all')
+                                        'text-slate-400 transition-all').style('color: var(--xf-text-muted);')
                                     apply_tooltip(raw_btn, '复制原始链接')
 
                                 async def copy_detail_action(node_item=n):
@@ -393,7 +388,7 @@ PY'''
                                         ui.notify(text or '该协议不支持生成明文配置', type='warning')
 
                                 detail_btn = ui.button(icon='data_object', on_click=copy_detail_action).props(btn_props).classes(
-                                    'text-slate-400 hover:bg-[#1e3a5f]/50 hover:text-amber-400 hover:shadow-[0_0_8px_rgba(251,191,36,0.4)] transition-all' if is_dark else 'text-slate-400 hover:bg-amber-100 hover:text-amber-600 transition-all')
+                                    'text-slate-400 transition-all').style('color: var(--xf-text-muted);')
                                 apply_tooltip(detail_btn, '复制明文配置')
 
                                 if is_custom:
@@ -660,7 +655,7 @@ PY'''
                                 with ui.column().classes('w-full p-4 gap-4'):
                                     with ui.row().classes(
                                             'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-[#0a1120]/80 border border-[#1e3a5f]/50 border-l-[3px] border-l-emerald-600 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex-nowrap' if is_dark else 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-white border border-slate-300/90 border-l-[3px] border-l-emerald-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] flex-nowrap'):
-                                        ui.label('真实使用内存').classes(
+                                        ui.label('已使用内存').classes(
                                             'text-[11px] font-bold tracking-wider text-emerald-600/80 leading-none shrink-0' if is_dark else 'text-[11px] font-bold tracking-wider text-emerald-700/85 leading-none shrink-0')
                                         pct, val = snap['mem_usage_pct'], fmt_gb(snap['mem_used_gb'])
                                         bar_glow = 'shadow-[0_0_10px_rgba(250,204,21,0.8)] bg-yellow-400' if pct > 80 else 'shadow-[0_0_10px_rgba(16,185,129,0.8)] bg-emerald-400'
@@ -670,13 +665,33 @@ PY'''
                                                 f'h-full {bar_glow} transition-all duration-500').style(
                                                 f'width: {pct}%')
                                             ui.label(f'{val} ({pct:.0f}%)').classes(progress_text_class(pct))
-                                    render_metric_row('空闲可用内存', fmt_gb(snap['mem_free_gb']),
-                                                      f"剩余占比: {max(0.0, 100.0 - snap['mem_usage_pct']):.0f}%",
-                                                      value_color='text-teal-300')
-                                    render_metric_row('SWAP 虚拟内存',
-                                                      f"{fmt_gb(snap['swap_used_gb'])} / {fmt_gb(snap['swap_total_gb'])}",
-                                                      f"使用率: {snap['swap_usage_pct']:.0f}%",
-                                                      value_color='text-purple-400')
+
+                                    with ui.row().classes(
+                                            'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-[#0a1120]/80 border border-[#1e3a5f]/50 border-l-[3px] border-l-teal-600 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex-nowrap' if is_dark else 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-white border border-slate-300/90 border-l-[3px] border-l-teal-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] flex-nowrap'):
+                                        ui.label('空闲可用内存').classes(
+                                            'text-[11px] font-bold tracking-wider text-teal-400 leading-none shrink-0' if is_dark else 'text-[11px] font-bold tracking-wider text-teal-700/85 leading-none shrink-0')
+                                        free_pct, free_val = max(0.0, 100.0 - snap['mem_usage_pct']), fmt_gb(snap['mem_free_gb'])
+                                        free_bar_glow = 'shadow-[0_0_10px_rgba(45,212,191,0.8)] bg-teal-400'
+                                        with ui.element('div').classes(
+                                                'w-1/2 max-w-[190px] ml-auto bg-[#030712] rounded-none h-[24px] relative overflow-hidden border border-[#1e3a5f] shrink-0' if is_dark else 'w-1/2 max-w-[190px] ml-auto bg-slate-100 rounded-none h-[24px] relative overflow-hidden border border-slate-300 shrink-0'):
+                                            ui.element('div').classes(
+                                                f'h-full {free_bar_glow} transition-all duration-500').style(
+                                                f'width: {free_pct}%')
+                                            ui.label(f'{free_val} ({free_pct:.0f}%)').classes(progress_text_class(free_pct))
+
+                                    with ui.row().classes(
+                                            'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-[#0a1120]/80 border border-[#1e3a5f]/50 border-l-[3px] border-l-purple-600 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex-nowrap' if is_dark else 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-white border border-slate-300/90 border-l-[3px] border-l-purple-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] flex-nowrap'):
+                                        ui.label('SWAP 虚拟内存').classes(
+                                            'text-[11px] font-bold tracking-wider text-purple-400 leading-none shrink-0' if is_dark else 'text-[11px] font-bold tracking-wider text-purple-700/85 leading-none shrink-0')
+                                        swap_pct = snap['swap_usage_pct']
+                                        swap_val = f"{fmt_gb(snap['swap_used_gb'])} / {fmt_gb(snap['swap_total_gb'])}"
+                                        swap_bar_glow = 'shadow-[0_0_10px_rgba(192,132,252,0.8)] bg-purple-400'
+                                        with ui.element('div').classes(
+                                                'w-1/2 max-w-[190px] ml-auto bg-[#030712] rounded-none h-[24px] relative overflow-hidden border border-[#1e3a5f] shrink-0' if is_dark else 'w-1/2 max-w-[190px] ml-auto bg-slate-100 rounded-none h-[24px] relative overflow-hidden border border-slate-300 shrink-0'):
+                                            ui.element('div').classes(
+                                                f'h-full {swap_bar_glow} transition-all duration-500').style(
+                                                f'width: {swap_pct}%')
+                                            ui.label(f'{swap_val} ({swap_pct:.0f}%)').classes(progress_text_class(swap_pct))
 
                             render_mem_card()
 

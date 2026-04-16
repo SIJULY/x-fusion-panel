@@ -49,8 +49,8 @@ def show_custom_node_info(node):
 
 def _apply_tooltip(target, text, is_dark):
     tip = target.tooltip(text)
-    tip.classes('text-[11px] font-bold px-2 py-1 rounded-sm' if is_dark else 'text-[11px] font-bold px-2 py-1 rounded-sm')
-    tip.style('background:#050b14;color:#f1f5f9;border:1px solid rgba(6,182,212,0.35);box-shadow:0 6px 18px rgba(0,0,0,0.35);' if is_dark else 'background:#f8fbff;color:#334155;border:1px solid #cbd5e1;box-shadow:0 8px 20px rgba(148,163,184,0.18);')
+    tip.classes('text-[11px] font-bold px-2 py-1 rounded-sm')
+    tip.style('background:var(--xf-tooltip-bg);color:var(--xf-tooltip-text);border:1px solid var(--xf-tooltip-border);box-shadow:var(--xf-tooltip-shadow);')
     return tip
 
 
@@ -62,31 +62,32 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
         pass
 
     is_dark = bool(app.storage.user.get('is_dark', True))
-    card_cls = 'grid w-full gap-4 py-3 px-4 items-center group relative bg-[#070b14] rounded-sm border border-[#1e3a5f]/55 border-b-[3px] shadow-[0_0_12px_rgba(0,0,0,0.22)] transition-all duration-150 ease-out hover:shadow-[0_0_18px_rgba(34,211,238,0.08)] hover:border-cyan-500/45 hover:bg-[#0d172a] hover:-translate-y-[1px] mb-2' if is_dark else 'grid w-full gap-4 py-3 px-4 items-center group relative bg-white rounded-sm border border-slate-300/90 border-b-[3px] shadow-[0_6px_18px_rgba(148,163,184,0.12)] transition-all duration-150 ease-out hover:shadow-[0_8px_20px_rgba(56,189,248,0.12)] hover:border-sky-400/60 hover:bg-sky-50 hover:-translate-y-[1px] mb-2'
+    card_cls = 'grid w-full gap-4 py-3 px-4 items-center group relative rounded-sm border border-b-[3px] transition-all duration-150 ease-out hover:-translate-y-[1px] mb-2'
+    card_style = f'{css_style} background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);'
 
-    with ui.element('div').classes(card_cls).style(css_style):
+    with ui.element('div').classes(card_cls).style(card_style):
         srv_name = srv.get('name', '未命名')
         if not is_first:
-            ui.label(srv_name).classes('text-xs text-slate-600 truncate w-full text-left pl-2 font-mono' if is_dark else 'text-xs text-slate-500 truncate w-full text-left pl-2 font-mono')
+            ui.label(srv_name).classes('text-xs truncate w-full text-left pl-2 font-mono').style('color: var(--xf-text-muted);')
         else:
-            ui.label(srv_name).classes('text-xs text-slate-400 font-black truncate w-full text-left pl-2 font-mono group-hover:text-cyan-300' if is_dark else 'text-xs text-slate-700 font-black truncate w-full text-left pl-2 font-mono group-hover:text-sky-700')
+            ui.label(srv_name).classes('text-xs font-black truncate w-full text-left pl-2 font-mono').style('color: var(--xf-text-muted);')
 
         if not node:
             is_probe = srv.get('probe_installed', False)
             msg = '同步中...' if not is_probe else '无节点配置'
-            ui.label(msg).classes('font-black truncate text-slate-600 text-xs italic' if is_dark else 'font-black truncate text-slate-500 text-xs italic')
-            ui.label('--').classes('text-center text-slate-700')
-            ui.label('--').classes('text-center text-slate-700')
-            ui.label('UNK').classes('text-center text-slate-700 font-black text-[10px]')
-            ui.label('--').classes('text-center text-slate-700')
+            ui.label(msg).classes('font-black truncate text-xs italic').style('color: var(--xf-text-muted);')
+            ui.label('--').classes('text-center').style('color: var(--xf-text-muted);')
+            ui.label('--').classes('text-center').style('color: var(--xf-text-muted);')
+            ui.label('UNK').classes('text-center font-black text-[10px]').style('color: var(--xf-text-muted);')
+            ui.label('--').classes('text-center').style('color: var(--xf-text-muted);')
             if not use_special_mode:
                 ui.element('div')
             with ui.row().classes('gap-1 justify-center w-full no-wrap'):
-                ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: __import__('asyncio').create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').classes('text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/30')
+                ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: __import__('asyncio').create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
             return
 
         remark = node.get('ps') or node.get('remark') or '未命名节点'
-        ui.label(remark).classes('font-black truncate w-full text-left pl-2 text-slate-200 text-sm group-hover:text-cyan-300' if is_dark else 'font-black truncate w-full text-left pl-2 text-slate-800 text-sm group-hover:text-sky-700')
+        ui.label(remark).classes('font-black truncate w-full text-left pl-2 text-sm').style('color: var(--xf-text-strong);')
 
         if use_special_mode:
             with ui.row().classes('w-full justify-center items-center gap-1.5 no-wrap'):
@@ -96,7 +97,7 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
                     color = 'text-orange-400'
                 ui.icon('bolt').classes(f'{color} text-sm')
                 display_ip = get_real_ip_display(srv['url'])
-                ip_lbl = ui.label(display_ip).classes('text-[10px] font-mono text-cyan-500/80 font-black bg-black px-1.5 py-0.5 rounded-sm select-all border border-[#1e3a5f]/45' if is_dark else 'text-[10px] font-mono text-sky-700 font-black bg-sky-50 px-1.5 py-0.5 rounded-sm select-all border border-slate-300/90')
+                ip_lbl = ui.label(display_ip).classes('text-[10px] font-mono font-black px-1.5 py-0.5 rounded-sm select-all border').style('color: var(--xf-accent); background: var(--xf-code-bg); border-color: var(--xf-card-border);')
                 bind_ip_label(srv['url'], ip_lbl)
         else:
             group_display = srv.get('group', '默认分组')
@@ -107,13 +108,13 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
                         group_display = detected
                 except:
                     pass
-            ui.label(group_display).classes('text-xs font-black text-slate-300 w-full text-center truncate bg-black px-2 py-0.5 rounded-sm border border-[#1e3a5f]/45' if is_dark else 'text-xs font-black text-slate-700 w-full text-center truncate bg-sky-50 px-2 py-0.5 rounded-sm border border-slate-300/90')
+            ui.label(group_display).classes('text-xs font-black w-full text-center truncate px-2 py-0.5 rounded-sm border').style('color: var(--xf-text-strong); background: var(--xf-code-bg); border-color: var(--xf-card-border);')
 
         if node.get('_is_custom'):
-            ui.label('-').classes('text-xs text-slate-600 w-full text-center font-mono')
+            ui.label('-').classes('text-xs w-full text-center font-mono').style('color: var(--xf-text-muted);')
         else:
             traffic = sum([node.get('up', 0), node.get('down', 0)])
-            ui.label(format_bytes(traffic)).classes('text-xs text-cyan-400 w-full text-center font-mono font-black' if is_dark else 'text-xs text-sky-700 w-full text-center font-mono font-black')
+            ui.label(format_bytes(traffic)).classes('text-xs w-full text-center font-mono font-black').style('color: var(--xf-accent);')
 
         proto = str(node.get('protocol', 'unk')).upper()
         if 'HYSTERIA' in proto:
@@ -132,7 +133,7 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
         ui.label(proto).classes(f'text-[11px] font-black w-full text-center {proto_color} tracking-wide')
 
         port_val = str(node.get('port', 0))
-        ui.label(port_val).classes('text-slate-400 font-mono w-full text-center font-black text-xs' if is_dark else 'text-slate-600 font-mono w-full text-center font-black text-xs')
+        ui.label(port_val).classes('font-mono w-full text-center font-black text-xs').style('color: var(--xf-text-muted);')
 
         if not use_special_mode:
             with ui.element('div').classes('flex justify-center w-full'):
@@ -147,7 +148,7 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
                     link = generate_node_link(n, s['url'])
                 await safe_copy_to_clipboard(link)
 
-            copy_btn = ui.button(icon='content_copy', on_click=copy_link).props('flat dense size=sm round').classes('text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-400 hover:text-sky-700 hover:bg-sky-100')
+            copy_btn = ui.button(icon='content_copy', on_click=copy_link).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
             _apply_tooltip(copy_btn, '复制链接', is_dark)
 
             async def copy_detail():
@@ -158,9 +159,9 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
                 else:
                     ui.notify('不支持生成配置', type='warning')
 
-            detail_btn = ui.button(icon='description', on_click=copy_detail).props('flat dense size=sm round').classes('text-slate-500 hover:text-amber-300 hover:bg-amber-950/25' if is_dark else 'text-slate-400 hover:text-amber-600 hover:bg-amber-100')
+            detail_btn = ui.button(icon='description', on_click=copy_detail).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
             _apply_tooltip(detail_btn, '复制明文配置', is_dark)
-            settings_btn = ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: __import__('asyncio').create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').classes('text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-400 hover:text-sky-700 hover:bg-sky-100')
+            settings_btn = ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: __import__('asyncio').create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
             _apply_tooltip(settings_btn, '管理服务器', is_dark)
 
 

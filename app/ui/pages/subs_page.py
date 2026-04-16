@@ -56,7 +56,7 @@ async def load_subs_view():
 
     content_container.clear()
     content_container.classes(remove='justify-center items-center overflow-hidden p-6', add='h-full overflow-y-auto p-4 pl-6 justify-start')
-    content_container.style(f'background-color: {"#030712" if is_dark else "#eef4ff"};')
+    content_container.style('background-color: var(--xf-bg-main);')
 
     all_active_keys = set()
     for srv in SERVERS_CACHE:
@@ -67,30 +67,34 @@ async def load_subs_view():
             all_active_keys.add(key)
 
     with content_container:
-        page_header_cls = 'w-full mb-5 justify-between items-center border-b border-[#1e3a5f]/60 pb-3' if is_dark else 'w-full mb-5 justify-between items-center border-b border-slate-300/90 pb-3'
-        page_icon_cls = 'w-10 h-10 rounded-sm flex items-center justify-center bg-[#050b14] border border-[#1e3a5f] text-cyan-400 shadow-[0_0_10px_rgba(0,0,0,0.45)] relative overflow-hidden' if is_dark else 'w-10 h-10 rounded-sm flex items-center justify-center bg-sky-50 border border-slate-300 text-sky-600 shadow-[0_4px_12px_rgba(148,163,184,0.12)] relative overflow-hidden'
-        page_title_cls = 'text-2xl font-black text-slate-100 tracking-wide' if is_dark else 'text-2xl font-black text-slate-800 tracking-wide'
-        card_cls = 'w-full p-4 mb-3 shadow-[0_0_16px_rgba(0,0,0,0.28)] hover:shadow-[0_0_24px_rgba(34,211,238,0.08)] transition border border-[#1e3a5f]/55 border-l-4 border-l-cyan-500 rounded-sm bg-[#070b14]' if is_dark else 'w-full p-4 mb-3 shadow-[0_8px_24px_rgba(148,163,184,0.14)] hover:shadow-[0_10px_26px_rgba(56,189,248,0.12)] transition border border-slate-300/90 border-l-4 border-l-sky-500 rounded-sm bg-white'
+        page_header_cls = 'w-full mb-5 justify-between items-center border-b pb-3'
+        page_header_style = 'border-color: var(--xf-card-border);'
+        page_icon_cls = 'w-10 h-10 rounded-sm flex items-center justify-center border relative overflow-hidden'
+        page_icon_style = 'background: var(--xf-code-bg); border-color: var(--xf-card-border); color: var(--xf-accent); box-shadow: 0 4px 12px rgba(15,23,42,0.12);'
+        page_title_cls = 'text-2xl font-black tracking-wide'
+        page_title_style = 'color: var(--xf-text-strong);'
+        card_cls = 'w-full p-4 mb-3 transition border border-l-4 rounded-sm'
+        card_style = 'background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);'
 
-        with ui.row().classes(page_header_cls):
+        with ui.row().classes(page_header_cls).style(page_header_style):
             with ui.row().classes('items-center gap-3'):
-                with ui.element('div').classes(page_icon_cls):
-                    ui.element('div').classes('absolute inset-0 bg-cyan-400/10' if is_dark else 'absolute inset-0 bg-sky-400/10')
+                with ui.element('div').classes(page_icon_cls).style(page_icon_style):
+                    ui.element('div').classes('absolute inset-0').style('background: var(--xf-accent-soft);')
                     ui.icon('rss_feed').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
-                ui.label('订阅管理').classes(page_title_cls)
+                ui.label('订阅管理').classes(page_title_cls).style(page_title_style)
             ui.button('新建订阅', icon='add', on_click=lambda: open_advanced_sub_editor(None)).props('flat').classes('bg-emerald-950/45 text-emerald-300 border border-emerald-500/45 hover:bg-emerald-900/55 font-black rounded-sm px-4' if is_dark else 'bg-emerald-100 text-emerald-700 border border-emerald-300 hover:bg-emerald-200 font-black rounded-sm px-4')
 
         if not SUBS_CACHE:
-            with ui.column().classes('w-full h-64 justify-center items-center text-slate-600 border border-dashed border-[#1e3a5f]/45 rounded-sm bg-[#070b14]' if is_dark else 'w-full h-64 justify-center items-center text-slate-600 border border-dashed border-slate-300/90 rounded-sm bg-white'):
-                ui.icon('rss_feed', size='4rem').classes('text-cyan-400 opacity-80' if is_dark else 'text-sky-600 opacity-80')
-                ui.label('暂无订阅').classes('text-sm font-bold text-slate-500')
+            with ui.column().classes('w-full h-64 justify-center items-center border border-dashed rounded-sm').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); color: var(--xf-text-muted);'):
+                ui.icon('rss_feed', size='4rem').style('color: var(--xf-accent); opacity: 0.8;')
+                ui.label('暂无订阅').classes('text-sm font-bold').style('color: var(--xf-text-muted);')
 
         for idx, sub in enumerate(SUBS_CACHE):
-            with ui.card().classes(card_cls):
+            with ui.card().classes(card_cls).style(card_style):
                 with ui.row().classes('justify-between w-full items-start'):
                     with ui.column().classes('gap-1'):
                         with ui.row().classes('items-center gap-2'):
-                            ui.label(sub.get('name', '未命名订阅')).classes('font-black text-lg text-slate-100 tracking-wide' if is_dark else 'font-black text-lg text-slate-800 tracking-wide')
+                            ui.label(sub.get('name', '未命名订阅')).classes('font-black text-lg tracking-wide').style('color: var(--xf-text-strong);')
                             ui.badge('普通', color='cyan').props('outline size=xs').classes('text-cyan-300 border-cyan-500/45 rounded-sm' if is_dark else 'text-sky-700 border-sky-300 rounded-sm')
 
                         saved_node_ids = set(sub.get('nodes', []))
@@ -103,7 +107,8 @@ async def load_subs_view():
                     with ui.row().classes('gap-2'):
                         ui.button('管理订阅', icon='tune', on_click=lambda _, s=sub: open_advanced_sub_editor(s)) \
                             .props('flat dense size=sm') \
-                            .classes('bg-cyan-950/40 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-900/55 rounded-sm px-3 font-black' if is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 rounded-sm px-3 font-black') \
+                            .classes('rounded-sm px-3 font-black border') \
+                            .style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);') \
                             .tooltip('重命名 / 排序 / 筛选节点')
 
                         async def dl(i=idx):
@@ -125,19 +130,19 @@ async def load_subs_view():
 
                         ui.button(icon='delete', on_click=dl).props('flat dense size=sm').classes('text-rose-400 hover:bg-rose-950/30 hover:text-rose-300')
 
-                ui.separator().classes('my-3 bg-[#1e3a5f]/60 opacity-80' if is_dark else 'my-3 bg-slate-300/80 opacity-80')
+                ui.separator().classes('my-3 opacity-80').style('background: var(--xf-card-border);')
 
                 path = f"/sub/{sub['token']}"
                 raw_url = f"{origin}{path}"
 
-                with ui.row().classes('w-full items-center gap-2 bg-black p-2.5 rounded-sm justify-between border border-[#1e3a5f]/45' if is_dark else 'w-full items-center gap-2 bg-sky-50 p-2.5 rounded-sm justify-between border border-slate-300/90'):
+                with ui.row().classes('w-full items-center gap-2 p-2.5 rounded-sm justify-between border').style('background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
                     with ui.row().classes('items-center gap-3 flex-grow overflow-hidden'):
-                        ui.icon('link').classes('text-cyan-400 text-sm' if is_dark else 'text-sky-600 text-sm')
-                        ui.label(raw_url).classes('text-xs font-mono text-emerald-400 font-bold truncate select-all' if is_dark else 'text-xs font-mono text-slate-700 font-bold truncate select-all')
+                        ui.icon('link').classes('text-sm').style('color: var(--xf-accent);')
+                        ui.label(raw_url).classes('text-xs font-mono font-bold truncate select-all').style('color: var(--xf-text-strong);')
 
                     with ui.row().classes('gap-1'):
                         def btn_copy(icon, color, text, func):
-                            ui.button(icon=icon, on_click=func).props(f'flat dense round size=xs text-color={color}').tooltip(text).classes('hover:bg-cyan-950/30' if is_dark else 'hover:bg-sky-100')
+                            ui.button(icon=icon, on_click=func).props(f'flat dense round size=xs text-color={color}').tooltip(text).style('color: var(--xf-text-muted);')
 
                         btn_copy('content_copy', 'grey-4', '复制原始链接', lambda u=raw_url: safe_copy_to_clipboard(u))
 

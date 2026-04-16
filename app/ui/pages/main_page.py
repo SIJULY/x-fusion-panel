@@ -29,6 +29,16 @@ def main_page(request: Request):
             'scroll_thumb': '#1e3a5f' if is_dark else '#94a3b8',
             'scroll_thumb_hover': '#2563eb' if is_dark else '#64748b',
             'content_bg': '#030712' if is_dark else '#eef4ff',
+            'panel_bg': '#070b14' if is_dark else '#ffffff',
+            'soft_bg': '#0a1120' if is_dark else '#f8fbff',
+            'elevated_bg': '#08101d' if is_dark else '#ffffff',
+            'accent': '#22d3ee' if is_dark else '#0369a1',
+            'accent_soft': 'rgba(34,211,238,0.10)' if is_dark else 'rgba(56,189,248,0.12)',
+            'text_strong': '#e2e8f0' if is_dark else '#0f172a',
+            'text_muted': '#94a3b8' if is_dark else '#64748b',
+            'text_subtle': '#64748b' if is_dark else '#94a3b8',
+            'hover_bg': '#0d172a' if is_dark else '#f0f9ff',
+            'code_bg': '#050b14' if is_dark else '#f8fbff',
             'tooltip_bg': '#050b14' if is_dark else '#f8fbff',
             'tooltip_text': '#f1f5f9' if is_dark else '#334155',
             'tooltip_border': 'rgba(6,182,212,0.35)' if is_dark else '#cbd5e1',
@@ -80,10 +90,20 @@ def main_page(request: Request):
                 const pairs = {{
                     '--xf-body-bg': theme.body_bg,
                     '--xf-bg-main': theme.content_bg,
+                    '--xf-panel-bg': theme.panel_bg,
+                    '--xf-soft-bg': theme.soft_bg,
+                    '--xf-elevated-bg': theme.elevated_bg,
                     '--xf-card-bg': theme.card_bg,
                     '--xf-card-border': theme.card_border,
                     '--xf-drawer-bg': theme.drawer_bg,
                     '--xf-text-main': theme.body_text,
+                    '--xf-text-strong': theme.text_strong,
+                    '--xf-text-muted': theme.text_muted,
+                    '--xf-text-subtle': theme.text_subtle,
+                    '--xf-accent': theme.accent,
+                    '--xf-accent-soft': theme.accent_soft,
+                    '--xf-hover-bg': theme.hover_bg,
+                    '--xf-code-bg': theme.code_bg,
                     '--xf-scroll-track': theme.scroll_track,
                     '--xf-scroll-thumb': theme.scroll_thumb,
                     '--xf-scroll-thumb-hover': theme.scroll_thumb_hover,
@@ -122,9 +142,13 @@ def main_page(request: Request):
                     ['bg-[#050b14]', 'bg-sky-50'],
                     ['bg-[#08101d]/80', 'bg-white'],
                     ['bg-[#08101d]/90', 'bg-white'],
+                    ['bg-[#0c1728]', 'bg-sky-50'],
                     ['bg-[#0a1120]/80', 'bg-white'],
                     ['bg-[#0a1120]/85', 'bg-white/95'],
                     ['bg-[#0a1120]/90', 'bg-white/95'],
+                    ['bg-[#111827]', 'bg-[#f8fbff]'],
+                    ['bg-[#1e293b]', 'bg-white'],
+                    ['bg-black', 'bg-[#f8fbff]'],
                     ['bg-[#0d172a]', 'bg-sky-50'],
                     ['from-[#0a1526]', 'from-[#f8fbff]'],
                     ['to-[#050a14]', 'to-[#eef4ff]'],
@@ -138,6 +162,8 @@ def main_page(request: Request):
                     ['text-cyan-300', 'text-sky-700'],
                     ['text-cyan-400', 'text-sky-600'],
                     ['text-cyan-500', 'text-sky-700'],
+                    ['text-cyan-600/80', 'text-sky-700/80'],
+                    ['text-cyan-900', 'text-sky-700'],
                     ['border-[#1e3a5f]/60', 'border-slate-300/90'],
                     ['border-[#1e3a5f]/55', 'border-slate-300/90'],
                     ['border-[#1e3a5f]/50', 'border-slate-300/90'],
@@ -145,6 +171,8 @@ def main_page(request: Request):
                     ['border-[#1e3a5f]/40', 'border-slate-300/90'],
                     ['border-[#1e3a5f]/35', 'border-slate-200/90'],
                     ['border-[#1e3a5f]', 'border-slate-300'],
+                    ['border-slate-700', 'border-slate-300'],
+                    ['border-slate-600', 'border-slate-300'],
                     ['border-l-cyan-700/80', 'border-l-sky-500'],
                     ['border-l-cyan-500', 'border-l-sky-600'],
                     ['hover:bg-cyan-950/30', 'hover:bg-sky-100'],
@@ -155,27 +183,38 @@ def main_page(request: Request):
                     ['hover:border-cyan-500/40', 'hover:border-sky-400/70'],
                     ['shadow-[0_0_16px_rgba(0,0,0,0.28)]', 'shadow-[0_8px_24px_rgba(148,163,184,0.14)]'],
                     ['shadow-[0_0_12px_rgba(0,0,0,0.35)]', 'shadow-[0_6px_18px_rgba(148,163,184,0.14)]'],
+                    ['shadow-[0_0_10px_rgba(0,0,0,0.2)]', 'shadow-[0_6px_18px_rgba(148,163,184,0.12)]'],
                     ['shadow-[0_10px_30px_rgba(0,0,0,0.8)]', 'shadow-[0_10px_28px_rgba(148,163,184,0.16)]'],
                 ];
                 const lightToDark = darkToLight.map(([a, b]) => [b, a]);
                 const swaps = isDark ? lightToDark : darkToLight;
                 const elements = document.querySelectorAll('[class]');
-                elements.forEach(el => {
+                elements.forEach(el => {{
                     let cls = el.className;
                     if (typeof cls !== 'string') return;
                     swaps.forEach(([from, to]) => {{ cls = cls.split(from).join(to); }});
                     el.className = cls;
-                });
+                }});
             }};
         </script>
         <style>
             :root {{
                 --xf-body-bg: {theme['body_bg']};
                 --xf-bg-main: {theme['content_bg']};
+                --xf-panel-bg: {theme['panel_bg']};
+                --xf-soft-bg: {theme['soft_bg']};
+                --xf-elevated-bg: {theme['elevated_bg']};
                 --xf-card-bg: {theme['card_bg']};
                 --xf-card-border: {theme['card_border']};
                 --xf-drawer-bg: {theme['drawer_bg']};
                 --xf-text-main: {theme['body_text']};
+                --xf-text-strong: {theme['text_strong']};
+                --xf-text-muted: {theme['text_muted']};
+                --xf-text-subtle: {theme['text_subtle']};
+                --xf-accent: {theme['accent']};
+                --xf-accent-soft: {theme['accent_soft']};
+                --xf-hover-bg: {theme['hover_bg']};
+                --xf-code-bg: {theme['code_bg']};
                 --xf-scroll-track: {theme['scroll_track']};
                 --xf-scroll-thumb: {theme['scroll_thumb']};
                 --xf-scroll-thumb-hover: {theme['scroll_thumb_hover']};
