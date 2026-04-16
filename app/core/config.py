@@ -461,7 +461,7 @@ systemctl stop snell 2>/dev/null
 rm -rf /usr/local/bin/snell-server
 
 # 4. 安全下载 (使用 curl -f 遇到 404 直接失败)
-DOWNLOAD_URL="https://dl.nssurge.com/snell/snell-server-v5.0.1-linux-${S_ARCH}.zip"
+DOWNLOAD_URL="https://dl.nssurge.com/snell/snell-server-v5.0.1-linux-${{S_ARCH}}.zip"
 
 echo "正在下载: $DOWNLOAD_URL"
 curl -fsSL "$DOWNLOAD_URL" -o /tmp/snell.zip

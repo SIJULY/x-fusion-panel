@@ -413,6 +413,9 @@ async def open_deploy_snell_dialog(server_conf, callback):
                             log_area.push(output[-500:])
                     else:
                         log_area.push(f"❌ SSH 连接失败: {output}")
+                except Exception as e:
+                    log_area.push(f"❌ 异常: {e}")
+                    print(e)
                 finally:
                     btn_cancel.enable()
                     btn_deploy.props(remove='loading')
