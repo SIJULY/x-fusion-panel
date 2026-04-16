@@ -82,13 +82,25 @@ async def render_single_server_view(server_conf, force_refresh=False):
                     pct = float(pct or 0)
                 except:
                     pct = 0
-                if is_dark:
-                    if pct >= 72:
-                        return 'absolute inset-0 z-10 flex items-center justify-center text-[11px] font-black text-[#03111f] font-mono leading-none tracking-tight'
-                    return 'absolute inset-0 z-10 flex items-center justify-center text-[11px] font-black text-slate-200 font-mono leading-none tracking-tight drop-shadow-[0_1px_1px_rgba(0,0,0,0.85)]'
                 if pct >= 72:
                     return 'absolute inset-0 z-10 flex items-center justify-center text-[11px] font-black text-slate-900 font-mono leading-none tracking-tight'
-                return 'absolute inset-0 z-10 flex items-center justify-center text-[11px] font-black text-slate-700 font-mono leading-none tracking-tight'
+                return 'absolute inset-0 z-10 flex items-center justify-center text-[11px] font-black font-mono leading-none tracking-tight'
+
+            def progress_text_style(pct):
+                try:
+                    pct = float(pct or 0)
+                except:
+                    pct = 0
+                if pct >= 72:
+                    return 'color: #0f172a;'
+                return 'color: var(--xf-text-strong); text-shadow: 0 1px 1px rgba(15,23,42,0.35);'
+
+            def render_progress_row(label, pct, text, accent='#22d3ee'):
+                with ui.row().classes('w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm border border-l-[3px] flex-nowrap').style(f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {accent}; box-shadow: 0 6px 18px rgba(15,23,42,0.10);'):
+                    ui.label(label).classes('text-[11px] font-bold tracking-wider leading-none shrink-0').style(f'color: {accent};')
+                    with ui.element('div').classes('w-1/2 max-w-[190px] ml-auto rounded-none h-[24px] relative overflow-hidden border shrink-0').style('background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
+                        ui.element('div').classes('h-full transition-all duration-500').style(f'width: {pct}%; background: {accent}; box-shadow: 0 0 10px color-mix(in srgb, {accent} 60%, transparent);')
+                        ui.label(text).classes(progress_text_class(pct)).style(progress_text_style(pct))
 
             # 🛠️ 科技风：重构指标数据行（带发光左边框和悬浮高亮）
             def render_metric_row(label, value, sub_text='', value_color='text-cyan-300'):
@@ -576,7 +588,7 @@ PY'''
                     if server_conf.get('ssh_host'):
                         ui.button('进入 SSH 终端', icon='terminal', on_click=open_ssh_page).props(
                             'flat size=sm').classes(
-                            'bg-[#0a1120]/80 border border-cyan-700/50 text-cyan-400 hover:bg-cyan-900/40 hover:shadow-[0_0_15px_rgba(34,211,238,0.4)] px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all' if is_dark else 'bg-sky-100 border border-sky-300 text-sky-700 hover:bg-sky-200 px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all')
+                            'px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
 
             ui.element('div').classes('h-4 flex-shrink-0')
 
@@ -622,20 +634,9 @@ PY'''
                                 @ui.refreshable
                                 def render_sys_dyn():
                                     snap = get_cached_snapshot()
-                                    with ui.row().classes(
-                                            'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-[#0a1120]/80 border border-[#1e3a5f]/50 border-l-[3px] border-l-cyan-600 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex-nowrap' if is_dark else 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-white border border-slate-300/90 border-l-[3px] border-l-sky-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] flex-nowrap'):
-                                        ui.label('CPU 使用率').classes(
-                                            'text-[11px] font-bold tracking-wider text-cyan-600/80 leading-none shrink-0' if is_dark else 'text-[11px] font-bold tracking-wider text-sky-700/85 leading-none shrink-0')
-                                        pct = snap.get('cpu_usage_pct', 0.0)
-                                        # 🛠️ 科技风进度条：直角、发光
-                                        bar_glow = 'shadow-[0_0_10px_rgba(34,211,238,0.8)] bg-cyan-400' if pct < 60 else (
-                                            'shadow-[0_0_10px_rgba(250,204,21,0.8)] bg-yellow-400' if pct < 85 else 'shadow-[0_0_10px_rgba(244,63,94,0.8)] bg-rose-500')
-                                        with ui.element('div').classes(
-                                                'w-1/2 max-w-[190px] ml-auto bg-[#030712] rounded-none h-[24px] relative overflow-hidden border border-[#1e3a5f] shrink-0' if is_dark else 'w-1/2 max-w-[190px] ml-auto bg-slate-100 rounded-none h-[24px] relative overflow-hidden border border-slate-300 shrink-0'):
-                                            ui.element('div').classes(
-                                                f'h-full {bar_glow} transition-all duration-500').style(
-                                                f'width: {pct}%')
-                                            ui.label(f'{pct:.1f}%').classes(progress_text_class(pct))
+                                    pct = snap.get('cpu_usage_pct', 0.0)
+                                    cpu_color = '#22d3ee' if pct < 60 else ('#facc15' if pct < 85 else '#f43f5e')
+                                    render_progress_row('CPU 使用率', pct, f'{pct:.1f}%', cpu_color)
                                     render_metric_row('处理器架构', format_arch_text(snap['arch']),
                                                       value_color='text-blue-300')
                                     render_metric_row('在线运行时间', snap['uptime'], value_color='text-emerald-400')
@@ -653,45 +654,15 @@ PY'''
                                                           f"{fmt_gb(snap['mem_total_gb'])}").classes(
                                                           'text-[10px] font-black text-emerald-300 bg-emerald-900/30 px-2 py-1 rounded-sm border border-emerald-700/50 shadow-[0_0_8px_rgba(16,185,129,0.2)] tracking-widest' if is_dark else 'text-[10px] font-black text-emerald-700 bg-emerald-100 px-2 py-1 rounded-sm border border-emerald-300 shadow-[0_4px_10px_rgba(16,185,129,0.10)] tracking-widest'))
                                 with ui.column().classes('w-full p-4 gap-4'):
-                                    with ui.row().classes(
-                                            'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-[#0a1120]/80 border border-[#1e3a5f]/50 border-l-[3px] border-l-emerald-600 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex-nowrap' if is_dark else 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-white border border-slate-300/90 border-l-[3px] border-l-emerald-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] flex-nowrap'):
-                                        ui.label('已使用内存').classes(
-                                            'text-[11px] font-bold tracking-wider text-emerald-600/80 leading-none shrink-0' if is_dark else 'text-[11px] font-bold tracking-wider text-emerald-700/85 leading-none shrink-0')
-                                        pct, val = snap['mem_usage_pct'], fmt_gb(snap['mem_used_gb'])
-                                        bar_glow = 'shadow-[0_0_10px_rgba(250,204,21,0.8)] bg-yellow-400' if pct > 80 else 'shadow-[0_0_10px_rgba(16,185,129,0.8)] bg-emerald-400'
-                                        with ui.element('div').classes(
-                                                'w-1/2 max-w-[190px] ml-auto bg-[#030712] rounded-none h-[24px] relative overflow-hidden border border-[#1e3a5f] shrink-0' if is_dark else 'w-1/2 max-w-[190px] ml-auto bg-slate-100 rounded-none h-[24px] relative overflow-hidden border border-slate-300 shrink-0'):
-                                            ui.element('div').classes(
-                                                f'h-full {bar_glow} transition-all duration-500').style(
-                                                f'width: {pct}%')
-                                            ui.label(f'{val} ({pct:.0f}%)').classes(progress_text_class(pct))
+                                    pct, val = snap['mem_usage_pct'], fmt_gb(snap['mem_used_gb'])
+                                    render_progress_row('已使用内存', pct, f'{val} ({pct:.0f}%)', '#10b981' if pct <= 80 else '#facc15')
 
-                                    with ui.row().classes(
-                                            'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-[#0a1120]/80 border border-[#1e3a5f]/50 border-l-[3px] border-l-teal-600 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex-nowrap' if is_dark else 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-white border border-slate-300/90 border-l-[3px] border-l-teal-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] flex-nowrap'):
-                                        ui.label('空闲可用内存').classes(
-                                            'text-[11px] font-bold tracking-wider text-teal-400 leading-none shrink-0' if is_dark else 'text-[11px] font-bold tracking-wider text-teal-700/85 leading-none shrink-0')
-                                        free_pct, free_val = max(0.0, 100.0 - snap['mem_usage_pct']), fmt_gb(snap['mem_free_gb'])
-                                        free_bar_glow = 'shadow-[0_0_10px_rgba(45,212,191,0.8)] bg-teal-400'
-                                        with ui.element('div').classes(
-                                                'w-1/2 max-w-[190px] ml-auto bg-[#030712] rounded-none h-[24px] relative overflow-hidden border border-[#1e3a5f] shrink-0' if is_dark else 'w-1/2 max-w-[190px] ml-auto bg-slate-100 rounded-none h-[24px] relative overflow-hidden border border-slate-300 shrink-0'):
-                                            ui.element('div').classes(
-                                                f'h-full {free_bar_glow} transition-all duration-500').style(
-                                                f'width: {free_pct}%')
-                                            ui.label(f'{free_val} ({free_pct:.0f}%)').classes(progress_text_class(free_pct))
+                                    free_pct, free_val = max(0.0, 100.0 - snap['mem_usage_pct']), fmt_gb(snap['mem_free_gb'])
+                                    render_progress_row('空闲可用内存', free_pct, f'{free_val} ({free_pct:.0f}%)', '#14b8a6')
 
-                                    with ui.row().classes(
-                                            'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-[#0a1120]/80 border border-[#1e3a5f]/50 border-l-[3px] border-l-purple-600 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex-nowrap' if is_dark else 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-white border border-slate-300/90 border-l-[3px] border-l-purple-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] flex-nowrap'):
-                                        ui.label('SWAP 虚拟内存').classes(
-                                            'text-[11px] font-bold tracking-wider text-purple-400 leading-none shrink-0' if is_dark else 'text-[11px] font-bold tracking-wider text-purple-700/85 leading-none shrink-0')
-                                        swap_pct = snap['swap_usage_pct']
-                                        swap_val = f"{fmt_gb(snap['swap_used_gb'])} / {fmt_gb(snap['swap_total_gb'])}"
-                                        swap_bar_glow = 'shadow-[0_0_10px_rgba(192,132,252,0.8)] bg-purple-400'
-                                        with ui.element('div').classes(
-                                                'w-1/2 max-w-[190px] ml-auto bg-[#030712] rounded-none h-[24px] relative overflow-hidden border border-[#1e3a5f] shrink-0' if is_dark else 'w-1/2 max-w-[190px] ml-auto bg-slate-100 rounded-none h-[24px] relative overflow-hidden border border-slate-300 shrink-0'):
-                                            ui.element('div').classes(
-                                                f'h-full {swap_bar_glow} transition-all duration-500').style(
-                                                f'width: {swap_pct}%')
-                                            ui.label(f'{swap_val} ({swap_pct:.0f}%)').classes(progress_text_class(swap_pct))
+                                    swap_pct = snap['swap_usage_pct']
+                                    swap_val = f"{fmt_gb(snap['swap_used_gb'])} / {fmt_gb(snap['swap_total_gb'])}"
+                                    render_progress_row('SWAP 虚拟内存', swap_pct, f'{swap_val} ({swap_pct:.0f}%)', '#a855f7')
 
                             render_mem_card()
 
@@ -709,35 +680,14 @@ PY'''
                                 render_metric_row('磁盘设备', snap.get('disk_device', '/'),
                                                   value_color='text-indigo-300')
 
-                                with ui.row().classes(
-                                        'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-[#0a1120]/80 border border-[#1e3a5f]/50 border-l-[3px] border-l-amber-600 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex-nowrap' if is_dark else 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-white border border-slate-300/90 border-l-[3px] border-l-amber-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] flex-nowrap'):
-                                    ui.label('已用容量').classes(
-                                        'text-[11px] font-bold tracking-wider text-amber-600/80 leading-none shrink-0' if is_dark else 'text-[11px] font-bold tracking-wider text-amber-700/85 leading-none shrink-0')
-
-                                    pct = snap.get('disk_usage_pct', 0.0)
-                                    val = fmt_gb(snap['disk_used_gb'])
-                                    bar_glow = 'shadow-[0_0_10px_rgba(249,115,22,0.8)] bg-orange-500' if pct > 85 else 'shadow-[0_0_10px_rgba(251,191,36,0.8)] bg-amber-400'
-                                    with ui.element('div').classes(
-                                            'w-1/2 max-w-[170px] ml-auto bg-[#030712] rounded-none h-[24px] relative overflow-hidden border border-[#1e3a5f] shrink-0' if is_dark else 'w-1/2 max-w-[170px] ml-auto bg-slate-100 rounded-none h-[24px] relative overflow-hidden border border-slate-300 shrink-0'):
-                                        ui.element('div').classes(
-                                            f'h-full {bar_glow} transition-all duration-500').style(f'width: {pct}%')
-                                        ui.label(f'{val} ({pct:.0f}%)').classes(progress_text_class(pct))
+                                pct = snap.get('disk_usage_pct', 0.0)
+                                val = fmt_gb(snap['disk_used_gb'])
+                                render_progress_row('已用容量', pct, f'{val} ({pct:.0f}%)', '#f59e0b' if pct <= 85 else '#f97316')
 
 
-                                with ui.row().classes(
-                                        'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-[#0a1120]/80 border border-[#1e3a5f]/50 border-l-[3px] border-l-emerald-600 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex-nowrap' if is_dark else 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm bg-white border border-slate-300/90 border-l-[3px] border-l-emerald-500 shadow-[0_6px_18px_rgba(148,163,184,0.12)] flex-nowrap'):
-                                    ui.label('空闲剩余').classes(
-                                        'text-[11px] font-bold tracking-wider text-emerald-600/80 leading-none shrink-0' if is_dark else 'text-[11px] font-bold tracking-wider text-emerald-700/85 leading-none shrink-0')
-
-                                    free_pct = 100.0 - pct if pct > 0 else 100.0
-                                    val = fmt_gb(snap['disk_free_gb'])
-                                    bar_glow = 'shadow-[0_0_10px_rgba(16,185,129,0.8)] bg-emerald-400'
-                                    with ui.element('div').classes(
-                                            'w-1/2 max-w-[170px] ml-auto bg-[#030712] rounded-none h-[24px] relative overflow-hidden border border-[#1e3a5f] shrink-0' if is_dark else 'w-1/2 max-w-[170px] ml-auto bg-slate-100 rounded-none h-[24px] relative overflow-hidden border border-slate-300 shrink-0'):
-                                        ui.element('div').classes(
-                                            f'h-full {bar_glow} transition-all duration-500').style(
-                                            f'width: {free_pct}%')
-                                        ui.label(f'{val} ({free_pct:.0f}%)').classes(progress_text_class(free_pct))
+                                free_pct = 100.0 - pct if pct > 0 else 100.0
+                                val = fmt_gb(snap['disk_free_gb'])
+                                render_progress_row('空闲剩余', free_pct, f'{val} ({free_pct:.0f}%)', '#10b981')
 
                         render_disk_card()
 
@@ -772,20 +722,18 @@ PY'''
 
                         # 🛠️ 科技风：霓虹线框按钮
                         btn_tech_base = 'text-[11px] font-bold px-4 py-1.5 border transition-all duration-300 tracking-wider rounded-sm backdrop-blur-sm'
-                        btn_cyan_theme = 'bg-cyan-950/40 text-cyan-400 border-cyan-500/50 hover:bg-cyan-900/60 hover:shadow-[0_0_12px_rgba(34,211,238,0.5)]' if is_dark else 'bg-sky-100 text-sky-700 border-sky-300 hover:bg-sky-200'
-                        btn_purple_theme = 'bg-purple-950/40 text-purple-400 border-purple-500/50 hover:bg-purple-900/60 hover:shadow-[0_0_12px_rgba(168,85,247,0.5)]' if is_dark else 'bg-violet-100 text-violet-700 border-violet-300 hover:bg-violet-200'
-                        btn_cyan = f'{btn_cyan_theme} {btn_tech_base}'
-                        btn_purple = f'{btn_purple_theme} {btn_tech_base}'
+                        btn_cyan = btn_tech_base
+                        btn_purple = btn_tech_base
 
                         ui.button('一键部署 XHTTP', icon='rocket_launch',
                                   on_click=lambda: open_deploy_xhttp_dialog(server_conf, reload_and_refresh_ui)).props(
-                            'flat size=sm').classes(btn_cyan)
+                            'flat size=sm').classes(btn_cyan).style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
                         ui.button('一键部署 Hy2', icon='bolt', on_click=lambda: open_deploy_hysteria_dialog(server_conf,
                                                                                                             reload_and_refresh_ui)).props(
-                            'flat size=sm').classes(btn_cyan)
+                            'flat size=sm').classes(btn_cyan).style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
                         ui.button('一键部署 Snell', icon='security',
                                   on_click=lambda: open_deploy_snell_dialog(server_conf, reload_and_refresh_ui)).props(
-                            'flat size=sm').classes(btn_cyan)
+                            'flat size=sm').classes(btn_cyan).style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
 
                         if has_manager_access:
                             async def on_add_success():
@@ -795,11 +743,11 @@ PY'''
                             ui.button('新建 XUI 节点', icon='add',
                                       on_click=lambda: open_inbound_dialog(mgr, None, on_add_success,
                                                                            is_3x_ui=server_conf.get('is_3x_ui', False))).props(
-                                'flat size=sm').classes(btn_purple)
+                                'flat size=sm').classes(btn_purple).style('background: var(--xf-soft-bg); color: #a855f7; border-color: var(--xf-card-border);')
                         else:
                             ui.button('探针只读', icon='visibility', on_click=None).props(
                                 'flat size=sm disabled').classes(
-                                'bg-slate-900/50 text-slate-600 border border-slate-700/50 text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5' if is_dark else 'bg-slate-100 text-slate-500 border border-slate-300 text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5')
+                                'text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5 border').style('background: var(--xf-soft-bg); color: var(--xf-text-subtle); border-color: var(--xf-card-border); opacity: 0.8;')
 
                 with ui.element('div').classes(
                         'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(

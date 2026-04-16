@@ -10,11 +10,11 @@ from app.utils.geo import detect_country_group, get_coords_from_name
 
 
 def build_globe_structure(is_dark: bool) -> str:
-    container_bg = '#100C2A' if is_dark else '#f8fbff'
-    stats_text = 'rgba(255, 255, 255, 0.8)' if is_dark else 'rgba(15, 23, 42, 0.78)'
-    stats_bg = 'rgba(0, 20, 40, 0.6)' if is_dark else 'rgba(255, 255, 255, 0.92)'
-    stats_border = 'rgba(0, 255, 255, 0.3)' if is_dark else 'rgba(148, 163, 184, 0.55)'
-    stats_span = '#00ffff' if is_dark else '#0369a1'
+    container_bg = 'var(--xf-code-bg)'
+    stats_text = 'var(--xf-text-strong)'
+    stats_bg = 'color-mix(in srgb, var(--xf-panel-bg) 88%, transparent)'
+    stats_border = 'var(--xf-card-border)'
+    stats_span = 'var(--xf-accent)'
     return f"""
 <style>
     #earth-container {{
@@ -55,7 +55,7 @@ def build_globe_structure(is_dark: bool) -> str:
 
 
 def build_globe_js_logic(is_dark: bool) -> str:
-    background_color = '#100C2A' if is_dark else '#f8fbff'
+    background_color = 'transparent'
     geo_area_color = '#1B2631' if is_dark else '#dbeafe'
     geo_border_color = '#404a59' if is_dark else '#94a3b8'
     geo_emphasis_color = '#2a333d' if is_dark else '#bfdbfe'
@@ -300,23 +300,23 @@ async def load_dashboard_stats():
     logger.info(f"[Dashboard] load_dashboard_stats start | servers_cache={len(SERVERS_CACHE)} refs_before={list(DASHBOARD_REFS.keys())}")
 
     is_dark = bool(app.storage.user.get('is_dark', True))
-    overview_wrap_cls = 'w-full items-center gap-3 border-b border-[#1e3a5f]/60 pb-3 mb-4' if is_dark else 'w-full items-center gap-3 border-b border-slate-300/90 pb-3 mb-4'
-    overview_icon_cls = 'w-11 h-11 rounded-sm flex items-center justify-center bg-[#050b14] border border-[#1e3a5f] text-cyan-400 shadow-[0_0_10px_rgba(0,0,0,0.45)] relative overflow-hidden' if is_dark else 'w-11 h-11 rounded-sm flex items-center justify-center bg-sky-50 border border-slate-300 text-sky-600 shadow-[0_4px_12px_rgba(148,163,184,0.12)] relative overflow-hidden'
-    overview_title_cls = 'text-3xl font-black text-slate-100 tracking-wide' if is_dark else 'text-3xl font-black text-slate-800 tracking-wide'
-    overview_sub_cls = 'text-xs font-black text-cyan-500/70 uppercase tracking-[0.25em]' if is_dark else 'text-xs font-black text-sky-700/70 uppercase tracking-[0.25em]'
-    stat_card_base = 'flex-1 p-4 rounded-sm relative overflow-hidden border shadow-[0_0_16px_rgba(0,0,0,0.28)]' if is_dark else 'flex-1 p-4 rounded-sm relative overflow-hidden border shadow-[0_8px_24px_rgba(148,163,184,0.14)]'
-    stat_title_cls = 'opacity-90 text-[11px] font-black uppercase tracking-[0.2em] text-white' if is_dark else 'opacity-90 text-[11px] font-black uppercase tracking-[0.2em] text-slate-700'
-    stat_value_cls = 'text-3xl font-black tracking-tight my-1 drop-shadow-md text-white' if is_dark else 'text-3xl font-black tracking-tight my-1 text-slate-800'
-    stat_subtext_cls = 'opacity-75 text-[10px] font-bold text-white' if is_dark else 'opacity-75 text-[10px] font-bold text-slate-500'
-    stat_icon_cls = 'text-4xl opacity-80 drop-shadow-sm text-white' if is_dark else 'text-4xl opacity-80 drop-shadow-sm text-slate-500'
-    chart_card_cls = 'w-full p-5 shadow-[0_0_16px_rgba(0,0,0,0.28)] border border-[#1e3a5f]/55 rounded-sm bg-[#070b14] flex flex-col' if is_dark else 'w-full p-5 shadow-[0_8px_24px_rgba(148,163,184,0.14)] border border-slate-300/90 rounded-sm bg-white flex flex-col'
-    chart_header_cls = 'w-full justify-between items-center mb-4 border-b border-[#1e3a5f]/55 pb-2' if is_dark else 'w-full justify-between items-center mb-4 border-b border-slate-300/90 pb-2'
-    chart_title_cls = 'text-base font-black text-slate-100 tracking-wide' if is_dark else 'text-base font-black text-slate-800 tracking-wide'
-    live_wrap_cls = 'items-center gap-1 px-2 py-0.5 bg-emerald-950/25 rounded-sm border border-emerald-500/30' if is_dark else 'items-center gap-1 px-2 py-0.5 bg-emerald-100 rounded-sm border border-emerald-300'
-    live_text_cls = 'text-[10px] font-black text-emerald-400 tracking-wide' if is_dark else 'text-[10px] font-black text-emerald-700 tracking-wide'
-    map_card_cls = 'w-full p-0 shadow-[0_0_16px_rgba(0,0,0,0.28)] border border-[#1e3a5f]/55 rounded-sm bg-black overflow-hidden relative' if is_dark else 'w-full p-0 shadow-[0_8px_24px_rgba(148,163,184,0.14)] border border-slate-300/90 rounded-sm bg-white overflow-hidden relative'
-    map_header_cls = 'w-full px-6 py-3 bg-[#070b14] border-b border-[#1e3a5f]/55 justify-between items-center z-10 relative' if is_dark else 'w-full px-6 py-3 bg-[#f8fbff] border-b border-slate-300/90 justify-between items-center z-10 relative'
-    map_info_cls = 'text-[10px] text-cyan-500/70 font-bold tracking-wide' if is_dark else 'text-[10px] text-sky-700/70 font-bold tracking-wide'
+    overview_wrap_cls = 'w-full items-center gap-3 border-b pb-3 mb-4'
+    overview_icon_cls = 'w-11 h-11 rounded-sm flex items-center justify-center border relative overflow-hidden'
+    overview_title_cls = 'text-3xl font-black tracking-wide'
+    overview_sub_cls = 'text-xs font-black uppercase tracking-[0.25em]'
+    stat_card_base = 'flex-1 p-4 rounded-sm relative overflow-hidden border'
+    stat_title_cls = 'opacity-90 text-[11px] font-black uppercase tracking-[0.2em]'
+    stat_value_cls = 'text-3xl font-black tracking-tight my-1'
+    stat_subtext_cls = 'opacity-75 text-[10px] font-bold'
+    stat_icon_cls = 'text-4xl opacity-80 drop-shadow-sm'
+    chart_card_cls = 'w-full p-5 border rounded-sm flex flex-col'
+    chart_header_cls = 'w-full justify-between items-center mb-4 border-b pb-2'
+    chart_title_cls = 'text-base font-black tracking-wide'
+    live_wrap_cls = 'items-center gap-1 px-2 py-0.5 rounded-sm border'
+    live_text_cls = 'text-[10px] font-black tracking-wide'
+    map_card_cls = 'w-full p-0 border rounded-sm overflow-hidden relative'
+    map_header_cls = 'w-full px-6 py-3 border-b justify-between items-center z-10 relative'
+    map_info_cls = 'text-[10px] font-bold tracking-wide'
 
     await asyncio.sleep(0.1)
 
@@ -324,7 +324,7 @@ async def load_dashboard_stats():
 
     content_container.clear()
     content_container.classes(remove='justify-center items-center overflow-hidden p-6', add='overflow-y-auto p-4 pl-6 justify-start')
-    content_container.style(f'background-color: {"#030712" if is_dark else "#eef4ff"};')
+    content_container.style('background-color: var(--xf-bg-main);')
 
     init_data = calculate_dashboard_data()
     logger.info(f"[Dashboard] load_dashboard_stats init_data={init_data}")
@@ -389,26 +389,26 @@ async def load_dashboard_stats():
         }, 3000);
         """)
 
-        with ui.row().classes(overview_wrap_cls):
-            with ui.element('div').classes(overview_icon_cls):
-                ui.element('div').classes('absolute inset-0 bg-cyan-400/10' if is_dark else 'absolute inset-0 bg-sky-400/10')
+        with ui.row().classes(overview_wrap_cls).style('border-color: var(--xf-card-border);'):
+            with ui.element('div').classes(overview_icon_cls).style('background: var(--xf-code-bg); border-color: var(--xf-card-border); color: var(--xf-accent); box-shadow: 0 4px 12px rgba(15,23,42,0.12);'):
+                ui.element('div').classes('absolute inset-0').style('background: var(--xf-accent-soft);')
                 ui.icon('dashboard').classes('text-[20px] drop-shadow-[0_0_5px_currentColor]')
             with ui.column().classes('gap-0'):
-                ui.label('系统概览').classes(overview_title_cls)
-                ui.label('Dashboard Overview').classes(overview_sub_cls)
+                ui.label('系统概览').classes(overview_title_cls).style('color: var(--xf-text-strong);')
+                ui.label('Dashboard Overview').classes(overview_sub_cls).style('color: var(--xf-accent); opacity: 0.7;')
 
         with ui.row().classes('w-full gap-4 mb-6 items-stretch'):
             def create_stat_card(ref_key, dom_id, title, sub_text, icon, dark_gradient, light_gradient, init_val):
                 gradient = dark_gradient if is_dark else light_gradient
-                with ui.card().classes(f'{stat_card_base} {gradient}'):
-                    ui.element('div').classes('absolute -right-4 -top-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl' if is_dark else 'absolute -right-4 -top-4 w-24 h-24 bg-sky-200 opacity-40 rounded-full blur-xl')
-                    ui.element('div').classes('absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),transparent_45%)] pointer-events-none' if is_dark else 'absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.6),transparent_45%)] pointer-events-none')
+                with ui.card().classes(stat_card_base).style(f'background: {gradient}; border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);'):
+                    ui.element('div').classes('absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl').style('background: color-mix(in srgb, white 18%, transparent); opacity: 0.5;')
+                    ui.element('div').classes('absolute inset-0 pointer-events-none').style('background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 45%);')
                     with ui.row().classes('items-center justify-between w-full relative z-10'):
                         with ui.column().classes('gap-0'):
-                            ui.label(title).classes(stat_title_cls)
-                            DASHBOARD_REFS[ref_key] = ui.label(init_val).props(f'id={dom_id}').classes(stat_value_cls)
-                            ui.label(sub_text).classes(stat_subtext_cls)
-                        ui.icon(icon).classes(stat_icon_cls)
+                            ui.label(title).classes(stat_title_cls).style('color: var(--xf-text-muted);')
+                            DASHBOARD_REFS[ref_key] = ui.label(init_val).props(f'id={dom_id}').classes(stat_value_cls).style('color: var(--xf-text-strong);')
+                            ui.label(sub_text).classes(stat_subtext_cls).style('color: var(--xf-text-muted);')
+                        ui.icon(icon).classes(stat_icon_cls).style('color: var(--xf-accent);')
 
             create_stat_card('servers', 'stat-servers', '在线服务器', 'Online / Total', 'dns', 'bg-gradient-to-br from-[#123a67] to-[#09162a]', 'bg-gradient-to-br from-[#eff6ff] to-[#dbeafe]', init_data['servers'])
             create_stat_card('nodes', 'stat-nodes', '节点总数', 'Active Nodes', 'hub', 'bg-gradient-to-br from-[#3a1d67] to-[#120a24]', 'bg-gradient-to-br from-[#f5f3ff] to-[#ede9fe]', init_data['nodes'])
@@ -417,12 +417,12 @@ async def load_dashboard_stats():
             logger.info(f"[Dashboard] stat refs assigned | refs_now={list(DASHBOARD_REFS.keys())}")
 
         with ui.row().classes('w-full gap-6 mb-6 flex-wrap xl:flex-nowrap items-stretch'):
-            with ui.card().classes(f'xl:w-2/3 {chart_card_cls}'):
-                with ui.row().classes(chart_header_cls):
-                    ui.label('📊 服务器流量排行 (GB)').classes(chart_title_cls)
-                    with ui.row().classes(live_wrap_cls):
+            with ui.card().classes(f'xl:w-2/3 {chart_card_cls}').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);'):
+                with ui.row().classes(chart_header_cls).style('border-color: var(--xf-card-border);'):
+                    ui.label('📊 服务器流量排行 (GB)').classes(chart_title_cls).style('color: var(--xf-text-strong);')
+                    with ui.row().classes(live_wrap_cls).style('background: color-mix(in srgb, #22c55e 16%, transparent); border-color: color-mix(in srgb, #22c55e 35%, var(--xf-card-border));'):
                         ui.element('div').classes('w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse')
-                        ui.label('Live').classes(live_text_cls)
+                        ui.label('Live').classes(live_text_cls).style('color: #22c55e;')
 
                 DASHBOARD_REFS['bar_chart'] = ui.echart({
                     'tooltip': {'trigger': 'axis'},
@@ -432,8 +432,8 @@ async def load_dashboard_stats():
                     'series': [{'type': 'bar', 'data': init_data['bar_chart']['values'], 'barWidth': '40%', 'itemStyle': {'borderRadius': [3, 3, 0, 0], 'color': '#06b6d4'}}]
                 }).classes('w-full h-64').props('id=chart-bar')
 
-            with ui.card().classes(f'xl:w-1/3 {chart_card_cls}'):
-                ui.label('🌏 服务器分布').classes('text-base font-black mb-4 pb-2 tracking-wide text-slate-100 border-b border-[#1e3a5f]/55' if is_dark else 'text-base font-black mb-4 pb-2 tracking-wide text-slate-800 border-b border-slate-300/90')
+            with ui.card().classes(f'xl:w-1/3 {chart_card_cls}').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);'):
+                ui.label('🌏 服务器分布').classes('text-base font-black mb-4 pb-2 tracking-wide border-b').style('color: var(--xf-text-strong); border-color: var(--xf-card-border);')
                 color_palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6', '#f97316']
 
                 DASHBOARD_REFS['pie_chart'] = ui.echart({
@@ -455,12 +455,12 @@ async def load_dashboard_stats():
                 }).classes('w-full h-64').props('id=chart-pie')
 
         with ui.row().classes('w-full gap-6 mb-6'):
-            with ui.card().classes(map_card_cls):
-                with ui.row().classes(map_header_cls):
+            with ui.card().classes(map_card_cls).style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);'):
+                with ui.row().classes(map_header_cls).style('background: var(--xf-panel-bg); border-color: var(--xf-card-border);'):
                     with ui.row().classes('gap-2 items-center'):
-                        ui.icon('public').classes('text-xl text-cyan-400' if is_dark else 'text-xl text-sky-600')
-                        ui.label('全球节点实景 (Global View)').classes(chart_title_cls)
-                    DASHBOARD_REFS['map_info'] = ui.label('Live Rendering').classes(map_info_cls)
+                        ui.icon('public').classes('text-xl').style('color: var(--xf-accent);')
+                        ui.label('全球节点实景 (Global View)').classes(chart_title_cls).style('color: var(--xf-text-strong);')
+                    DASHBOARD_REFS['map_info'] = ui.label('Live Rendering').classes(map_info_cls).style('color: var(--xf-accent); opacity: 0.7;')
 
                 globe_data_list = []
                 seen_locations = set()
