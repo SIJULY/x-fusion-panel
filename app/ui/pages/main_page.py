@@ -43,6 +43,29 @@ def main_page(request: Request):
             'tooltip_text': '#f1f5f9' if is_dark else '#334155',
             'tooltip_border': 'rgba(6,182,212,0.35)' if is_dark else '#cbd5e1',
             'tooltip_shadow': '0 6px 18px rgba(0,0,0,0.35)' if is_dark else '0 8px 20px rgba(148,163,184,0.18)',
+            'stat_servers_bg': 'linear-gradient(135deg, #0f172a 0%, #102a43 45%, #155e75 100%)' if is_dark else 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #bfdbfe 100%)',
+            'stat_servers_badge': '#38bdf8' if is_dark else '#0284c7',
+            'stat_servers_icon_bg': 'rgba(14, 165, 233, 0.14)' if is_dark else 'rgba(255,255,255,0.72)',
+            'stat_nodes_bg': 'linear-gradient(135deg, #1e1b4b 0%, #312e81 45%, #6d28d9 100%)' if is_dark else 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 55%, #ddd6fe 100%)',
+            'stat_nodes_badge': '#a78bfa' if is_dark else '#7c3aed',
+            'stat_nodes_icon_bg': 'rgba(139, 92, 246, 0.14)' if is_dark else 'rgba(255,255,255,0.76)',
+            'stat_traffic_bg': 'linear-gradient(135deg, #052e2b 0%, #065f46 50%, #0f766e 100%)' if is_dark else 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 55%, #ccfbf1 100%)',
+            'stat_traffic_badge': '#34d399' if is_dark else '#059669',
+            'stat_traffic_icon_bg': 'rgba(16, 185, 129, 0.14)' if is_dark else 'rgba(255,255,255,0.76)',
+            'stat_subs_bg': 'linear-gradient(135deg, #431407 0%, #9a3412 55%, #ea580c 100%)' if is_dark else 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 55%, #fed7aa 100%)',
+            'stat_subs_badge': '#fb923c' if is_dark else '#ea580c',
+            'stat_subs_icon_bg': 'rgba(249, 115, 22, 0.14)' if is_dark else 'rgba(255,255,255,0.76)',
+            'stat_title': 'rgba(226, 232, 240, 0.88)' if is_dark else '#334155',
+            'stat_value': '#f8fafc' if is_dark else '#0f172a',
+            'stat_sub': 'rgba(191, 219, 254, 0.82)' if is_dark else '#475569',
+            'map_geo_area': '#172033' if is_dark else '#dbeafe',
+            'map_geo_border': '#334155' if is_dark else '#94a3b8',
+            'map_geo_emphasis': '#1e293b' if is_dark else '#bfdbfe',
+            'map_highlight_area': '#2563eb' if is_dark else '#60a5fa',
+            'map_highlight_border': '#22d3ee' if is_dark else '#0284c7',
+            'map_scatter_shadow': 'rgba(15,23,42,0.9)' if is_dark else 'rgba(148,163,184,0.65)',
+            'map_me': '#facc15' if is_dark else '#f59e0b',
+            'map_line': '#22d3ee' if is_dark else '#38bdf8',
             'header_classes': 'bg-gradient-to-r from-[#070e1a] to-[#0a1526] text-white h-14 border-b border-[#1e3a5f]/60 shadow-[0_4px_20px_rgba(0,0,0,0.6)]' if is_dark else 'bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] text-slate-900 h-14 border-b border-[#cbd5e1] shadow-[0_4px_16px_rgba(148,163,184,0.18)]',
             'drawer_classes': 'bg-[#070b14] border-r border-[#1e3a5f]/55' if is_dark else 'bg-[#f8fbff] border-r border-[#cbd5e1]/80',
             'menu_btn_classes': 'text-slate-300 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-600 hover:text-blue-600 hover:bg-blue-100/80',
@@ -111,6 +134,29 @@ def main_page(request: Request):
                     '--xf-tooltip-text': theme.tooltip_text,
                     '--xf-tooltip-border': theme.tooltip_border,
                     '--xf-tooltip-shadow': theme.tooltip_shadow,
+                    '--xf-stat-servers-bg': theme.stat_servers_bg,
+                    '--xf-stat-servers-badge': theme.stat_servers_badge,
+                    '--xf-stat-servers-icon-bg': theme.stat_servers_icon_bg,
+                    '--xf-stat-nodes-bg': theme.stat_nodes_bg,
+                    '--xf-stat-nodes-badge': theme.stat_nodes_badge,
+                    '--xf-stat-nodes-icon-bg': theme.stat_nodes_icon_bg,
+                    '--xf-stat-traffic-bg': theme.stat_traffic_bg,
+                    '--xf-stat-traffic-badge': theme.stat_traffic_badge,
+                    '--xf-stat-traffic-icon-bg': theme.stat_traffic_icon_bg,
+                    '--xf-stat-subs-bg': theme.stat_subs_bg,
+                    '--xf-stat-subs-badge': theme.stat_subs_badge,
+                    '--xf-stat-subs-icon-bg': theme.stat_subs_icon_bg,
+                    '--xf-stat-title': theme.stat_title,
+                    '--xf-stat-value': theme.stat_value,
+                    '--xf-stat-sub': theme.stat_sub,
+                    '--xf-map-geo-area': theme.map_geo_area,
+                    '--xf-map-geo-border': theme.map_geo_border,
+                    '--xf-map-geo-emphasis': theme.map_geo_emphasis,
+                    '--xf-map-highlight-area': theme.map_highlight_area,
+                    '--xf-map-highlight-border': theme.map_highlight_border,
+                    '--xf-map-scatter-shadow': theme.map_scatter_shadow,
+                    '--xf-map-me': theme.map_me,
+                    '--xf-map-line': theme.map_line,
                 }};
                 Object.entries(pairs).forEach(([key, value]) => root.style.setProperty(key, value));
             }};
@@ -222,6 +268,29 @@ def main_page(request: Request):
                 --xf-tooltip-text: {theme['tooltip_text']};
                 --xf-tooltip-border: {theme['tooltip_border']};
                 --xf-tooltip-shadow: {theme['tooltip_shadow']};
+                --xf-stat-servers-bg: {theme['stat_servers_bg']};
+                --xf-stat-servers-badge: {theme['stat_servers_badge']};
+                --xf-stat-servers-icon-bg: {theme['stat_servers_icon_bg']};
+                --xf-stat-nodes-bg: {theme['stat_nodes_bg']};
+                --xf-stat-nodes-badge: {theme['stat_nodes_badge']};
+                --xf-stat-nodes-icon-bg: {theme['stat_nodes_icon_bg']};
+                --xf-stat-traffic-bg: {theme['stat_traffic_bg']};
+                --xf-stat-traffic-badge: {theme['stat_traffic_badge']};
+                --xf-stat-traffic-icon-bg: {theme['stat_traffic_icon_bg']};
+                --xf-stat-subs-bg: {theme['stat_subs_bg']};
+                --xf-stat-subs-badge: {theme['stat_subs_badge']};
+                --xf-stat-subs-icon-bg: {theme['stat_subs_icon_bg']};
+                --xf-stat-title: {theme['stat_title']};
+                --xf-stat-value: {theme['stat_value']};
+                --xf-stat-sub: {theme['stat_sub']};
+                --xf-map-geo-area: {theme['map_geo_area']};
+                --xf-map-geo-border: {theme['map_geo_border']};
+                --xf-map-geo-emphasis: {theme['map_geo_emphasis']};
+                --xf-map-highlight-area: {theme['map_highlight_area']};
+                --xf-map-highlight-border: {theme['map_highlight_border']};
+                --xf-map-scatter-shadow: {theme['map_scatter_shadow']};
+                --xf-map-me: {theme['map_me']};
+                --xf-map-line: {theme['map_line']};
             }}
             @font-face {{
                 font-family: 'Twemoji Country Flags';
@@ -353,6 +422,7 @@ def main_page(request: Request):
             window.applyXFusionTheme && window.applyXFusionTheme({js_theme});
             window.applyXFusionShellTheme && window.applyXFusionShellTheme({js_payload});
             window.applyXFusionDomTheme && window.applyXFusionDomTheme({str(new_is_dark).lower()});
+            window.applyDashboardTheme && window.applyDashboardTheme();
         ''')
 
         from app.ui.pages import content_router

@@ -73,19 +73,18 @@ def build_globe_js_logic(is_dark: bool) -> str:
     }
 
     function getPalette() {
-        const isLight = document.documentElement.classList.contains('light');
         return {
             background: 'transparent',
-            geoArea: isLight ? '#dbeafe' : '#172033',
-            geoBorder: isLight ? '#94a3b8' : '#334155',
-            geoEmphasis: isLight ? '#bfdbfe' : '#1e293b',
-            highlightArea: isLight ? '#60a5fa' : '#2563eb',
-            highlightBorder: xfVar('--xf-accent', isLight ? '#0284c7' : '#22d3ee'),
-            scatter: xfVar('--xf-accent', isLight ? '#0284c7' : '#22d3ee'),
-            scatterShadow: isLight ? 'rgba(148,163,184,0.65)' : 'rgba(15,23,42,0.9)',
-            scatterLabel: xfVar('--xf-text-strong', isLight ? '#0f172a' : '#e5eefc'),
-            me: isLight ? '#f59e0b' : '#facc15',
-            line: isLight ? '#38bdf8' : '#22d3ee'
+            geoArea: xfVar('--xf-map-geo-area', '#172033'),
+            geoBorder: xfVar('--xf-map-geo-border', '#334155'),
+            geoEmphasis: xfVar('--xf-map-geo-emphasis', '#1e293b'),
+            highlightArea: xfVar('--xf-map-highlight-area', '#2563eb'),
+            highlightBorder: xfVar('--xf-map-highlight-border', xfVar('--xf-accent', '#22d3ee')),
+            scatter: xfVar('--xf-accent', '#22d3ee'),
+            scatterShadow: xfVar('--xf-map-scatter-shadow', 'rgba(15,23,42,0.9)'),
+            scatterLabel: xfVar('--xf-text-strong', '#e5eefc'),
+            me: xfVar('--xf-map-me', '#facc15'),
+            line: xfVar('--xf-map-line', '#22d3ee')
         };
     }
 
@@ -400,6 +399,44 @@ async def load_dashboard_stats():
                 }
             } catch (e) {}
         }, 3000);
+
+        window.applyDashboardTheme = function() {
+            const css = getComputedStyle(document.documentElement);
+            const textStrong = css.getPropertyValue('--xf-text-strong').trim() || '#0f172a';
+            const textMuted = css.getPropertyValue('--xf-text-muted').trim() || '#475569';
+            const cardBorder = css.getPropertyValue('--xf-card-border').trim() || '#cbd5e1';
+            const tooltipBg = css.getPropertyValue('--xf-tooltip-bg').trim() || '#ffffff';
+            const tooltipBorder = css.getPropertyValue('--xf-tooltip-border').trim() || '#cbd5e1';
+            const panelBg = css.getPropertyValue('--xf-panel-bg').trim() || '#ffffff';
+
+            const barDom = document.getElementById('chart-bar');
+            if (barDom) {
+                const chart = echarts.getInstanceByDom(barDom);
+                if (chart) {
+                    chart.setOption({
+                        textStyle: { color: textStrong },
+                        tooltip: { backgroundColor: tooltipBg, borderColor: tooltipBorder, textStyle: { color: textStrong } },
+                        xAxis: { axisLine: { lineStyle: { color: cardBorder } }, axisLabel: { color: textMuted } },
+                        yAxis: { axisLabel: { color: textMuted }, splitLine: { lineStyle: { color: cardBorder } } }
+                    });
+                }
+            }
+
+            const pieDom = document.getElementById('chart-pie');
+            if (pieDom) {
+                const chart = echarts.getInstanceByDom(pieDom);
+                if (chart) {
+                    chart.setOption({
+                        textStyle: { color: textStrong },
+                        tooltip: { backgroundColor: tooltipBg, borderColor: tooltipBorder, textStyle: { color: textStrong } },
+                        legend: { textStyle: { color: textMuted } },
+                        series: [{ itemStyle: { borderColor: panelBg }, emphasis: { label: { color: textStrong } } }]
+                    });
+                }
+            }
+
+            if (window.updateDashboardMapTheme) window.updateDashboardMapTheme();
+        };
         """)
 
         with ui.row().classes(overview_wrap_cls).style('border-color: var(--xf-card-border);'):
@@ -411,30 +448,25 @@ async def load_dashboard_stats():
                 ui.label('Dashboard Overview').classes(overview_sub_cls).style('color: var(--xf-accent); opacity: 0.7;')
 
         with ui.row().classes('w-full gap-4 mb-6 items-stretch'):
-            def create_stat_card(ref_key, dom_id, title, sub_text, icon, dark_gradient, light_gradient, dark_badge, light_badge, dark_icon_bg, light_icon_bg, init_val):
-                gradient = dark_gradient if is_dark else light_gradient
-                badge_color = dark_badge if is_dark else light_badge
-                icon_bg = dark_icon_bg if is_dark else light_icon_bg
-                title_color = 'rgba(226, 232, 240, 0.88)' if is_dark else '#334155'
-                value_color = '#f8fafc' if is_dark else '#0f172a'
-                sub_color = 'rgba(191, 219, 254, 0.82)' if is_dark else '#475569'
-                with ui.card().classes(stat_card_base).style(f'background: {gradient}; border-color: color-mix(in srgb, {badge_color} 32%, var(--xf-card-border)); box-shadow: 0 14px 30px rgba(15,23,42,0.14);'):
-                    ui.element('div').classes('absolute -right-8 -top-8 w-28 h-28 rounded-full blur-2xl').style(f'background: color-mix(in srgb, {badge_color} 28%, white 12%); opacity: 0.95;')
+            def create_stat_card(ref_key, dom_id, title, sub_text, icon, theme_key, init_val):
+                badge_var = f'var(--xf-stat-{theme_key}-badge)'
+                with ui.card().classes(stat_card_base).style(f'background: var(--xf-stat-{theme_key}-bg); border-color: color-mix(in srgb, {badge_var} 32%, var(--xf-card-border)); box-shadow: 0 14px 30px rgba(15,23,42,0.14);'):
+                    ui.element('div').classes('absolute -right-8 -top-8 w-28 h-28 rounded-full blur-2xl').style(f'background: color-mix(in srgb, {badge_var} 28%, white 12%); opacity: 0.95;')
                     ui.element('div').classes('absolute inset-0 pointer-events-none').style('background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 50%);')
                     with ui.row().classes('items-center justify-between w-full relative z-10'):
                         with ui.column().classes('gap-0'):
                             with ui.row().classes('items-center gap-2 mb-1'):
-                                ui.element('div').classes('h-2 w-2 rounded-full').style(f'background: {badge_color}; box-shadow: 0 0 10px {badge_color};')
-                                ui.label(title).classes(stat_title_cls).style(f'color: {title_color};')
-                            DASHBOARD_REFS[ref_key] = ui.label(init_val).props(f'id={dom_id}').classes(stat_value_cls).style(f'color: {value_color}; text-shadow: 0 2px 12px rgba(15,23,42,0.18);')
-                            ui.label(sub_text).classes(stat_subtext_cls).style(f'color: {sub_color};')
-                        with ui.element('div').classes('w-14 h-14 rounded-2xl flex items-center justify-center border').style(f'background: {icon_bg}; border-color: color-mix(in srgb, {badge_color} 40%, transparent);'):
-                            ui.icon(icon).classes(stat_icon_cls).style(f'color: {badge_color}; opacity: 1;')
+                                ui.element('div').classes('h-2 w-2 rounded-full').style(f'background: {badge_var}; box-shadow: 0 0 10px {badge_var};')
+                                ui.label(title).classes(stat_title_cls).style('color: var(--xf-stat-title);')
+                            DASHBOARD_REFS[ref_key] = ui.label(init_val).props(f'id={dom_id}').classes(stat_value_cls).style('color: var(--xf-stat-value); text-shadow: 0 2px 12px rgba(15,23,42,0.18);')
+                            ui.label(sub_text).classes(stat_subtext_cls).style('color: var(--xf-stat-sub);')
+                        with ui.element('div').classes('w-14 h-14 rounded-2xl flex items-center justify-center border').style(f'background: var(--xf-stat-{theme_key}-icon-bg); border-color: color-mix(in srgb, {badge_var} 40%, transparent);'):
+                            ui.icon(icon).classes(stat_icon_cls).style(f'color: {badge_var}; opacity: 1;')
 
-            create_stat_card('servers', 'stat-servers', '在线服务器', 'Online / Total', 'dns', 'linear-gradient(135deg, #0f172a 0%, #102a43 45%, #155e75 100%)', 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #bfdbfe 100%)', '#38bdf8', '#0284c7', 'rgba(14, 165, 233, 0.14)', 'rgba(255,255,255,0.72)', init_data['servers'])
-            create_stat_card('nodes', 'stat-nodes', '节点总数', 'Active Nodes', 'hub', 'linear-gradient(135deg, #1e1b4b 0%, #312e81 45%, #6d28d9 100%)', 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 55%, #ddd6fe 100%)', '#a78bfa', '#7c3aed', 'rgba(139, 92, 246, 0.14)', 'rgba(255,255,255,0.76)', init_data['nodes'])
-            create_stat_card('traffic', 'stat-traffic', '总流量消耗', 'Total Usage', 'bolt', 'linear-gradient(135deg, #052e2b 0%, #065f46 50%, #0f766e 100%)', 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 55%, #ccfbf1 100%)', '#34d399', '#059669', 'rgba(16, 185, 129, 0.14)', 'rgba(255,255,255,0.76)', init_data['traffic'])
-            create_stat_card('subs', 'stat-subs', '订阅配置', 'Subscriptions', 'rss_feed', 'linear-gradient(135deg, #431407 0%, #9a3412 55%, #ea580c 100%)', 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 55%, #fed7aa 100%)', '#fb923c', '#ea580c', 'rgba(249, 115, 22, 0.14)', 'rgba(255,255,255,0.76)', init_data['subs'])
+            create_stat_card('servers', 'stat-servers', '在线服务器', 'Online / Total', 'dns', 'servers', init_data['servers'])
+            create_stat_card('nodes', 'stat-nodes', '节点总数', 'Active Nodes', 'hub', 'nodes', init_data['nodes'])
+            create_stat_card('traffic', 'stat-traffic', '总流量消耗', 'Total Usage', 'bolt', 'traffic', init_data['traffic'])
+            create_stat_card('subs', 'stat-subs', '订阅配置', 'Subscriptions', 'rss_feed', 'subs', init_data['subs'])
             logger.info(f"[Dashboard] stat refs assigned | refs_now={list(DASHBOARD_REFS.keys())}")
 
         with ui.row().classes('w-full gap-6 mb-6 flex-wrap xl:flex-nowrap items-stretch'):
@@ -513,4 +545,4 @@ async def load_dashboard_stats():
                 ui.html(build_globe_structure(is_dark), sanitize=False).classes('w-full h-[650px] overflow-hidden')
                 ui.run_javascript(f'window.DASHBOARD_DATA = {json_data};')
                 ui.run_javascript(build_globe_js_logic(is_dark))
-                ui.run_javascript('setTimeout(() => { if(window.updateDashboardMapTheme) window.updateDashboardMapTheme(); }, 60)')
+                ui.run_javascript('setTimeout(() => { if(window.applyDashboardTheme) window.applyDashboardTheme(); }, 60)')
