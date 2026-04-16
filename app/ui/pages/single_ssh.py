@@ -52,10 +52,17 @@ async def render_single_ssh_view(server_conf):
 
     if content_container:
         content_container.clear()
-        # 修复点：移除暴力的背景类清理（去掉了 remove bg-[#030712] bg-[#eef4ff]），防止背景变黑
-        content_container.classes(remove='overflow-y-auto block justify-start',
-                                  add='h-full flex-1 min-h-0 overflow-hidden flex flex-col p-4 gap-4')
-        content_container.style('background-color: var(--xf-bg-main);')
+        
+        # 核心修复点：彻底清除旧的背景类，并强行注入当前主题的背景类
+        bg_removes = 'overflow-y-auto block justify-start bg-[#030712] bg-[#eef4ff] bg-[#f8fbff] bg-white dark:bg-[#030712]'
+        bg_add = 'bg-[#030712]' if is_dark else 'bg-[#f8fbff]'
+        
+        content_container.classes(remove=bg_removes,
+                                  add=f'h-full flex-1 min-h-0 overflow-hidden flex flex-col p-4 gap-4 {bg_add}')
+        
+        # 双重保险：用内联 style 锁死背景色，无视全局 CSS 变量失效的问题
+        bg_color_hex = '#030712' if is_dark else '#f8fbff'
+        content_container.style(f'background-color: {bg_color_hex} !important;')
 
     terminal_state = {'instance': None}
     file_state = {'current_path': '/', 'entries': [], 'loading': False}
@@ -127,10 +134,10 @@ async def render_single_ssh_view(server_conf):
             with ui.column().classes('w-full p-5 gap-4').style('background: var(--xf-bg-main);'):
                 with ui.element('div').classes('w-full rounded-sm border px-3 py-2 transition-all').style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.10);'):
                     name_input = ui.input('按钮名称', value=existing_cmd['name'] if existing_cmd else '').classes(
-                        'w-full').props('dense outlined dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'dense outlined color=blue')
+                        'w-full').props('dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
                 with ui.element('div').classes('w-full rounded-sm border border-[#1e3a5f]/45 bg-[#08101d]/80 px-3 py-2 shadow-[0_0_8px_rgba(0,0,0,0.35)] transition-all hover:border-cyan-500/35' if is_dark else 'w-full rounded-sm border border-slate-300/90 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(148,163,184,0.12)] transition-all hover:border-sky-400/60'):
                     cmd_input = ui.textarea('执行命令', value=existing_cmd['cmd'] if existing_cmd else '').classes(
-                        'w-full').props('dense outlined dark color=cyan standout bg-color="[#050b14]" rows=4' if is_dark else 'dense outlined color=blue rows=4')
+                        'w-full').props('dense outlined dark color=cyan standout rows=4' if is_dark else 'dense outlined color=blue rows=4')
 
             async def save():
                 name = name_input.value.strip()
@@ -568,7 +575,7 @@ async def render_single_ssh_view(server_conf):
                 ui.label(f'新建{label}').classes('text-lg font-black tracking-wide').style('color: var(--xf-text-strong);')
             with ui.column().classes('w-full p-5 gap-4').style('background: var(--xf-bg-main);'):
                 with ui.element('div').classes('w-full rounded-sm border px-3 py-2 transition-all').style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.10);'):
-                    name_input = ui.input('名称').classes('w-full').props('dense outlined dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'dense outlined color=blue')
+                    name_input = ui.input('名称').classes('w-full').props('dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
 
             async def create_target():
                 name = (name_input.value or '').strip()
@@ -603,7 +610,7 @@ async def render_single_ssh_view(server_conf):
             with ui.column().classes('w-full p-5 gap-4').style('background: var(--xf-bg-main);'):
                 with ui.element('div').classes('w-full rounded-sm border px-3 py-2 transition-all').style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.10);'):
                     new_name_input = ui.input('新名称', value=old_name).classes('w-full').props(
-                        'dense outlined dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'dense outlined color=blue')
+                        'dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
 
             async def do_rename():
                 new_name = new_name_input.value.strip()
@@ -954,7 +961,7 @@ async def render_single_ssh_view(server_conf):
                 with ui.row().classes(
                         'w-full items-center justify-between px-3 py-2 border-b gap-2 flex-nowrap').style('background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border);'):
                     path_input = ui.input(value=file_state['current_path']).classes(
-                        'flex-grow text-xs h-8 min-w-[200px]').props('dense outlined dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'dense outlined color=blue')
+                        'flex-grow text-xs h-8 min-w-[200px]').props('dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
 
                     with ui.row().classes('items-center gap-1 flex-nowrap no-wrap'):
                         ui.button('历史').props('outline dense size=sm color=grey').classes('h-7 hidden sm:block rounded-sm').style('color: var(--xf-text-muted); border-color: var(--xf-card-border);')
