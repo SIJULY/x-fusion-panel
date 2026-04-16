@@ -9,7 +9,6 @@ from nicegui import app, run, ui
 
 from app.storage.repositories import load_global_key
 
-
 ssh_instances = {}
 
 
@@ -112,7 +111,9 @@ class WebSSH:
                 term_selection = 'rgba(34, 211, 238, 0.28)' if is_dark else 'rgba(37, 99, 235, 0.18)'
                 term_ready = '\\x1b[32m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n' if is_dark else '\\x1b[34m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n'
 
-                ui.element('div').props(f'id={self.term_id}').classes('w-full h-full rounded overflow-hidden relative').style('min-height: 420px; height: 100%; width: 100%; display: block; position: relative; background: transparent; color: inherit;')
+                ui.element('div').props(f'id={self.term_id}').classes(
+                    'w-full h-full rounded overflow-hidden relative').style(
+                    'min-height: 420px; height: 100%; width: 100%; display: block; position: relative; background: transparent; color: inherit;')
 
                 init_js = f"""
                 try {{
@@ -122,7 +123,7 @@ class WebSSH:
                         }}
                         window.{self.term_id} = null;
                     }}
-                    
+
                     if (typeof Terminal === 'undefined') {{
                         throw new Error('xterm.js 库未加载');
                     }}
@@ -137,6 +138,10 @@ class WebSSH:
                     el.style.minHeight = '420px';
                     el.style.display = 'block';
                     el.style.position = 'relative';
+
+                    // 修复点 1：增加左侧内边距，让命令行往右移动 1-2 个字符的距离
+                    el.style.paddingLeft = '14px';
+                    el.style.boxSizing = 'border-box'; 
 
                     var darkTheme = {{
                         background: '#000000',
@@ -201,6 +206,10 @@ class WebSSH:
                         paintElement(xtermRoot);
                         paintElement(viewport);
                         paintElement(screen);
+
+                        // 修复点 2：在深浅色切换时，动态设置最左侧的边框线
+                        var borderColor = isDark ? '#334155' : '#cbd5e1';
+                        el.style.borderLeft = '3px solid ' + borderColor;
 
                         try {{
                             var canvases = el.querySelectorAll('canvas');
@@ -346,7 +355,7 @@ class WebSSH:
                                 bytes[i] = binaryStr.charCodeAt(i);
                             }}
                             var decodedStr = new TextDecoder("utf-8").decode(bytes);
-                            
+
                             window.{self.term_id}.write(decodedStr);
                             if (typeof window.{self.term_id}.scrollToBottom === 'function') {{
                                 window.{self.term_id}.scrollToBottom();
