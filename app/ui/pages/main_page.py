@@ -114,10 +114,21 @@ def main_page(request: Request):
             }}
             .q-dialog__inner,
             .q-dialog__inner > div,
-            .q-menu,
-            .q-tooltip {{
+            .q-menu {{
                 background: transparent !important;
                 background-color: transparent !important;
+            }}
+            .q-tooltip {{
+                background: #050b14 !important;
+                color: #f1f5f9 !important;
+                border: 1px solid rgba(6,182,212,0.35) !important;
+                box-shadow: 0 6px 18px rgba(0,0,0,0.35) !important;
+            }}
+            body:not(.body--dark) .q-tooltip {{
+                background: #f8fbff !important;
+                color: #334155 !important;
+                border: 1px solid #cbd5e1 !important;
+                box-shadow: 0 8px 20px rgba(148,163,184,0.18) !important;
             }}
         </style>
     ''')
