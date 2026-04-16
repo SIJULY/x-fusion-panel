@@ -206,7 +206,7 @@ def main_page(request: Request):
         with ui.row().classes('w-full items-center justify-between'):
             with ui.row().classes('items-center gap-2'):
                 ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense').classes(theme['menu_btn_classes'])
-                ui.label('X-Fusion-pro').classes(theme['title_classes'])
+                ui.label('X-Fusion-Pro').classes(theme['title_classes'])
 
             with ui.row().classes('items-center gap-3 mr-2'):
                 with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm').classes(theme['security_btn_classes']).tooltip('安全重置'):
