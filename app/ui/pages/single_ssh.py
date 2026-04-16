@@ -765,7 +765,8 @@ async def render_single_ssh_view(server_conf):
             children = tree_state['cache'].get(path, []) if is_expanded else []
             loading = path in tree_state['loading']
 
-            row_classes = 'w-full items-center gap-1 px-2 py-1 rounded-sm cursor-pointer transition-colors no-wrap'
+            # 修复点 1：增大侧边栏文件树的点击热区 (py-1 -> py-2)
+            row_classes = 'w-full items-center gap-1 px-2 py-2 rounded-sm cursor-pointer transition-colors no-wrap'
             row_classes += ' bg-transparent'
 
             with ui.column().classes('w-full gap-0'):
@@ -774,12 +775,13 @@ async def render_single_ssh_view(server_conf):
                               on_click=lambda _, p=path: toggle_tree_node(p)).props(
                         'flat dense round size=xs color=grey').classes('!min-w-0 !p-0 opacity-80 shrink-0')
 
-                    ui.icon('folder_open' if is_expanded else 'folder').classes('text-amber-400 text-[16px] shrink-0')
-                    ui.label(display_name).classes('text-[13px] cursor-pointer select-none truncate').style('color: var(--xf-text-strong);').on(
+                    # 修复点 2：增大文件夹图标和文字字号 (text-[13px] -> text-[14px])
+                    ui.icon('folder_open' if is_expanded else 'folder').classes('text-amber-400 text-[18px] shrink-0')
+                    ui.label(display_name).classes('text-[14px] cursor-pointer select-none truncate').style('color: var(--xf-text-strong);').on(
                         'click', lambda _, p=path: select_tree_node(p))
 
                 if loading:
-                    ui.label('加载中...').classes('text-[11px] ml-8 py-0.5').style('color: var(--xf-text-muted);')
+                    ui.label('加载中...').classes('text-[12px] ml-8 py-0.5').style('color: var(--xf-text-muted);')
                 if is_expanded:
                     sorted_children = sorted(children, key=lambda x: x.get('name', '').lower())
                     for child in sorted_children:
@@ -795,76 +797,78 @@ async def render_single_ssh_view(server_conf):
 
         with ui.column().classes('w-full gap-0 h-full overflow-hidden flex-nowrap').style('background: var(--xf-panel-bg);'):
             with ui.row().classes(
-                    'w-full items-center px-2 py-1.5 text-[12px] border-b flex-nowrap no-wrap tracking-wider').style('color: var(--xf-text-muted); border-color: var(--xf-card-border); background: var(--xf-soft-bg);'):
-                ui.label('文件名').classes('w-[26%] border-r pl-1 truncate').style('border-color: var(--xf-card-border);')
-                ui.label('大小').classes('w-[12%] border-r pl-1 truncate').style('border-color: var(--xf-card-border);')
-                ui.label('类型').classes('w-[12%] border-r pl-1 truncate').style('border-color: var(--xf-card-border);')
-                ui.label('修改时间').classes('w-[20%] border-r pl-1 truncate').style('border-color: var(--xf-card-border);')
-                ui.label('权限').classes('w-[13%] border-r pl-1 truncate').style('border-color: var(--xf-card-border);')
-                ui.label('用户/用户组').classes('w-[17%] pl-1 truncate')
+                    'w-full items-center px-2 py-2 text-[13px] border-b flex-nowrap no-wrap tracking-wider').style('color: var(--xf-text-muted); border-color: var(--xf-card-border); background: var(--xf-soft-bg);'):
+                ui.label('文件名').classes('w-[26%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
+                ui.label('大小').classes('w-[12%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
+                ui.label('类型').classes('w-[12%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
+                ui.label('修改时间').classes('w-[20%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
+                ui.label('权限').classes('w-[13%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
+                ui.label('用户/用户组').classes('w-[17%] pl-2 truncate font-bold')
 
             if file_state.get('loading'):
                 with ui.column().classes('w-full items-center justify-center py-10 text-slate-500'):
                     ui.spinner('dots', size='2rem', color='primary')
-                    ui.label('正在读取远程目录...').classes('text-xs')
+                    ui.label('正在读取远程目录...').classes('text-sm')
                 return
 
             if not sorted_entries:
                 with ui.column().classes('w-full items-center justify-center py-10 text-slate-500'):
-                    ui.icon('folder_off').classes('text-2xl')
-                    ui.label('当前目录为空').classes('text-xs')
+                    ui.icon('folder_off').classes('text-3xl')
+                    ui.label('当前目录为空').classes('text-sm')
                 return
 
             for index, item in enumerate(sorted_entries):
                 is_dir = item.get('is_dir', False)
-                row_classes = 'w-full items-center px-2 py-1.5 cursor-default transition-colors flex-nowrap no-wrap'
+                # 修复点 3：增大右侧文件列表的行高与点击热区 (py-1.5 -> py-2.5)
+                row_classes = 'w-full items-center px-2 py-2.5 cursor-default transition-colors flex-nowrap no-wrap'
 
                 with ui.row().classes(row_classes) as row:
                     with ui.context_menu().classes(
-                            'text-[13px] font-bold min-w-[140px] border').style('background: var(--xf-panel-bg); color: var(--xf-text-strong); border-color: var(--xf-card-border);'):
+                            'text-[14px] font-bold min-w-[140px] border').style('background: var(--xf-panel-bg); color: var(--xf-text-strong); border-color: var(--xf-card-border);'):
                         if is_dir:
                             ui.menu_item('📂 打开 (Open)', on_click=make_open_handler(item)).classes(
-                                'hover:bg-slate-700 py-1' if is_dark else 'hover:bg-sky-50 py-1')
+                                'hover:bg-slate-700 py-1.5' if is_dark else 'hover:bg-sky-50 py-1.5')
                             ui.separator().classes('bg-slate-600')
                             ui.menu_item('✏️ 重命名 (Rename)', on_click=make_rename_handler(item)).classes(
-                                'hover:bg-slate-700 py-1' if is_dark else 'hover:bg-sky-50 py-1')
+                                'hover:bg-slate-700 py-1.5' if is_dark else 'hover:bg-sky-50 py-1.5')
                             ui.menu_item('🔑 权限 (Chmod)', on_click=make_chmod_handler(item)).classes(
-                                'hover:bg-slate-700 py-1' if is_dark else 'hover:bg-sky-50 py-1')
+                                'hover:bg-slate-700 py-1.5' if is_dark else 'hover:bg-sky-50 py-1.5')
                             ui.separator().classes('bg-slate-600')
                             ui.menu_item('🗑️ 删除 (Delete)', on_click=make_delete_handler(item)).classes(
-                                'text-red-400 hover:bg-slate-700 py-1' if is_dark else 'text-rose-600 hover:bg-rose-50 py-1')
+                                'text-red-400 hover:bg-slate-700 py-1.5' if is_dark else 'text-rose-600 hover:bg-rose-50 py-1.5')
                         else:
                             ui.menu_item('📝 打开 / 编辑', on_click=make_edit_handler(item)).classes(
-                                'hover:bg-slate-700 py-1' if is_dark else 'hover:bg-sky-50 py-1')
+                                'hover:bg-slate-700 py-1.5' if is_dark else 'hover:bg-sky-50 py-1.5')
                             ui.menu_item('⬇️ 下载 (Download)', on_click=make_download_handler(item)).classes(
-                                'hover:bg-slate-700 py-1' if is_dark else 'hover:bg-sky-50 py-1')
+                                'hover:bg-slate-700 py-1.5' if is_dark else 'hover:bg-sky-50 py-1.5')
                             ui.separator().classes('bg-slate-600')
                             ui.menu_item('✏️ 重命名 (Rename)', on_click=make_rename_handler(item)).classes(
-                                'hover:bg-slate-700 py-1' if is_dark else 'hover:bg-sky-50 py-1')
+                                'hover:bg-slate-700 py-1.5' if is_dark else 'hover:bg-sky-50 py-1.5')
                             ui.menu_item('🔑 权限 (Chmod)', on_click=make_chmod_handler(item)).classes(
-                                'hover:bg-slate-700 py-1' if is_dark else 'hover:bg-sky-50 py-1')
+                                'hover:bg-slate-700 py-1.5' if is_dark else 'hover:bg-sky-50 py-1.5')
                             ui.separator().classes('bg-slate-600')
                             ui.menu_item('🗑️ 删除 (Delete)', on_click=make_delete_handler(item)).classes(
-                                'text-red-400 hover:bg-slate-700 py-1' if is_dark else 'text-rose-600 hover:bg-rose-50 py-1')
+                                'text-red-400 hover:bg-slate-700 py-1.5' if is_dark else 'text-rose-600 hover:bg-rose-50 py-1.5')
 
-                    with ui.row().classes('w-[26%] items-center gap-1.5 min-w-0 flex-nowrap no-wrap pl-1'):
+                    # 修复点 4：调大文件列表中的图标尺寸和文字字号
+                    with ui.row().classes('w-[26%] items-center gap-2 min-w-0 flex-nowrap no-wrap pl-2'):
                         icon_name = 'folder' if is_dir else 'description'
                         icon_color = 'text-amber-400' if is_dir else 'text-cyan-400'
-                        ui.icon(icon_name).classes(f'{icon_color} text-[16px] shrink-0')
-                        ui.label(item.get('name', '')).classes('truncate text-[13px]').style('color: var(--xf-text-strong);')
+                        ui.icon(icon_name).classes(f'{icon_color} text-[18px] shrink-0')
+                        ui.label(item.get('name', '')).classes('truncate text-[14px]').style('color: var(--xf-text-strong);')
 
                     size_str = '' if is_dir else format_file_size(item.get('size', 0))
-                    ui.label(size_str).classes('w-[12%] text-xs pl-1 truncate').style('color: var(--xf-text-muted);')
+                    ui.label(size_str).classes('w-[12%] text-[13px] pl-2 truncate').style('color: var(--xf-text-muted);')
 
                     type_str = '文件夹' if is_dir else '文件'
-                    ui.label(type_str).classes('w-[12%] text-xs pl-1 truncate').style('color: var(--xf-text-muted);')
+                    ui.label(type_str).classes('w-[12%] text-[13px] pl-2 truncate').style('color: var(--xf-text-muted);')
 
-                    ui.label(format_mtime(item.get('mtime', 0))).classes('w-[20%] text-xs pl-1 truncate').style('color: var(--xf-text-subtle);')
+                    ui.label(format_mtime(item.get('mtime', 0))).classes('w-[20%] text-[13px] pl-2 truncate').style('color: var(--xf-text-subtle);')
 
-                    ui.label(item.get('mode', '--')).classes('w-[13%] text-xs font-mono pl-1 truncate').style('color: var(--xf-text-muted);')
+                    ui.label(item.get('mode', '--')).classes('w-[13%] text-[13px] font-mono pl-2 truncate').style('color: var(--xf-text-muted);')
 
                     owner_str = item.get('owner', 'root/root')
-                    ui.label(owner_str).classes('w-[17%] text-xs pl-1 truncate').style('color: var(--xf-text-muted);')
+                    ui.label(owner_str).classes('w-[17%] text-[13px] pl-2 truncate').style('color: var(--xf-text-muted);')
 
                 row.on('dblclick', make_open_handler(item))
 
@@ -895,7 +899,6 @@ async def render_single_ssh_view(server_conf):
                         ui.button('返回详情', icon='arrow_back', on_click=_back_to_detail).props(
                             'flat size=sm').classes('px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
 
-                # --- 终极修正：用 @ui.refreshable 绝对掌控按钮状态与颜色，并极致压缩边距 ---
                 conn_state = {'connected': True}
 
                 async def _do_reconnect():
@@ -938,7 +941,6 @@ async def render_single_ssh_view(server_conf):
                         ui.badge('独立路由终端', color='green').props('outline rounded-sm').classes('text-[10px] font-black tracking-wide text-green-400')
                         ui.badge('交互模式', color='blue').props('outline rounded-sm').classes('text-[10px] font-black tracking-wide text-cyan-300')
                     render_conn_btn()
-                # ---------------------------------------------
 
                 terminal_box = ui.element('div').classes('w-full overflow-hidden border-t').style(
                     'height: 580px; min-height: 580px; position: relative; background: var(--xf-code-bg); border-top-color: var(--xf-card-border);')
