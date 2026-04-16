@@ -39,7 +39,7 @@ def main_page(request: Request):
         'header_classes': 'bg-gradient-to-r from-[#070e1a] to-[#0a1526] text-white h-14 border-b border-[#1e3a5f]/60 shadow-[0_4px_20px_rgba(0,0,0,0.6)]' if is_dark else 'bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] text-slate-900 h-14 border-b border-[#cbd5e1] shadow-[0_4px_16px_rgba(148,163,184,0.18)]',
         'drawer_classes': 'bg-[#070b14] border-r border-[#1e3a5f]/55' if is_dark else 'bg-[#f8fbff] border-r border-[#cbd5e1]/80',
         'menu_btn_classes': 'text-slate-300 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-600 hover:text-blue-600 hover:bg-blue-100/80',
-        'title_classes': 'text-lg font-black ml-2 tracking-wide text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.55)]' if is_dark else 'text-lg font-black ml-2 tracking-wide text-sky-700',
+        'title_classes': 'text-xl font-black ml-2 tracking-wide text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.55)]' if is_dark else 'text-xl font-black ml-2 tracking-wide text-sky-700',
         'security_btn_classes': 'text-rose-400 hover:bg-rose-950/30 hover:text-rose-300' if is_dark else 'text-rose-500 hover:bg-rose-100 hover:text-rose-600',
         'key_btn_classes': 'text-slate-400 hover:bg-cyan-950/30 hover:text-cyan-300' if is_dark else 'text-slate-500 hover:bg-sky-100 hover:text-sky-600',
         'theme_btn_classes': 'text-amber-300 hover:bg-amber-950/30 hover:text-yellow-200' if is_dark else 'text-slate-500 hover:bg-indigo-100 hover:text-indigo-600',
@@ -202,15 +202,11 @@ def main_page(request: Request):
     with ui.left_drawer(value=True, fixed=True).classes(theme['drawer_classes']).props('width=360 bordered') as drawer:
         render_sidebar_content()
 
-    display_ip = app.storage.user.get('last_known_ip') or current_ip or 'Unknown'
-
     with ui.header().classes(theme['header_classes']):
         with ui.row().classes('w-full items-center justify-between'):
             with ui.row().classes('items-center gap-2'):
                 ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense').classes(theme['menu_btn_classes'])
-                with ui.column().classes('gap-0 leading-none'):
-                    ui.label('X-Fusion-pro').classes(theme['title_classes'])
-                    ui.label(f'登陆IP:{display_ip}').classes('text-[11px] font-mono font-bold text-emerald-500 self-end -mt-1 mr-1' if is_dark else 'text-[11px] font-mono font-bold text-emerald-600 self-end -mt-1 mr-1')
+                ui.label('X-Fusion-pro').classes(theme['title_classes'])
 
             with ui.row().classes('items-center gap-3 mr-2'):
                 with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm').classes(theme['security_btn_classes']).tooltip('安全重置'):
