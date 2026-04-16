@@ -195,9 +195,9 @@ def render_sidebar_content():
                 is_open = tag_group in EXPANDED_GROUPS
 
                 with ui.element('div').classes('w-full').on('dragover.prevent', lambda _: None).on('drop', lambda e, n=tag_group: on_tag_drop(e, n)):
-                    with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_custom']).props(theme['expansion_header_props']).on_value_change(lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
+                    with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_custom']).props(theme['expansion_header_props']).style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                         with exp.add_slot('header'):
-                            with ui.row().classes('w-full h-full items-center justify-between no-wrap py-2 cursor-pointer group/header transition-all').on('click', lambda _, g=tag_group: open_tag_group(g)):
+                            with ui.row().classes('w-full h-full items-center justify-between no-wrap p-3 cursor-pointer group/header transition-all').style('background: var(--xf-elevated-bg); color: var(--xf-text-strong);').on('click', lambda _, g=tag_group: open_tag_group(g)):
                                 with ui.row().classes('items-center gap-3 flex-grow overflow-hidden no-wrap'):
                                     ui.icon('drag_indicator').props('draggable="true"').classes(theme['drag_icon']).on('dragstart', lambda e, n=tag_group: on_drag_start(e, n)).on('click.stop').tooltip('按住拖拽')
 
@@ -208,7 +208,7 @@ def render_sidebar_content():
                                     ui.button(icon='settings', on_click=lambda _, g=tag_group: open_combined_group_management(g)).props('flat dense round size=xs').classes(theme['icon_btn']).tooltip('管理分组')
                                     ui.badge(str(len(tag_servers)), color='green').props('rounded-sm outline text-color=green-4').classes('text-[10px] font-black').style('border-color: var(--xf-card-border);')
 
-                        with ui.column().classes(theme['expansion_body']) as col:
+                        with ui.column().classes(theme['expansion_body']).style('background: color-mix(in srgb, var(--xf-elevated-bg) 82%, var(--xf-bg-main)); border-color: var(--xf-card-border);') as col:
                             SIDEBAR_UI_REFS['groups'][tag_group] = col
                             for s in tag_servers:
                                 render_single_sidebar_row(s)
@@ -258,21 +258,21 @@ def render_sidebar_content():
                 is_open = c_name in EXPANDED_GROUPS
 
                 with ui.element('div').classes('w-full').on('dragover.prevent', lambda _: None).on('drop', lambda e, n=c_name: on_region_drop(e, n)):
-                    with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_region']).props(theme['expansion_header_props']).on_value_change(lambda e, g=c_name: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
+                    with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_region']).props(theme['expansion_header_props']).style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(lambda e, g=c_name: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(g)) as exp:
                         with exp.add_slot('header'):
-                            with ui.row().classes('w-full h-full items-center justify-between no-wrap py-2 cursor-pointer group/header transition-all').on('click', lambda _, g=c_name: open_country_group(g)):
+                            with ui.row().classes('w-full h-full items-center justify-between no-wrap p-3 cursor-pointer group/header transition-all').style('background: var(--xf-elevated-bg); color: var(--xf-text-strong);').on('click', lambda _, g=c_name: open_country_group(g)):
                                 with ui.row().classes('items-center gap-3 flex-grow overflow-hidden'):
                                     ui.icon('drag_indicator').props('draggable="true"').classes(theme['drag_icon']).on('dragstart', lambda e, n=c_name: on_drag_start(e, n)).on('click.stop').tooltip('按住拖拽')
                                     with ui.row().classes('items-center gap-2 flex-grow'):
                                         flag = c_name.split(' ')[0] if ' ' in c_name else '🏳️'
-                                        ui.label(flag).classes('text-lg filter drop-shadow-md')
+                                        ui.label(flag).classes('text-lg filter drop-shadow-md').style('color: var(--xf-text-strong);')
                                         display_name = c_name.split(' ')[1] if ' ' in c_name else c_name
-                                        ui.label(display_name).classes(theme['flag_name'])
+                                        ui.label(display_name).classes(theme['flag_name']).style('color: var(--xf-text-strong);')
                                 with ui.row().classes('items-center gap-2 pr-2').on('mousedown.stop').on('click.stop'):
                                     ui.button(icon='edit_note', on_click=lambda _, s=c_servers, t=c_name: open_bulk_edit_dialog(s, f"区域: {t}")).props('flat dense round size=xs').classes(theme['icon_btn']).tooltip('批量管理')
                                     ui.badge(str(len(c_servers)), color='green').props('rounded-sm outline text-color=green-4').classes('text-[10px] font-black').style('border-color: var(--xf-card-border);')
 
-                        with ui.column().classes(theme['expansion_body']) as col:
+                        with ui.column().classes(theme['expansion_body']).style('background: color-mix(in srgb, var(--xf-elevated-bg) 82%, var(--xf-bg-main)); border-color: var(--xf-card-border);') as col:
                             SIDEBAR_UI_REFS['groups'][c_name] = col
                             for s in c_servers:
                                 render_single_sidebar_row(s)
