@@ -1,7 +1,9 @@
 #!/bin/bash
+set -euo pipefail
+
 
 # ==============================================================================
-# X-Fusion Panel Pro 终极正式版 (全量同步 + 域名HTTPS + ARM 适配)
+# X-Fusion Panel 正式版 (全量同步 + 域名 HTTPS + ARM 适配)
 # ==============================================================================
 
 PROJECT_NAME="x-fusion-panel"
@@ -22,15 +24,31 @@ print_info() { echo -e "${BLUE}[信息]${PLAIN} $1"; }
 print_success() { echo -e "${GREEN}[成功]${PLAIN} $1"; }
 print_error() { echo -e "${RED}[错误]${PLAIN} $1"; exit 1; }
 
+get_compose_cmd() {
+    if docker compose version &> /dev/null; then
+        echo "docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    else
+        return 1
+    fi
+}
+
 check_docker() {
     if ! command -v docker &> /dev/null; then
         print_info "正在安装 Docker..."
         curl -fsSL https://get.docker.com | bash
         systemctl enable docker && systemctl start docker
     fi
-    if ! docker compose version &> /dev/null; then
+
+    if ! get_compose_cmd &> /dev/null; then
         print_info "正在安装 Docker Compose..."
-        apt-get update && apt-get install -y docker-compose-plugin
+        apt-get update
+        apt-get install -y docker-compose-plugin || apt-get install -y docker-compose || true
+    fi
+
+    if ! get_compose_cmd &> /dev/null; then
+        print_error "Docker Compose 安装失败，请手动安装 docker compose 或 docker-compose 后重试"
     fi
 }
 
@@ -164,7 +182,8 @@ install_panel() {
 
     print_info "开始构建镜像并启动服务..."
     cd ${INSTALL_DIR}
-    docker compose up -d --build
+    COMPOSE_CMD="$(get_compose_cmd)"
+    ${COMPOSE_CMD} up -d --build
 
     print_success "X-Fusion Panel 安装完成！"
     echo -e "访问地址: ${GREEN}${ACCESS_URL}${PLAIN}"
@@ -184,9 +203,14 @@ read -p "选择: " choice
 
 case $choice in
     1) install_panel ;;
-    2) 
-        [ -d "${INSTALL_DIR}" ] && (cd ${INSTALL_DIR} && docker compose down)
-        rm -rf ${INSTALL_DIR}
+    2)
+        if [ -d "${INSTALL_DIR}" ]; then
+            if get_compose_cmd &> /dev/null; then
+                COMPOSE_CMD="$(get_compose_cmd)"
+                (cd ${INSTALL_DIR} && ${COMPOSE_CMD} down) || true
+            fi
+            rm -rf ${INSTALL_DIR}
+        fi
         print_success "已卸载"
         ;;
     0) exit 0 ;;
