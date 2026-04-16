@@ -47,6 +47,12 @@ def show_custom_node_info(node):
     d.open()
 
 
+def _apply_tooltip(target, text, is_dark):
+    tip = target.tooltip(text)
+    tip.classes('bg-[#050b14] text-slate-100 border border-cyan-500/35 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_6px_18px_rgba(0,0,0,0.35)]' if is_dark else 'bg-slate-800 text-white border border-slate-700 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_6px_18px_rgba(148,163,184,0.18)]')
+    return tip
+
+
 def draw_row(srv, node, css_style, use_special_mode, is_first=True):
     parent_client = None
     try:
@@ -140,7 +146,8 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
                     link = generate_node_link(n, s['url'])
                 await safe_copy_to_clipboard(link)
 
-            ui.button(icon='content_copy', on_click=copy_link).props('flat dense size=sm round').tooltip('复制链接').classes('text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-400 hover:text-sky-700 hover:bg-sky-100')
+            copy_btn = ui.button(icon='content_copy', on_click=copy_link).props('flat dense size=sm round').classes('text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-400 hover:text-sky-700 hover:bg-sky-100')
+            _apply_tooltip(copy_btn, '复制链接', is_dark)
 
             async def copy_detail():
                 host = srv['url'].split('://')[-1].split(':')[0]
@@ -150,8 +157,10 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
                 else:
                     ui.notify('不支持生成配置', type='warning')
 
-            ui.button(icon='description', on_click=copy_detail).props('flat dense size=sm round').tooltip('复制明文配置').classes('text-slate-500 hover:text-amber-300 hover:bg-amber-950/25' if is_dark else 'text-slate-400 hover:text-amber-600 hover:bg-amber-100')
-            ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: __import__('asyncio').create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').tooltip('管理服务器').classes('text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-400 hover:text-sky-700 hover:bg-sky-100')
+            detail_btn = ui.button(icon='description', on_click=copy_detail).props('flat dense size=sm round').classes('text-slate-500 hover:text-amber-300 hover:bg-amber-950/25' if is_dark else 'text-slate-400 hover:text-amber-600 hover:bg-amber-100')
+            _apply_tooltip(detail_btn, '复制明文配置', is_dark)
+            settings_btn = ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: __import__('asyncio').create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').classes('text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-400 hover:text-sky-700 hover:bg-sky-100')
+            _apply_tooltip(settings_btn, '管理服务器', is_dark)
 
 
 async def _refresh_single_server(server, client=None):

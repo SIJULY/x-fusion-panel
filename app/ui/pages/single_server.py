@@ -29,6 +29,12 @@ async def render_single_server_view(server_conf, force_refresh=False):
     shell_header_cls = 'bg-gradient-to-r from-[#0a1526] to-[#050a14] border-b border-[#1e3a5f]/60' if is_dark else 'bg-gradient-to-r from-[#f8fbff] to-[#eef4ff] border-b border-slate-300/90'
     shell_body_cls = 'bg-[#030712]' if is_dark else 'bg-[#f8fbff]'
     section_card_cls = 'bg-gradient-to-br from-[#0a1120] to-[#050a14] border border-[#1e3a5f]/40 rounded-sm shadow-xl p-0 gap-0 overflow-hidden' if is_dark else 'bg-gradient-to-br from-white to-[#f8fbff] border border-slate-300/90 rounded-sm shadow-[0_8px_24px_rgba(148,163,184,0.14)] p-0 gap-0 overflow-hidden'
+
+    def apply_tooltip(target, text):
+        tip = target.tooltip(text)
+        tip.classes('bg-[#050b14] text-slate-100 border border-cyan-500/35 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_6px_18px_rgba(0,0,0,0.35)]' if is_dark else 'bg-slate-800 text-white border border-slate-700 text-[11px] font-bold px-2 py-1 rounded-sm shadow-[0_6px_18px_rgba(148,163,184,0.18)]')
+        return tip
+
     SINGLE_COLS_NO_PING = _server_dialog.SINGLE_COLS_NO_PING
     XHTTP_UNINSTALL_SCRIPT = _server_dialog.XHTTP_UNINSTALL_SCRIPT
     _sync_resolve_ip = _server_dialog._sync_resolve_ip
@@ -370,9 +376,10 @@ PY'''
                                 btn_props = 'flat dense size=sm round'
                                 raw_link = n.get('_raw_link', '') or generate_node_link(n, server_conf['url'])
                                 if raw_link:
-                                    ui.button(icon='link', on_click=lambda u=raw_link: safe_copy_to_clipboard(u)).props(
-                                        btn_props).tooltip('复制原始链接').classes(
+                                    raw_btn = ui.button(icon='link', on_click=lambda u=raw_link: safe_copy_to_clipboard(u)).props(
+                                        btn_props).classes(
                                         'text-slate-400 hover:bg-[#1e3a5f]/50 hover:text-cyan-400 hover:shadow-[0_0_8px_rgba(34,211,238,0.4)] transition-all' if is_dark else 'text-slate-400 hover:bg-sky-100 hover:text-sky-700 transition-all')
+                                    apply_tooltip(raw_btn, '复制原始链接')
 
                                 async def copy_detail_action(node_item=n):
                                     host = \
@@ -384,43 +391,48 @@ PY'''
                                     else:
                                         ui.notify(text or '该协议不支持生成明文配置', type='warning')
 
-                                ui.button(icon='data_object', on_click=copy_detail_action).props(btn_props).tooltip(
-                                    '复制明文配置').classes(
+                                detail_btn = ui.button(icon='data_object', on_click=copy_detail_action).props(btn_props).classes(
                                     'text-slate-400 hover:bg-[#1e3a5f]/50 hover:text-amber-400 hover:shadow-[0_0_8px_rgba(251,191,36,0.4)] transition-all' if is_dark else 'text-slate-400 hover:bg-amber-100 hover:text-amber-600 transition-all')
+                                apply_tooltip(detail_btn, '复制明文配置')
 
                                 if is_custom:
-                                    ui.button(icon='edit_square',
+                                    edit_btn = ui.button(icon='edit_square',
                                               on_click=lambda node=n: open_edit_custom_node(node)).props(
                                         btn_props).classes(
                                         'text-blue-500 hover:bg-blue-900/30 hover:text-blue-300 transition-all')
-                                    ui.button(icon='delete_sweep',
+                                    apply_tooltip(edit_btn, '编辑自定义节点')
+                                    delete_btn = ui.button(icon='delete_sweep',
                                               on_click=lambda node=n: uninstall_and_delete(node)).props(
                                         btn_props).classes(
                                         'text-rose-500 hover:bg-rose-900/30 hover:text-rose-300 transition-all')
+                                    apply_tooltip(delete_btn, '删除自定义节点')
                                 elif has_manager_access:
                                     async def on_edit_success():
                                         ui.notify('修改成功')
                                         await reload_and_refresh_ui()
 
-                                    ui.button(icon='edit_square',
+                                    edit_btn = ui.button(icon='edit_square',
                                               on_click=lambda i=n: open_inbound_dialog(mgr, i, on_edit_success,
                                                                                        is_3x_ui=server_conf.get(
                                                                                            'is_3x_ui', False))).props(
                                         btn_props).classes(
                                         'text-blue-500 hover:bg-blue-900/30 hover:text-blue-300 transition-all')
+                                    apply_tooltip(edit_btn, '编辑节点')
 
                                     async def on_del_success():
                                         ui.notify('删除成功')
                                         await reload_and_refresh_ui()
 
-                                    ui.button(icon='delete_sweep',
+                                    delete_btn = ui.button(icon='delete_sweep',
                                               on_click=lambda i=n: delete_inbound_with_confirm(mgr, i['id'],
                                                                                                i.get('remark', ''),
                                                                                                on_del_success)).props(
                                         btn_props).classes(
                                         'text-rose-500 hover:bg-rose-900/30 hover:text-rose-300 transition-all')
+                                    apply_tooltip(delete_btn, '删除节点')
                                 else:
-                                    ui.icon('lock', size='xs').classes('text-slate-600').tooltip('拒绝访问')
+                                    lock_icon = ui.icon('lock', size='xs').classes('text-slate-600')
+                                    apply_tooltip(lock_icon, '拒绝访问')
 
             async def reload_and_refresh_ui():
                 if mgr and hasattr(mgr, '_exec_remote_script'):
