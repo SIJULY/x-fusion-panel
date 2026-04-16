@@ -63,7 +63,7 @@ def login_page(request: Request):
                 ]
             };
             const randomPick = (arr, count) => [...arr].sort(() => Math.random() - 0.5).slice(0, Math.min(count, arr.length));
-            const target = payload && payload.target ? payload.target : { name: '北京', lon: 116.4, lat: 39.9 };
+            const target = payload && payload.target ? payload.target : { lon: 116.4, lat: 39.9 };
             const pools = payload && payload.pools ? payload.pools : fallbackPools;
             const nodes = [
                 ...randomPick(pools.asia || [], 3),
@@ -301,7 +301,7 @@ def login_page(request: Request):
             with ui.column().classes('gap-0'):
                 ui.label('Secure Access').classes('text-[12px] font-black text-slate-700')
                 ui.label('MFA · Session Guard · Device Fingerprint').classes('text-[10px] font-mono text-slate-400')
-    login_map_payload = {'target': {'name': '北京', 'lon': 116.4, 'lat': 39.9}, 'pools': continent_pools}
+    login_map_payload = {'target': {'lon': 116.4, 'lat': 39.9}, 'pools': continent_pools}
     ui.timer(0.1, lambda: ui.run_javascript(f'window.initXFusionLoginMap && window.initXFusionLoginMap({json.dumps(login_map_payload, ensure_ascii=False)})'), once=True)
 
     container = ui.card().classes(container_cls)
