@@ -105,7 +105,9 @@ class WebSSH:
         with self.container:
             try:
                 is_dark = bool(app.storage.user.get('is_dark', True))
-                term_bg = '#000000' if is_dark else '#eef4ff'
+                
+                # 修复点：不再使用偏暗蓝的 #eef4ff，改为浅色模式下完美融入白色卡片的纯白 #ffffff
+                term_bg = '#000000' if is_dark else '#ffffff'
                 term_fg = '#ffffff' if is_dark else '#0f172a'
                 term_cursor = '#22d3ee' if is_dark else '#2563eb'
                 term_selection = 'rgba(34, 211, 238, 0.28)' if is_dark else 'rgba(37, 99, 235, 0.18)'
@@ -151,10 +153,10 @@ class WebSSH:
                         selectionBackground: 'rgba(34, 211, 238, 0.28)'
                     }};
                     var lightTheme = {{
-                        background: '#eef4ff',
+                        background: '#ffffff', // 修正为纯白
                         foreground: '#0f172a',
                         cursor: '#2563eb',
-                        cursorAccent: '#eef4ff',
+                        cursorAccent: '#ffffff',
                         selectionBackground: 'rgba(37, 99, 235, 0.18)'
                     }};
 
