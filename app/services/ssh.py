@@ -113,7 +113,7 @@ class WebSSH:
                 term_selection = 'rgba(34, 211, 238, 0.28)' if is_dark else 'rgba(37, 99, 235, 0.18)'
                 term_ready = '\\x1b[32m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n' if is_dark else '\\x1b[34m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n'
 
-                ui.element('div').props(f'id={self.term_id}').classes(
+                term_container = ui.element('div').props(f'id={self.term_id}').classes(
                     'w-full h-full rounded overflow-hidden relative').style(
                     'min-height: 420px; height: 100%; width: 100%; display: block; position: relative; background: transparent; color: inherit;')
 
@@ -256,7 +256,10 @@ class WebSSH:
                     term.focus();
 
                     term.onData(data => {{
-                        emitEvent('term_input_{self.term_id}', data);
+                        var el = document.getElementById('{self.term_id}');
+                        if (el) {{
+                            el.dispatchEvent(new CustomEvent('term_input', {{ detail: data }}));
+                        }}
                     }});
 
                     if (fitAddon) {{
@@ -274,7 +277,11 @@ class WebSSH:
                 with self.container.client:
                     ui.run_javascript(init_js)
 
-                ui.on(f'term_input_{self.term_id}', lambda e: self._write_to_ssh(e.args))
+                def handle_input(e):
+                    data = e.args.get('detail') if isinstance(e.args, dict) and 'detail' in e.args else e.args
+                    self._write_to_ssh(data)
+                
+                term_container.on('term_input', handle_input)
 
                 self.client, msg = await run.io_bound(get_ssh_client_sync, self.server_data)
 
