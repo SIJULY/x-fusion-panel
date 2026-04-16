@@ -244,7 +244,7 @@ def open_pc_server_detail(server_conf):
         CARD_BG = 'bg-white/70 dark:bg-[#030712]'
         BORDER_STYLE = 'border border-white/50 dark:border-[#1e3a5f]/45'
         SHADOW_STYLE = 'shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] dark:shadow-[0_18px_48px_rgba(0,0,0,0.78)]'
-        TRACK_COLOR = 'blue-1' if not is_dark else '[#050b14]'
+        TRACK_COLOR = 'blue-1' if not is_dark else 'blue-10'
 
         visible_series = {0: True, 1: True, 2: True}
         is_smooth = {'value': False}
