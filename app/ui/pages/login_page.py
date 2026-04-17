@@ -213,7 +213,7 @@ def login_page(request: Request):
     otp_input_props = 'outlined input-class=text-center text-xl tracking-widest color=blue'
     primary_btn_cls = 'w-full bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 shadow-[0_8px_18px_rgba(56,189,248,0.16)] h-10 font-black rounded-sm'
     success_btn_cls = 'w-full bg-emerald-100 text-emerald-700 border border-emerald-300 hover:bg-emerald-200 h-10 font-black rounded-sm shadow-[0_8px_18px_rgba(16,185,129,0.12)]'
-    back_btn_cls = 'w-full text-slate-600 border-slate-300 hover:bg-slate-100 text-xs font-bold rounded-sm'
+    back_btn_cls = 'w-full text-slate-600 border-slate-300 hover:bg-slate-100 text-xs font-bold rounded-sm h-10'
     footer_cls = 'text-xs text-slate-500 mt-2 w-full text-center font-mono opacity-80 font-bold'
     secret_row_cls = 'w-full justify-center items-center gap-1 bg-sky-50 p-2 rounded-sm border border-slate-300/90 cursor-pointer hover:bg-sky-100 transition-colors'
     secret_text_cls = 'text-xs font-mono text-sky-700'
@@ -394,7 +394,7 @@ def login_page(request: Request):
 
                 code.on('keydown.enter', lambda: verify())
                 ui.button('验证登录', on_click=verify).props('flat').classes(primary_btn_cls)
-                ui.button('返回', on_click=render_step1).props('outline dense color=grey').classes(back_btn_cls)
+                ui.button('返回', on_click=render_step1).props('outline color=grey').classes(back_btn_cls)
             ui.timer(0.1, lambda: ui.run_javascript('document.querySelector(".q-field__native").focus()'), once=True)
 
     def finish():
