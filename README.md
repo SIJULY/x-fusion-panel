@@ -15,6 +15,24 @@ X-Fusion Panel 是一个面向 **X-UI / VPS / 节点运维场景** 的可视化�
 - **代码已完成模块化拆分**：页面、路由、服务、存储、工具层职责清晰
 
 ---
+<img width="2541" height="1443" alt="image" src="https://github.com/user-attachments/assets/54f6d40f-2b56-4fef-9c66-fd15be689a7a" />
+
+
+<img width="1998" height="1443" alt="image" src="https://github.com/user-attachments/assets/106379b4-d0ae-4b30-94d8-36cecdefde86" />
+
+<img width="1786" height="1441" alt="image" src="https://github.com/user-attachments/assets/eba36b87-e0dd-427f-9c0e-66d596f42c8b" />
+
+<img width="3556" height="2886" alt="c6f58ec8-880d-4f79-bf89-59a7013c418f" src="https://github.com/user-attachments/assets/69045312-950e-4285-b7de-5ad09e9eae5b" />
+
+<img width="3566" height="2886" alt="1c1ddee9-49d9-4f63-9644-cb5e647f5479" src="https://github.com/user-attachments/assets/a82b44c5-cb8c-415d-9e52-36ec890ff30e" />
+
+<img width="1776" height="1376" alt="image" src="https://github.com/user-attachments/assets/47f28666-d7a2-41b5-bad8-177bfbe130ea" />
+
+<img width="3542" height="2872" alt="15ce7391-a8f7-4a9d-a44f-c0c380237ba2" src="https://github.com/user-attachments/assets/0fe695cc-cc59-4510-bbf6-21fdb0b600bc" />
+
+<img width="1783" height="1441" alt="image" src="https://github.com/user-attachments/assets/2ac41510-9f20-4c12-8a27-102000e2412b" />
+
+
 
 ## 当前项目结构
 
