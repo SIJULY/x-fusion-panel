@@ -211,7 +211,6 @@ class WebSSH:
 
                         // 修复点 2：在深浅色切换时，动态设置最左侧的边框线
                         var borderColor = isDark ? '#334155' : '#cbd5e1';
-                        el.style.borderLeft = '3px solid ' + borderColor;
 
                         try {{
                             var canvases = el.querySelectorAll('canvas');
