@@ -111,7 +111,6 @@ class WebSSH:
                 term_fg = '#ffffff' if is_dark else '#0f172a'
                 term_cursor = '#22d3ee' if is_dark else '#2563eb'
                 term_selection = 'rgba(34, 211, 238, 0.28)' if is_dark else 'rgba(37, 99, 235, 0.18)'
-                term_ready = '\\x1b[32m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n' if is_dark else '\\x1b[34m[Local] Terminal Ready. Connecting...\\x1b[0m\\r\\n'
 
                 term_container = ui.element('div').props(f'id={self.term_id}').classes(
                     'w-full h-full rounded overflow-hidden relative').style(
@@ -234,7 +233,6 @@ class WebSSH:
                     }};
                     window.addEventListener('xfusion-theme-change', window.{self.term_id}_themeListener);
                     applyTermTheme({str(is_dark).lower()});
-                    term.write('{term_ready}');
 
                     var doFit = function() {{
                         try {{
@@ -309,7 +307,7 @@ class WebSSH:
                 login_info = await run.io_bound(pre_login_tasks)
 
                 if login_info:
-                    formatted_msg = f"\r\n\x1b[32m{login_info}\x1b[0m\r\n"
+                    formatted_msg = f"\x1b[32m{login_info}\x1b[0m\r\n"
                     b64_msg = base64.b64encode(formatted_msg.encode('utf-8')).decode('utf-8')
                     ui.run_javascript(f'if(window.{self.term_id}) window.{self.term_id}.write(atob("{b64_msg}"));')
 
