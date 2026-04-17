@@ -70,10 +70,10 @@ def main_page(request: Request):
             'drawer_classes': 'bg-[#070b14] border-r border-[#1e3a5f]/55' if is_dark else 'bg-[#f8fbff] border-r border-[#cbd5e1]/80',
             'menu_btn_classes': 'text-slate-300 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-600 hover:text-blue-600 hover:bg-blue-100/80',
             'title_classes': 'text-xl font-black ml-2 tracking-wide text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.55)]' if is_dark else 'text-xl font-black ml-2 tracking-wide text-sky-700',
-            'security_btn_classes': 'text-rose-400 hover:bg-rose-950/30 hover:text-rose-300' if is_dark else 'text-rose-500 hover:bg-rose-100 hover:text-rose-600',
-            'key_btn_classes': 'text-slate-400 hover:bg-cyan-950/30 hover:text-cyan-300' if is_dark else 'text-slate-500 hover:bg-sky-100 hover:text-sky-600',
-            'theme_btn_classes': 'text-amber-300 hover:bg-amber-950/30 hover:text-yellow-200' if is_dark else 'text-slate-500 hover:bg-indigo-100 hover:text-indigo-600',
-            'logout_btn_classes': 'text-slate-400 hover:bg-slate-800/50 hover:text-cyan-300' if is_dark else 'text-slate-500 hover:bg-slate-200 hover:text-slate-700',
+            'security_btn_classes': 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-rose-400 hover:bg-rose-950/30 hover:text-rose-300' if is_dark else 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-rose-500 hover:bg-rose-100 hover:text-rose-600',
+            'key_btn_classes': 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-slate-400 hover:bg-cyan-950/30 hover:text-cyan-300' if is_dark else 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-slate-500 hover:bg-sky-100 hover:text-sky-600',
+            'theme_btn_classes': 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-amber-300 hover:bg-amber-950/30 hover:text-yellow-200' if is_dark else 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-slate-500 hover:bg-indigo-100 hover:text-indigo-600',
+            'logout_btn_classes': 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-slate-400 hover:bg-slate-800/50 hover:text-cyan-300' if is_dark else 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-700',
             'theme_icon': 'light_mode' if is_dark else 'dark_mode',
             'theme_tooltip': '切换到浅色模式' if is_dark else '切换到深色模式',
         }
@@ -343,6 +343,26 @@ def main_page(request: Request):
                 border: 1px solid var(--xf-tooltip-border) !important;
                 box-shadow: var(--xf-tooltip-shadow) !important;
             }}
+            #xf-security-btn,
+            #xf-key-btn,
+            #xf-theme-btn,
+            #xf-logout-btn {{
+                width: 40px !important;
+                height: 40px !important;
+                min-width: 40px !important;
+                min-height: 40px !important;
+                padding: 0 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                flex: 0 0 40px !important;
+            }}
+            #xf-security-btn .q-icon,
+            #xf-key-btn .q-icon,
+            #xf-theme-btn .q-icon,
+            #xf-logout-btn .q-icon {{
+                font-size: 20px !important;
+            }}
         </style>
     ''')
 
@@ -461,15 +481,15 @@ def main_page(request: Request):
                 ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense id=xf-menu-btn').classes(current_theme['menu_btn_classes'])
                 ui.label('X-Fusion-Pro').classes(current_theme['title_classes']).props('id=xf-title')
 
-            with ui.row().classes('items-center gap-3 mr-2'):
-                with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat dense round size=sm id=xf-security-btn').classes(current_theme['security_btn_classes']).tooltip('安全重置'):
+            with ui.row().classes('items-center gap-3 mr-2 flex-nowrap'):
+                with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat round id=xf-security-btn').classes(current_theme['security_btn_classes']).tooltip('安全重置'):
                     ui.badge('Reset', color='orange').props('floating rounded-sm').classes('text-[10px] font-black')
 
-                with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat dense round size=sm id=xf-key-btn').classes(current_theme['key_btn_classes']).tooltip('复制通讯密钥'):
+                with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat round id=xf-key-btn').classes(current_theme['key_btn_classes']).tooltip('复制通讯密钥'):
                     ui.badge('Key', color='red').props('floating rounded-sm').classes('text-[10px] font-black')
 
-                ui.button(icon=current_theme['theme_icon'], on_click=toggle_theme).props('flat round dense id=xf-theme-btn').classes(current_theme['theme_btn_classes']).tooltip(current_theme['theme_tooltip'])
-                ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round dense id=xf-logout-btn').classes(current_theme['logout_btn_classes']).tooltip('退出登录')
+                ui.button(icon=current_theme['theme_icon'], on_click=toggle_theme).props('flat round id=xf-theme-btn').classes(current_theme['theme_btn_classes']).tooltip(current_theme['theme_tooltip'])
+                ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round id=xf-logout-btn').classes(current_theme['logout_btn_classes']).tooltip('退出登录')
 
     from app.ui.pages import content_router
 
