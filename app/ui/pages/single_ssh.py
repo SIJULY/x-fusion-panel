@@ -48,7 +48,6 @@ async def render_single_ssh_view(server_conf):
     except:
         pass
 
-# 这一行绝对要保留，它是下面所有深色组件的灵魂
     is_dark = bool(app.storage.user.get('is_dark', False))
 
     current_client = None
@@ -60,24 +59,19 @@ async def render_single_ssh_view(server_conf):
     if content_container:
         content_container.clear()
         
-        # 1. 移除可能捣乱的 Tailwind 默认背景类
         bg_removes = 'overflow-y-auto block justify-start bg-[#0f172a] bg-[#030712] bg-[#eef4ff] bg-[#f8fbff] bg-white dark:bg-[#030712]'
         content_container.classes(remove=bg_removes,
                                   add='h-full flex-1 min-h-0 overflow-hidden flex flex-col p-4 gap-4')
         
-        # 2. 暴力绑定 CSS 全局变量，外围大背景永不变白
         content_container.style('background-color: var(--xf-bg-main) !important;')
 
-        # 3. 🔥 终极补丁：镇压 NiceGUI 的默认重绘，强行恢复深色顶栏和太阳图标
         ui.run_javascript(f'''
             setTimeout(() => {{
                 const isDark = {str(is_dark).lower()};
                 if (isDark) {{
-                    // 强行把被篡改的 🌙 改回太阳 ☀️
                     const themeIcon = document.querySelector('#xf-theme-btn i');
                     if (themeIcon) themeIcon.textContent = 'light_mode';
                     
-                    // 强行把变白的顶栏重新刷成深色
                     const header = document.getElementById('xf-header');
                     if (header) {{
                         header.style.cssText = 'background: linear-gradient(to right, #070e1a, #0a1526) !important; color: white !important; border-bottom: 1px solid rgba(30,58,95,0.60) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;';
@@ -903,29 +897,10 @@ async def render_single_ssh_view(server_conf):
         with ui.column().classes('w-full max-w-[1440px] mx-auto h-full flex flex-col gap-0 flex-nowrap'):
             with ui.card().classes(
                     'w-full p-0 rounded-sm border border-t-[3px] overflow-hidden flex flex-col flex-shrink-0').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
-                with ui.row().classes(
-                        'w-full items-center justify-between px-4 py-3 border-b').style('border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
-                    with ui.row().classes('items-center gap-3'):
-                        ui.icon('terminal').classes('drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]').style('color: var(--xf-accent);')
-                        with ui.column().classes('gap-0'):
-                            raw_host = server_conf.get('ssh_host') or \
-                                       server_conf.get('url', '').replace('http://', '').replace('https://', '').split(
-                                           ':')[0]
-                            display_ip = raw_host
-                            if raw_host and not (':' in raw_host or raw_host.replace('.', '').isdigit()):
-                                try:
-                                    display_ip = await asyncio.wait_for(run.io_bound(_sync_resolve_ip, raw_host),
-                                                                        timeout=1.5)
-                                except:
-                                    display_ip = raw_host
-
-                            ui.label(f"SSH Console · {server_conf.get('ssh_user', 'root')}@{display_ip}").classes('font-black tracking-wide').style('color: var(--xf-text-strong);')
-                            ui.label(server_conf.get('name', '未命名服务器')).classes('text-xs').style('color: var(--xf-accent); opacity: 0.75;')
-
-                    with ui.row().classes('items-center gap-2'):
-                        ui.button('返回详情', icon='arrow_back', on_click=_back_to_detail).props(
-                            'flat size=sm').classes('px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
-
+                
+                # --- 开始核心修改区域 ---
+                
+                # 提前定义状态和重连函数，以便在标题栏调用
                 conn_state = {'connected': True}
 
                 async def _do_reconnect():
@@ -963,20 +938,43 @@ async def render_single_ssh_view(server_conf):
                         btn.tooltip('点击重连 SSH')
 
                 with ui.row().classes(
-                        'w-full items-center justify-between px-4 py-1 border-b min-h-[32px]').style('background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
-                    with ui.row().classes('items-center gap-2'):
-                        ui.badge('独立路由终端', color='green').props('outline rounded-sm').classes('text-[10px] font-black tracking-wide text-green-400')
-                        ui.badge('交互模式', color='blue').props('outline rounded-sm').classes('text-[10px] font-black tracking-wide text-cyan-300')
-                    render_conn_btn()
+                        'w-full items-center justify-between px-4 py-3 border-b').style('border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
+                    with ui.row().classes('items-center gap-3'):
+                        ui.icon('terminal').classes('drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]').style('color: var(--xf-accent);')
+                        with ui.column().classes('gap-0'):
+                            raw_host = server_conf.get('ssh_host') or \
+                                       server_conf.get('url', '').replace('http://', '').replace('https://', '').split(
+                                           ':')[0]
+                            display_ip = raw_host
+                            if raw_host and not (':' in raw_host or raw_host.replace('.', '').isdigit()):
+                                try:
+                                    display_ip = await asyncio.wait_for(run.io_bound(_sync_resolve_ip, raw_host),
+                                                                        timeout=1.5)
+                                except:
+                                    display_ip = raw_host
 
-                terminal_box = ui.element('div').classes('w-full overflow-hidden border-t').style(
-                    'height: 430px; min-height: 430px; position: relative; background: var(--xf-code-bg); border-top-color: var(--xf-card-border);')
+                            ui.label(f"SSH Console · {server_conf.get('ssh_user', 'root')}@{display_ip}").classes('font-black tracking-wide').style('color: var(--xf-text-strong);')
+                            ui.label(server_conf.get('name', '未命名服务器')).classes('text-xs').style('color: var(--xf-accent); opacity: 0.75;')
+
+                    with ui.row().classes('items-center gap-2'):
+                        # 将重连按钮放置于返回详情的左侧
+                        render_conn_btn()
+                        ui.button('返回详情', icon='arrow_back', on_click=_back_to_detail).props(
+                            'flat size=sm').classes('px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
+
+                # 此处删除了原有的 ui.row() (包含"独立路由终端"和"交互模式"的横条)
+                
+                # 调整终端容器的高度并去掉 border-t，让其紧贴标题栏底部
+                terminal_box = ui.element('div').classes('w-full overflow-hidden').style(
+                    'height: 462px; min-height: 462px; position: relative; background: var(--xf-code-bg);')
                 with terminal_box:
                     with ui.column().classes('w-full h-full items-center justify-center text-slate-500'):
                         ui.label('正在初始化 SSH 终端...').classes('text-sm')
 
+                # --- 核心修改区域结束 ---
+
             with ui.card().classes(
-                    'w-full p-4 rounded-sm border overflow-hidden flex flex-col flex-shrink-0 mt-4').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+                    'w-full px-4 py-2 rounded-sm border overflow-hidden flex flex-col flex-shrink-0 mt-4').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
                 render_quick_commands()
 
             with ui.card().classes(
