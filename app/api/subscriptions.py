@@ -156,6 +156,7 @@ async def short_group_handler(target: str, group_b64: str, request: Request):
             "insert": "false",
             "list": "true",
             "ver": "4",
+            "emoji": "false",
             "udp": "true",
             "scv": "true",
         }
@@ -228,7 +229,7 @@ async def short_sub_handler(target: str, token: str, request: Request):
         params = {
             "target": target, "url": internal_api,
             "insert": "false", "list": "true", "ver": "4",
-            "emoji": str(opt.get('emoji', True)).lower(),
+            "emoji": "false",
             "udp": str(opt.get('udp', True)).lower(),
             "tfo": str(opt.get('tfo', False)).lower(),
             "scv": str(opt.get('skip_cert', True)).lower(),
