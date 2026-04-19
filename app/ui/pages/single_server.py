@@ -868,10 +868,10 @@ PY'''
                     ui.label('节点名称').classes('text-left pl-20')
                     ui.label('类型').classes('text-center') # 往左移一点
                     ui.label('流量').classes('text-center pr-6') # 往左移多一点
-                    ui.label('协议').classes('text-center pr-8') 
-                    ui.label('端口').classes('text-center pr-12')      # 保持完全居中不移
-                    ui.label('状态').classes('text-center pr-15') # 如果想往右移，就用 pl
-                    ui.label('操作').classes('text-center pr-20')
+                    ui.label('协议').classes('text-center pr-6') 
+                    ui.label('端口').classes('text-center pr-6')      # 保持完全居中不移
+                    ui.label('状态').classes('text-center pr-8') # 如果想往右移，就用 pl
+                    ui.label('操作').classes('text-center pr-16')
 
                 with ui.element('div').classes('w-full relative flex-1 min-h-0'):
                     with ui.element('div').classes(
