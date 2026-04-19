@@ -455,7 +455,8 @@ PY'''
                                 elif has_manager_access:
                                     async def on_edit_success():
                                         ui.notify('修改成功')
-                                        await reload_and_refresh_ui()
+                                        await refresh_after_inbound_change()
+
 
                                     edit_btn = ui.button(icon='edit_square',
                                                          on_click=lambda i=n: open_inbound_dialog(mgr, i,
@@ -467,9 +468,11 @@ PY'''
                                         'text-blue-500 hover:bg-blue-900/30 hover:text-blue-300 transition-all')
                                     apply_tooltip(edit_btn, '编辑节点')
 
-                                    async def on_del_success():
+                                    async def on_del_success(inbound_id=n.get('id')):
                                         ui.notify('删除成功')
-                                        await reload_and_refresh_ui()
+                                        await refresh_after_inbound_change(removed_inbound_id=inbound_id)
+
+
 
                                     delete_btn = ui.button(icon='delete_sweep',
                                                            on_click=lambda i=n: delete_inbound_with_confirm(mgr,
@@ -530,7 +533,25 @@ PY'''
             REFRESH_CURRENT_NODES = reload_and_refresh_ui
             _server_dialog.REFRESH_CURRENT_NODES = reload_and_refresh_ui
 
+            async def refresh_after_inbound_change(delay_second_refresh=False, removed_inbound_id=None):
+                server_url = server_conf.get('url')
+                if removed_inbound_id is not None and server_url in NODES_DATA:
+                    old_cached_nodes = NODES_DATA.get(server_url, []) or []
+                    NODES_DATA[server_url] = [node for node in old_cached_nodes if node.get('id') != removed_inbound_id]
+                    render_node_list.refresh()
+                await reload_and_refresh_ui()
+                if delay_second_refresh:
+                    await asyncio.sleep(0.8)
+                    await reload_and_refresh_ui()
+                    await asyncio.sleep(1.2)
+                    await reload_and_refresh_ui()
+
+
+
+
+
             def open_edit_custom_node(node_data):
+
                 with ui.dialog() as d, ui.card().classes(
                         'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if is_dark else 'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_18px_42px_rgba(148,163,184,0.18)]'):
                     with ui.column().classes(
@@ -781,7 +802,7 @@ PY'''
 
                                 pct = snap.get('disk_usage_pct', 0.0)
                                 val = fmt_gb(snap['disk_used_gb'])
-                                render_progress_row('已用容量', pct, f'{val} ({pct:.0f}%)',
+                                render_progress_row('已��容量', pct, f'{val} ({pct:.0f}%)',
                                                     '#f59e0b' if pct <= 85 else '#f97316')
 
                                 free_pct = 100.0 - pct if pct > 0 else 100.0
@@ -826,13 +847,12 @@ PY'''
                         btn_purple = btn_tech_base
 
                         async def open_xhttp_deploy():
-                            await open_deploy_xhttp_dialog(server_conf, reload_and_refresh_ui)
-
+                            await open_deploy_xhttp_dialog(server_conf, lambda: refresh_after_inbound_change(delay_second_refresh=True))
                         async def open_hy2_deploy():
-                            await open_deploy_hysteria_dialog(server_conf, reload_and_refresh_ui)
-
+                            await open_deploy_hysteria_dialog(server_conf, lambda: refresh_after_inbound_change(delay_second_refresh=True))
                         async def open_snell_deploy():
-                            await open_deploy_snell_dialog(server_conf, reload_and_refresh_ui)
+                            await open_deploy_snell_dialog(server_conf, lambda: refresh_after_inbound_change(delay_second_refresh=True))
+
 
                         ui.button('一键部署 XHTTP', icon='rocket_launch', on_click=open_xhttp_deploy).props(
                             'flat size=sm').classes(btn_cyan).style(
@@ -847,9 +867,9 @@ PY'''
                         if has_manager_access:
                             async def on_add_success():
                                 ui.notify('添加节点成功')
-                                await reload_and_refresh_ui()
-
+                                await refresh_after_inbound_change(delay_second_refresh=True)
                             ui.button('新建 XUI 节点', icon='add',
+
                                       on_click=lambda: open_inbound_dialog(mgr, None, on_add_success,
                                                                            is_3x_ui=server_conf.get('is_3x_ui',
                                                                                                     False))).props(
