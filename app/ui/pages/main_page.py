@@ -43,6 +43,9 @@ def main_page(request: Request):
             'tooltip_text': '#f1f5f9' if is_dark else '#334155',
             'tooltip_border': 'rgba(6,182,212,0.35)' if is_dark else '#cbd5e1',
             'tooltip_shadow': '0 6px 18px rgba(0,0,0,0.35)' if is_dark else '0 8px 20px rgba(148,163,184,0.18)',
+            'popup_bg': 'rgba(7,11,20,0.6)' if is_dark else 'rgba(255,255,255,0.6)',
+            'popup_border': 'rgba(30,58,95,0.70)' if is_dark else 'rgba(148,163,184,0.55)',
+            'popup_text': '#e2e8f0' if is_dark else '#0f172a',
             'stat_servers_bg': 'linear-gradient(135deg, #0f172a 0%, #102a43 45%, #155e75 100%)' if is_dark else 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #bfdbfe 100%)',
             'stat_servers_badge': '#38bdf8' if is_dark else '#0284c7',
             'stat_servers_icon_bg': 'rgba(14, 165, 233, 0.14)' if is_dark else 'rgba(255,255,255,0.72)',
@@ -134,6 +137,9 @@ def main_page(request: Request):
                     '--xf-tooltip-text': theme.tooltip_text,
                     '--xf-tooltip-border': theme.tooltip_border,
                     '--xf-tooltip-shadow': theme.tooltip_shadow,
+                    '--xf-popup-bg': theme.popup_bg,
+                    '--xf-popup-border': theme.popup_border,
+                    '--xf-popup-text': theme.popup_text,
                     '--xf-stat-servers-bg': theme.stat_servers_bg,
                     '--xf-stat-servers-badge': theme.stat_servers_badge,
                     '--xf-stat-servers-icon-bg': theme.stat_servers_icon_bg,
@@ -268,6 +274,9 @@ def main_page(request: Request):
                 --xf-tooltip-text: {theme['tooltip_text']};
                 --xf-tooltip-border: {theme['tooltip_border']};
                 --xf-tooltip-shadow: {theme['tooltip_shadow']};
+                --xf-popup-bg: {theme['popup_bg']};
+                --xf-popup-border: {theme['popup_border']};
+                --xf-popup-text: {theme['popup_text']};
                 --xf-stat-servers-bg: {theme['stat_servers_bg']};
                 --xf-stat-servers-badge: {theme['stat_servers_badge']};
                 --xf-stat-servers-icon-bg: {theme['stat_servers_icon_bg']};
@@ -332,10 +341,31 @@ def main_page(request: Request):
                 backdrop-filter: none !important;
             }}
             .q-dialog__inner,
-            .q-dialog__inner > div,
-            .q-menu {{
+            .q-dialog__inner > div {{
                 background: transparent !important;
                 background-color: transparent !important;
+            }}
+            .q-menu,
+            .q-menu .q-list,
+            .q-select__dialog,
+            .q-virtual-scroll__content,
+            .q-item {{
+                background: var(--xf-popup-bg) !important;
+                background-color: var(--xf-popup-bg) !important;
+                color: var(--xf-popup-text) !important;
+                backdrop-filter: blur(12px) !important;
+            }}
+            .q-menu,
+            .q-select__dialog {{
+                border: 1px solid var(--xf-popup-border) !important;
+                box-shadow: var(--xf-tooltip-shadow) !important;
+            }}
+            .q-item:hover,
+            .q-manual-focusable--focused,
+            .q-manual-focusable--focused > .q-item__section,
+            .q-item.q-router-link--active,
+            .q-item--active {{
+                background: var(--xf-accent-soft) !important;
             }}
             .q-tooltip {{
                 background: var(--xf-tooltip-bg) !important;
@@ -435,6 +465,9 @@ def main_page(request: Request):
             'logout_btn_style': 'color: #94a3b8;' if new_is_dark else 'color: #64748b;',
             'theme_icon': new_theme['theme_icon'],
             'content_bg': new_theme['content_bg'],
+            'popup_bg': new_theme['popup_bg'],
+            'popup_border': new_theme['popup_border'],
+            'popup_text': new_theme['popup_text'],
         }
         js_payload = json.dumps(payload, ensure_ascii=False)
         js_theme = json.dumps(new_theme, ensure_ascii=False)
