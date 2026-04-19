@@ -384,17 +384,17 @@ PY'''
                             ui.element('div').classes(row_overlay_cls).style(
                                 f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
                             ui.label(n.get('remark', '未命名')).classes(
-                                'font-bold truncate w-full text-left pl-1 text-[13px] transition-colors relative z-10').style(
+                                'font-bold truncate w-full text-left pl-2 text-[13px] transition-colors relative z-10').style(
                                 'color: var(--xf-text-strong);')
                             if is_custom:
                                 ui.label('独立').classes(
-                                    'text-[10px] text-purple-400 font-black w-fit mx-auto tracking-wider relative z-10')
+                                    'text-[10px] text-purple-400 font-black w-full text-center tracking-wider relative z-10')
                             elif is_ssh_mode:
                                 ui.label('Root').classes(
-                                    'text-[10px] text-teal-400 font-black w-fit mx-auto tracking-wider relative z-10')
+                                    'text-[10px] text-teal-400 font-black w-full text-center tracking-wider relative z-10')
                             else:
                                 ui.label('API').classes(
-                                    'text-[10px] text-blue-300 font-black w-fit mx-auto tracking-wider relative z-10')
+                                    'text-[10px] text-blue-300 font-black w-full text-center tracking-wider relative z-10')
 
                             traffic = format_bytes(n.get('up', 0) + n.get('down', 0)) if not is_custom else '--'
                             ui.label(traffic).classes(
@@ -408,7 +408,7 @@ PY'''
                                 'font-mono w-full text-center font-bold text-[11px] relative z-10').style(
                                 'color: var(--xf-accent);')
                             is_enable = n.get('enable', True)
-                            with ui.row().classes('w-full justify-center items-center gap-1.5'):
+                            with ui.row().classes('w-full justify-center items-center gap-1.5 relative z-10'):
                                 color = 'emerald' if is_enable else 'rose'
                                 text = '启用' if is_enable else '停止'
                                 ui.element('div').classes(
@@ -416,7 +416,7 @@ PY'''
                                 ui.label(text).classes(f'text-[10px] font-bold text-{color}-400 tracking-wider')
 
                             with ui.row().classes(
-                                    'gap-1.5 justify-center w-full no-wrap opacity-40 group-hover:opacity-100 transition-opacity duration-300'):
+                                    'gap-1.5 justify-center w-full no-wrap opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10'):
                                 btn_props = 'flat dense size=sm round'
                                 raw_link = n.get('_raw_link', '') or generate_node_link(n, server_conf['url'])
                                 if raw_link:
@@ -457,7 +457,6 @@ PY'''
                                         ui.notify('修改成功')
                                         await refresh_after_inbound_change()
 
-
                                     edit_btn = ui.button(icon='edit_square',
                                                          on_click=lambda i=n: open_inbound_dialog(mgr, i,
                                                                                                   on_edit_success,
@@ -471,8 +470,6 @@ PY'''
                                     async def on_del_success(inbound_id=n.get('id')):
                                         ui.notify('删除成功')
                                         await refresh_after_inbound_change(removed_inbound_id=inbound_id)
-
-
 
                                     delete_btn = ui.button(icon='delete_sweep',
                                                            on_click=lambda i=n: delete_inbound_with_confirm(mgr,
@@ -493,7 +490,6 @@ PY'''
                 new_nodes = None
                 fetch_success = False
 
-                # 策略 1: 优先走通用的 API 抓取 (最稳定，能确保面板节点不丢失)
                 try:
                     fetched_nodes = await fetch_inbounds_safe(server_conf, force_refresh=True)
                     if fetched_nodes is not None:
@@ -502,7 +498,6 @@ PY'''
                 except Exception as e:
                     logger.warning(f"API 获取节点失败: {e}")
 
-                # 策略 2: 如果 API 没获取到 (面板可能无响应)，且有 SSH Manager，尝试走底层 SSH 获取
                 if not fetch_success and mgr and hasattr(mgr, '_exec_remote_script'):
                     try:
                         if not asyncio.iscoroutinefunction(mgr.get_inbounds):
@@ -516,18 +511,13 @@ PY'''
                     except Exception as e:
                         logger.warning(f"SSH 获取节点失败: {e}")
 
-                # 最终数据校验与更新逻辑
                 if fetch_success:
-                    # 只有明确获取成功，才覆盖当前状态
                     NODES_DATA[server_conf['url']] = new_nodes
                     server_conf['_status'] = 'online'
-                    # 创建后台任务保存缓存，避免阻塞当前 UI
                     asyncio.create_task(save_nodes_cache())
                 else:
-                    # 如果由于网络或报错导致全都失败了，必须回滚为旧节点数据，防止列表变白板
                     NODES_DATA[server_conf['url']] = old_nodes
 
-                # 刷新节点列表 UI 组件
                 render_node_list.refresh()
 
             REFRESH_CURRENT_NODES = reload_and_refresh_ui
@@ -546,12 +536,7 @@ PY'''
                     await asyncio.sleep(1.2)
                     await reload_and_refresh_ui()
 
-
-
-
-
             def open_edit_custom_node(node_data):
-
                 with ui.dialog() as d, ui.card().classes(
                         'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if is_dark else 'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_18px_42px_rgba(148,163,184,0.18)]'):
                     with ui.column().classes(
@@ -573,7 +558,6 @@ PY'''
                             'text-[11px] font-bold text-cyan-500/80 tracking-wide mb-[-6px]' if is_dark else 'text-[11px] font-bold text-sky-700/80 tracking-wide mb-[-6px]')
                         with ui.element('div').classes(
                                 'w-full rounded-sm border border-[#1e3a5f]/45 bg-[#08101d]/80 px-3 py-2 shadow-[0_0_8px_rgba(0,0,0,0.35)] transition-all hover:border-cyan-500/35' if is_dark else 'w-full rounded-sm border border-slate-300/90 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(148,163,184,0.10)] transition-all hover:border-sky-400/60'):
-                            # 修复点：移除导致 AST 崩溃的 bg-color="[#050b14]"
                             name_input = ui.input(value=node_data.get('remark', '')).classes('w-full').props(
                                 'dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
 
@@ -639,7 +623,6 @@ PY'''
             with ui.row().classes(
                     'w-full justify-between items-center p-4 border border-t-[3px] flex-shrink-0 rounded-sm relative overflow-hidden').style(
                 'background: linear-gradient(to right, var(--xf-panel-bg), var(--xf-soft-bg)); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 8px 24px rgba(15,23,42,0.12);'):
-                # 顶部卡片的赛博背景纹理
                 ui.element('div').classes(
                     'absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
 
@@ -802,7 +785,7 @@ PY'''
 
                                 pct = snap.get('disk_usage_pct', 0.0)
                                 val = fmt_gb(snap['disk_used_gb'])
-                                render_progress_row('已��容量', pct, f'{val} ({pct:.0f}%)',
+                                render_progress_row('已用容量', pct, f'{val} ({pct:.0f}%)',
                                                     '#f59e0b' if pct <= 85 else '#f97316')
 
                                 free_pct = 100.0 - pct if pct > 0 else 100.0
@@ -841,7 +824,6 @@ PY'''
                         from app.services.deployment import open_deploy_hysteria_dialog, open_deploy_snell_dialog, \
                             open_deploy_xhttp_dialog
 
-                        # 🛠️ 科技风：霓虹线框按钮
                         btn_tech_base = 'text-[11px] font-bold px-4 py-1.5 border transition-all duration-300 tracking-wider rounded-sm backdrop-blur-sm'
                         btn_cyan = btn_tech_base
                         btn_purple = btn_tech_base
@@ -852,7 +834,6 @@ PY'''
                             await open_deploy_hysteria_dialog(server_conf, lambda: refresh_after_inbound_change(delay_second_refresh=True))
                         async def open_snell_deploy():
                             await open_deploy_snell_dialog(server_conf, lambda: refresh_after_inbound_change(delay_second_refresh=True))
-
 
                         ui.button('一键部署 XHTTP', icon='rocket_launch', on_click=open_xhttp_deploy).props(
                             'flat size=sm').classes(btn_cyan).style(
@@ -869,7 +850,6 @@ PY'''
                                 ui.notify('添加节点成功')
                                 await refresh_after_inbound_change(delay_second_refresh=True)
                             ui.button('新建 XUI 节点', icon='add',
-
                                       on_click=lambda: open_inbound_dialog(mgr, None, on_add_success,
                                                                            is_3x_ui=server_conf.get('is_3x_ui',
                                                                                                     False))).props(
@@ -881,11 +861,17 @@ PY'''
                                 'text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5 border').style(
                                 'background: var(--xf-soft-bg); color: var(--xf-text-subtle); border-color: var(--xf-card-border); opacity: 0.8;')
 
+                # 🛠️ 修改表头：精确补偿 scroll_area(8px) + border(3px/1px) 的偏移量
                 with ui.element('div').classes(
-                        'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 px-3 text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
+                        'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
                     SINGLE_COLS_NO_PING):
-                    ui.label('节点名称').classes('text-left pl-1')
-                    for h in ['类型', '流量', '协议', '端口', '状态', '操作']: ui.label(h).classes('text-center')
+                    ui.label('节点名称').classes('text-left pl-20')
+                    ui.label('类型').classes('text-center') # 往左移一点
+                    ui.label('流量').classes('text-center pr-6') # 往左移多一点
+                    ui.label('协议').classes('text-center pr-8') 
+                    ui.label('端口').classes('text-center pr-12')      # 保持完全居中不移
+                    ui.label('状态').classes('text-center pr-15') # 如果想往右移，就用 pl
+                    ui.label('操作').classes('text-center pr-20')
 
                 with ui.element('div').classes('w-full relative flex-1 min-h-0'):
                     with ui.element('div').classes(
