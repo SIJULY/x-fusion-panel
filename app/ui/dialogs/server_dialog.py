@@ -233,6 +233,7 @@ async def open_server_dialog(idx=None):
             with tabs:
                 t_ssh = ui.tab('SSH / 探针', icon='terminal')
                 t_xui = ui.tab('X-UI面板', icon='settings')
+            ui.button(icon='close', on_click=d.close).props('flat round dense color=grey').classes(theme['close_btn'] + ' z-10')
 
         async def save_basic_info_only():
             if not is_edit:
