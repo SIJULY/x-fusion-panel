@@ -222,18 +222,19 @@ async def open_server_dialog(idx=None):
     theme = _server_dialog_theme()
 
     with ui.dialog() as d, ui.card().classes(theme['card']):
-        with ui.row().classes(theme['header']):
+        with ui.column().classes(theme['header'].replace('items-center', 'items-stretch') + ' gap-3'):
             ui.element('div').classes('absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
-            with ui.row().classes('items-center gap-3 z-10'):
-                with ui.element('div').classes(theme['icon_box']):
-                    ui.element('div').classes('absolute inset-0 bg-cyan-400/10')
-                    ui.icon('dns').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
-                ui.label('编辑服务器' if is_edit else '添加服务器').classes(theme['title'])
-            tabs = ui.tabs().classes('text-cyan-400 z-10')
+            with ui.row().classes('w-full justify-between items-start z-10'):
+                with ui.row().classes('items-center gap-3'):
+                    with ui.element('div').classes(theme['icon_box']):
+                        ui.element('div').classes('absolute inset-0 bg-cyan-400/10')
+                        ui.icon('dns').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
+                    ui.label('编辑服务器' if is_edit else '添加服务器').classes(theme['title'])
+                ui.button(icon='close', on_click=d.close).props('flat round dense color=grey').classes(theme['close_btn'] + ' z-10')
+            tabs = ui.tabs().classes('text-cyan-400 z-10 self-start')
             with tabs:
                 t_ssh = ui.tab('SSH / 探针', icon='terminal')
                 t_xui = ui.tab('X-UI面板', icon='settings')
-            ui.button(icon='close', on_click=d.close).props('flat round dense color=grey').classes(theme['close_btn'] + ' z-10')
 
         async def save_basic_info_only():
             if not is_edit:
