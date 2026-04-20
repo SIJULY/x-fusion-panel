@@ -697,7 +697,7 @@ def open_create_group_dialog():
             render_sidebar_content.refresh()
             safe_notify(f"已创建分组: {new_name}", "positive")
 
-            with ui.row().classes('w-full justify-end gap-2 mt-2'):
-                ui.button('取消', on_click=d.close).props('outline color=grey').classes(theme['btn_outline'])
-                ui.button('保存', on_click=save_new_group).props('flat').classes(theme['btn_primary'])
+        with ui.row().classes(f'w-full justify-end gap-2 p-4 border-t {theme["header"]}'):
+            ui.button('取消', on_click=d.close).props('outline color=grey').classes(theme['btn_outline'])
+            ui.button('保存', on_click=save_new_group).props('flat').classes(theme['btn_primary'])
     d.open()

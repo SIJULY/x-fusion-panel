@@ -868,7 +868,7 @@ PY'''
                     ui.label('节点名称').classes('text-left pl-15')
                     ui.label('类型').classes('text-center') # 往左移一点
                     ui.label('流量').classes('text-center pr-6') # 往左移多一点
-                    ui.label('协议').classes('text-center pr-6') 
+                    ui.label('协议').classes('text-center pr-6')
                     ui.label('端口').classes('text-center pr-6')      # 保持完全居中不移
                     ui.label('状态').classes('text-center pr-8') # 如果想往右移，就用 pl
                     ui.label('操作').classes('text-center pr-16')

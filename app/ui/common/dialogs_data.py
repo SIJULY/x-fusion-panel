@@ -67,6 +67,10 @@ async def open_data_mgmt_dialog():
     theme = _data_theme()
     header_text_cls = 'text-slate-300' if theme['is_dark'] else 'text-slate-700'
     with ui.dialog() as d, ui.card().classes(theme['big_card']):
+        with ui.row().classes(theme['header']):
+            ui.label('数据备份 / 恢复').classes(theme['title'])
+            ui.button(icon='close', on_click=d.close).props('flat round dense color=grey').classes('text-slate-400 hover:text-cyan-300 hover:bg-cyan-950/30' if theme['is_dark'] else 'text-slate-500 hover:text-sky-700 hover:bg-sky-100')
+
         with ui.tabs().classes(theme['tabs']) \
             .props('indicator-color=cyan active-color=cyan') as tabs:
             tab_export = ui.tab('完整备份 (导出)')

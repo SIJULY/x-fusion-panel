@@ -90,7 +90,9 @@ class BulkEditor:
                             return safe_notify('未选择服务器', 'warning')
                         with ui.dialog() as sub_d, ui.card().classes('w-[360px] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if is_dark else 'w-[360px] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
                             with ui.column().classes('w-full p-5 gap-3 bg-gradient-to-r from-[#0a1526] to-[#050a14] border-b border-[#1e3a5f]/60' if is_dark else 'w-full p-5 gap-3 bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] border-b border-slate-300/90'):
-                                ui.label('移动到分组').classes('font-black text-lg text-slate-200 tracking-wide' if is_dark else 'font-black text-lg text-slate-800 tracking-wide')
+                                with ui.row().classes('w-full justify-between items-center'):
+                                    ui.label('移动到分组').classes('font-black text-lg text-slate-200 tracking-wide' if is_dark else 'font-black text-lg text-slate-800 tracking-wide')
+                                    ui.button(icon='close', on_click=sub_d.close).props('flat round dense color=grey').classes('text-slate-400 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-500 hover:text-sky-700 hover:bg-sky-100')
                             with ui.column().classes('w-full p-4 gap-4 bg-[#030712]' if is_dark else 'w-full p-4 gap-4 bg-[#f8fbff]'):
                                 from app.services.server_ops import get_all_groups
                                 groups = get_all_groups()
