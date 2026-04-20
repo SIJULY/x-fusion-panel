@@ -19,14 +19,19 @@ def get_ssh_client(server_data):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    raw_url = server_data['url']
-    if '://' in raw_url:
-        host = raw_url.split('://')[-1].split(':')[0]
-    else:
-        host = raw_url.split(':')[0]
+    raw_url = server_data.get('url', '')
+    host = ''
+    if raw_url:
+        if '://' in raw_url:
+            host = raw_url.split('://')[-1].split(':')[0]
+        else:
+            host = raw_url.split(':')[0]
 
     if server_data.get('ssh_host'):
         host = server_data['ssh_host']
+
+    if not host:
+        return None, '❌ 连接失败: 缺少 SSH 主机地址'
 
     port = int(server_data.get('ssh_port') or 22)
     user = server_data.get('ssh_user') or 'root'

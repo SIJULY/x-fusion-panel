@@ -474,8 +474,13 @@ async def open_server_dialog(idx=None):
                             return
                             
                         temp_conf = {
-                            'ssh_host': s_host, 'ssh_user': s_user or 'root', 'ssh_port': s_port or '22',
-                            'ssh_password': s_pwd, 'ssh_key': s_key, 'ssh_auth_type': s_auth
+                            'url': data.get('url') or f'http://{s_host}:22',
+                            'ssh_host': s_host,
+                            'ssh_user': s_user or 'root',
+                            'ssh_port': s_port or '22',
+                            'ssh_password': s_pwd,
+                            'ssh_key': s_key,
+                            'ssh_auth_type': s_auth,
                         }
                         
                         detect_script = r'''python3 - <<'PY'
