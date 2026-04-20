@@ -865,7 +865,7 @@ PY'''
                 with ui.element('div').classes(
                         'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
                     SINGLE_COLS_NO_PING):
-                    ui.label('节点名称').classes('text-left pl-20')
+                    ui.label('节点名称').classes('text-left pl-15')
                     ui.label('类型').classes('text-center') # 往左移一点
                     ui.label('流量').classes('text-center pr-6') # 往左移多一点
                     ui.label('协议').classes('text-center pr-6') 
