@@ -188,11 +188,6 @@ docker compose up -d --build
 - 面板：`8081 -> 8080`
 - 数据卷：`./data:/app/data`
 
-如需启用 GitHub 私有云备份，请额外配置：
-- `GITHUB_CLIENT_ID`：GitHub OAuth App / GitHub App 对应的客户端 ID
-- `GITHUB_BACKUP_REPO`：默认私有备份仓库名（可选，默认 `x-fusion-panel-backups`）
-- `GITHUB_BACKUP_DIR`：仓库内备份目录（可选，默认 `backups`）
-
 ### install.sh 一键安装 / 更新
 
 仓库地址：
@@ -259,9 +254,6 @@ Docker 运行默认使用：
 - `XUI_USERNAME`
 - `XUI_PASSWORD`
 - `XUI_SECRET_KEY`
-- `GITHUB_CLIENT_ID`（启用 GitHub 云备份时必填）
-- `GITHUB_BACKUP_REPO`（可选）
-- `GITHUB_BACKUP_DIR`（可选）
 
 ---
 
@@ -273,8 +265,6 @@ Docker 运行默认使用：
 - 不要提交真实服务器密码、SSH 私钥、TG Token、Cloudflare Token
 - 生产环境建议使用 HTTPS 或反向代理
 - 请定期备份 `data/`
-- GitHub 云备份功能会使用你的 GitHub 私有仓库存放备份，不会创建公开仓库
-- 为了完成 GitHub 登录授权，服务端必须提前配置 `GITHUB_CLIENT_ID`
 
 ---
 
