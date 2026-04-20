@@ -19,6 +19,7 @@ def register_static_files() -> None:
         app.add_static_files('/static', str(STATIC_DIR))
 
 from app.api.auth import register_auth_pages
+from app.api.github_oauth import github_oauth_callback, github_oauth_start
 from app.api.notifications import send_telegram_message
 from app.api.status import register_status_page
 from app.api.subscriptions import (
@@ -75,6 +76,16 @@ async def api_short_group_handler(target: str, group_b64: str, request: Request)
 @app.get('/api/dashboard/live_data')
 def api_dashboard_live_data():
     return get_dashboard_live_data()
+
+
+@app.get('/api/github/oauth/start')
+async def api_github_oauth_start(request: Request):
+    return await github_oauth_start(request)
+
+
+@app.get('/api/github/oauth/callback')
+async def api_github_oauth_callback(request: Request, code: str = '', state: str = ''):
+    return await github_oauth_callback(request, code, state)
 
 
 def bootstrap_app():

@@ -1,29 +1,34 @@
-import asyncio
 import base64
 import json
 import os
+import secrets
 import time
 from typing import Any, Dict
+from urllib.parse import urlencode
 
 import requests
 from nicegui import run
 
 from app.core.state import ADMIN_CONFIG, NODES_DATA, SERVERS_CACHE, SUBS_CACHE
-from app.storage.repositories import load_global_key
+from app.storage.repositories import load_global_key, save_admin_config
 
-GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID', '').strip()
 DEFAULT_BACKUP_REPO = os.getenv('GITHUB_BACKUP_REPO', 'x-fusion-panel-backups').strip()
 DEFAULT_BACKUP_DIR = os.getenv('GITHUB_BACKUP_DIR', 'backups').strip()
+DEFAULT_GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID', '').strip()
+DEFAULT_GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET', '').strip()
 LATEST_BACKUP_FILENAME = 'x_fusion_backup_latest.json'
+GITHUB_OAUTH_CALLBACK_PATH = '/api/github/oauth/callback'
+GITHUB_OAUTH_STATE_TTL = 600
 
 _GITHUB_API = 'https://api.github.com'
-_GITHUB_DEVICE_CODE_URL = 'https://github.com/login/device/code'
+_GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize'
 _GITHUB_DEVICE_TOKEN_URL = 'https://github.com/login/oauth/access_token'
 _GITHUB_SENSITIVE_KEYS = {
     'github_access_token',
-    'github_device_code',
-    'github_user_code',
-    'github_verification_uri',
+    'github_client_id',
+    'github_client_secret',
+    'github_oauth_state',
+    'github_oauth_state_created_at',
 }
 
 
@@ -31,8 +36,16 @@ class GitHubBackupError(Exception):
     pass
 
 
+def get_github_client_id() -> str:
+    return (ADMIN_CONFIG.get('github_client_id') or DEFAULT_GITHUB_CLIENT_ID or '').strip()
+
+
+def get_github_client_secret() -> str:
+    return (ADMIN_CONFIG.get('github_client_secret') or DEFAULT_GITHUB_CLIENT_SECRET or '').strip()
+
+
 def is_github_oauth_configured() -> bool:
-    return bool(GITHUB_CLIENT_ID)
+    return bool(get_github_client_id() and get_github_client_secret())
 
 
 def get_github_backup_repo() -> str:
@@ -61,11 +74,14 @@ def clear_github_auth() -> None:
         'github_access_token',
         'github_user_login',
         'github_user_name',
-        'github_device_code',
-        'github_user_code',
-        'github_verification_uri',
+        'github_oauth_last_success_at',
     ]:
         ADMIN_CONFIG.pop(key, None)
+
+
+def clear_github_oauth_state() -> None:
+    ADMIN_CONFIG.pop('github_oauth_state', None)
+    ADMIN_CONFIG.pop('github_oauth_state_created_at', None)
 
 
 def build_full_backup_payload() -> Dict[str, Any]:
@@ -74,7 +90,7 @@ def build_full_backup_payload() -> Dict[str, Any]:
         admin_snapshot.pop(key, None)
 
     return {
-        'version': '3.1',
+        'version': '3.2',
         'timestamp': time.time(),
         'servers': json.loads(json.dumps(SERVERS_CACHE, ensure_ascii=False)),
         'subscriptions': json.loads(json.dumps(SUBS_CACHE, ensure_ascii=False)),
@@ -84,64 +100,39 @@ def build_full_backup_payload() -> Dict[str, Any]:
     }
 
 
-async def start_device_flow() -> Dict[str, Any]:
-    if not GITHUB_CLIENT_ID:
-        raise GitHubBackupError('未配置 GITHUB_CLIENT_ID，无法启用 GitHub 授权')
-
-    def _start() -> Dict[str, Any]:
-        resp = requests.post(
-            _GITHUB_DEVICE_CODE_URL,
-            headers={'Accept': 'application/json'},
-            data={'client_id': GITHUB_CLIENT_ID, 'scope': 'repo read:user'},
-            timeout=15,
-        )
-        data = resp.json()
-        if resp.status_code >= 400 or data.get('error'):
-            raise GitHubBackupError(data.get('error_description') or data.get('error') or 'GitHub 设备授权启动失败')
-        return data
-
-    return await run.io_bound(_start)
+def resolve_app_origin(request_origin: str = '') -> str:
+    configured = (ADMIN_CONFIG.get('manager_base_url') or '').strip().rstrip('/')
+    if configured:
+        return configured
+    return (request_origin or '').strip().rstrip('/')
 
 
-async def poll_device_flow(device_code: str, interval: int = 5, expires_in: int = 900) -> Dict[str, Any]:
-    if not device_code:
-        raise GitHubBackupError('device_code 缺失')
+def build_github_callback_url(app_origin: str) -> str:
+    origin = resolve_app_origin(app_origin)
+    if not origin:
+        raise GitHubBackupError('未能识别当前面板访问地址，请先在系统设置中保存主控端地址')
+    return f'{origin}{GITHUB_OAUTH_CALLBACK_PATH}'
 
-    started_at = time.time()
-    wait_seconds = max(int(interval or 5), 1)
 
-    while time.time() - started_at < max(int(expires_in or 900), 60):
-        def _poll() -> Dict[str, Any]:
-            resp = requests.post(
-                _GITHUB_DEVICE_TOKEN_URL,
-                headers={'Accept': 'application/json'},
-                data={
-                    'client_id': GITHUB_CLIENT_ID,
-                    'device_code': device_code,
-                    'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
-                },
-                timeout=15,
-            )
-            return resp.json()
+async def prepare_github_oauth_start_url(app_origin: str) -> str:
+    client_id = get_github_client_id()
+    client_secret = get_github_client_secret()
+    if not client_id or not client_secret:
+        raise GitHubBackupError('请先在网页中保存 GitHub Client ID 和 Client Secret')
 
-        data = await run.io_bound(_poll)
-        if data.get('access_token'):
-            return data
+    callback_url = build_github_callback_url(app_origin)
+    state = secrets.token_urlsafe(32)
+    ADMIN_CONFIG['github_oauth_state'] = state
+    ADMIN_CONFIG['github_oauth_state_created_at'] = time.time()
+    await save_admin_config()
 
-        error_code = data.get('error')
-        if error_code == 'authorization_pending':
-            await asyncio.sleep(wait_seconds)
-            continue
-        if error_code == 'slow_down':
-            wait_seconds += 5
-            await asyncio.sleep(wait_seconds)
-            continue
-        if error_code in {'expired_token', 'access_denied', 'incorrect_device_code', 'unsupported_grant_type'}:
-            raise GitHubBackupError(data.get('error_description') or error_code)
-
-        raise GitHubBackupError(data.get('error_description') or 'GitHub 授权轮询失败')
-
-    raise GitHubBackupError('GitHub 授权已超时，请重新发起授权')
+    query = urlencode({
+        'client_id': client_id,
+        'redirect_uri': callback_url,
+        'scope': 'repo read:user',
+        'state': state,
+    })
+    return f'{_GITHUB_AUTHORIZE_URL}?{query}'
 
 
 async def fetch_github_user(access_token: str | None = None) -> Dict[str, Any]:
@@ -172,10 +163,53 @@ async def save_github_auth(access_token: str) -> Dict[str, Any]:
     ADMIN_CONFIG['github_access_token'] = access_token
     ADMIN_CONFIG['github_user_login'] = profile.get('login', '')
     ADMIN_CONFIG['github_user_name'] = profile.get('name') or profile.get('login', '')
+    ADMIN_CONFIG['github_oauth_last_success_at'] = time.time()
     if not ADMIN_CONFIG.get('github_backup_repo'):
         ADMIN_CONFIG['github_backup_repo'] = DEFAULT_BACKUP_REPO or 'x-fusion-panel-backups'
     if not ADMIN_CONFIG.get('github_backup_dir'):
         ADMIN_CONFIG['github_backup_dir'] = DEFAULT_BACKUP_DIR or 'backups'
+    return profile
+
+
+async def complete_github_oauth(code: str, state: str, app_origin: str) -> Dict[str, Any]:
+    if not code:
+        raise GitHubBackupError('GitHub 未返回授权 code')
+
+    expected_state = (ADMIN_CONFIG.get('github_oauth_state') or '').strip()
+    created_at = float(ADMIN_CONFIG.get('github_oauth_state_created_at') or 0)
+    if not expected_state or state != expected_state:
+        raise GitHubBackupError('GitHub 授权状态校验失败，请重新发起授权')
+    if created_at and time.time() - created_at > GITHUB_OAUTH_STATE_TTL:
+        clear_github_oauth_state()
+        await save_admin_config()
+        raise GitHubBackupError('GitHub 授权已超时，请重新发起授权')
+
+    client_id = get_github_client_id()
+    client_secret = get_github_client_secret()
+    callback_url = build_github_callback_url(app_origin)
+
+    def _exchange() -> Dict[str, Any]:
+        resp = requests.post(
+            _GITHUB_DEVICE_TOKEN_URL,
+            headers={'Accept': 'application/json'},
+            data={
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'code': code,
+                'redirect_uri': callback_url,
+                'state': state,
+            },
+            timeout=20,
+        )
+        data = resp.json()
+        if resp.status_code >= 400 or data.get('error'):
+            raise GitHubBackupError(data.get('error_description') or data.get('error') or 'GitHub OAuth 换取 token 失败')
+        return data
+
+    token_data = await run.io_bound(_exchange)
+    profile = await save_github_auth(token_data.get('access_token', ''))
+    clear_github_oauth_state()
+    await save_admin_config()
     return profile
 
 

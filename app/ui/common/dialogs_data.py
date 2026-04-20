@@ -31,7 +31,7 @@ def _data_theme():
 
 from app.core.state import ADMIN_CONFIG, NODES_DATA, SERVERS_CACHE, SUBS_CACHE
 from app.services.github_backup import (
-    GitHubBackupError,
+    GITHUB_OAUTH_CALLBACK_PATH,
     build_full_backup_payload,
     clear_github_auth,
     download_latest_backup_from_github,
@@ -39,9 +39,6 @@ from app.services.github_backup import (
     get_github_backup_repo,
     is_github_connected,
     is_github_oauth_configured,
-    poll_device_flow,
-    save_github_auth,
-    start_device_flow,
     upload_backup_to_github,
 )
 from app.services.probe import install_probe_on_server
@@ -103,84 +100,61 @@ async def open_data_mgmt_dialog():
                     ui.button('下载 .json 文件', icon='download', on_click=lambda: ui.download(json_str.encode('utf-8'), 'xui_backup.json')).props('flat').classes('w-full h-12 text-base font-black bg-emerald-950/45 text-emerald-300 border border-emerald-500/45 hover:bg-emerald-900/55 rounded-sm' if theme['is_dark'] else 'w-full h-12 text-base font-black bg-emerald-100 text-emerald-700 border border-emerald-300 hover:bg-emerald-200 rounded-sm')
 
                 with ui.column().classes('w-full gap-4 p-4 rounded-sm border border-[#1e3a5f]/45 bg-[#0a1120]' if theme['is_dark'] else 'w-full gap-4 p-4 rounded-sm border border-slate-300/90 bg-white'):
-                    ui.label('GitHub 云备份（私有仓库）').classes(theme['accent'])
-                    ui.label('授权后会自动创建或使用你的私有仓库，不会将备份公开。').classes(theme['sub'])
+                    ui.label('GitHub 云备份（标准 OAuth 私有仓库）').classes(theme['accent'])
+                    ui.label('请先填写 GitHub OAuth App 的 Client ID / Client Secret，授权时会跳转到 GitHub 官方页面登录。').classes(theme['sub'])
 
                     with ui.grid().classes('w-full grid-cols-1 sm:grid-cols-2 gap-3'):
+                        github_client_id = ui.input('GitHub Client ID', value=ADMIN_CONFIG.get('github_client_id', '')).props(theme['input_dense'])
+                        github_client_secret = ui.input('GitHub Client Secret', value=ADMIN_CONFIG.get('github_client_secret', '')).props(theme['input_dense'] + ' type=password')
                         repo_input = ui.input('私有仓库名', value=ADMIN_CONFIG.get('github_backup_repo', get_github_backup_repo())).props(theme['input_dense'])
                         dir_input = ui.input('仓库目录', value=ADMIN_CONFIG.get('github_backup_dir', get_github_backup_dir())).props(theme['input_dense'])
 
+                    callback_base = (ADMIN_CONFIG.get('manager_base_url') or '当前面板访问地址').rstrip('/')
+                    ui.label(f'GitHub OAuth App 回调地址请填写：{callback_base}{GITHUB_OAUTH_CALLBACK_PATH}').classes('text-[11px] text-slate-500 break-all')
                     github_status = ui.label().classes('text-xs font-bold text-cyan-500/80')
 
                     def update_github_status() -> None:
                         if not is_github_oauth_configured():
-                            github_status.set_text('未配置 GITHUB_CLIENT_ID，暂时无法使用 GitHub 授权。')
+                            github_status.set_text('请先在这里保存 GitHub Client ID 和 Client Secret。')
                             return
                         if is_github_connected():
                             github_status.set_text(
                                 f"已连接 GitHub：@{ADMIN_CONFIG.get('github_user_login', 'unknown')} ｜ 私有仓库：{repo_input.value.strip() or get_github_backup_repo()}"
                             )
                         else:
-                            github_status.set_text('当前未连接 GitHub，点击“连接 GitHub 授权”后即可云备份。')
+                            github_status.set_text('GitHub OAuth 配置已就绪，点击“连接 GitHub 授权”后会跳转到 GitHub 官方页面登录。')
 
-                    async def persist_github_repo_settings() -> None:
+                    async def persist_github_settings() -> None:
+                        ADMIN_CONFIG['github_client_id'] = (github_client_id.value or '').strip()
+                        ADMIN_CONFIG['github_client_secret'] = (github_client_secret.value or '').strip()
                         ADMIN_CONFIG['github_backup_repo'] = (repo_input.value or '').strip() or get_github_backup_repo()
                         ADMIN_CONFIG['github_backup_dir'] = (dir_input.value or '').strip() or get_github_backup_dir()
                         await save_admin_config()
 
                     async def connect_github() -> None:
+                        await persist_github_settings()
                         if not is_github_oauth_configured():
-                            safe_notify('服务端未配置 GITHUB_CLIENT_ID，无法启用 GitHub 授权', 'warning')
-                            return
-                        try:
-                            await persist_github_repo_settings()
-                            flow = await start_device_flow()
-                        except Exception as e:
-                            safe_notify(f'启动 GitHub 授权失败: {e}', 'negative')
+                            safe_notify('请先填写 GitHub Client ID 和 Client Secret', 'warning')
                             return
 
-                        with ui.dialog() as auth_d, ui.card().classes(theme['card'] + ' max-w-lg'):
-                            with ui.row().classes(theme['header']):
-                                ui.label('GitHub 账号授权').classes(theme['title'])
-                                ui.button(icon='close', on_click=auth_d.close).props('flat round dense color=grey').classes('text-slate-400 hover:text-cyan-300 hover:bg-cyan-950/30' if theme['is_dark'] else 'text-slate-500 hover:text-sky-700 hover:bg-sky-100')
+                        last_success_at = float(ADMIN_CONFIG.get('github_oauth_last_success_at') or 0)
+                        opened = await ui.run_javascript(
+                            'return !!window.open("/api/github/oauth/start", "xfusion_github_oauth", "width=960,height=760,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes");'
+                        )
+                        if not opened:
+                            safe_notify('浏览器拦截了 GitHub 授权窗口，请允许弹窗后重试', 'warning', timeout=5000)
+                            return
 
-                            with ui.column().classes(theme['body'] + ' gap-4'):
-                                ui.label('1. 点击下方按钮打开 GitHub 授权页').classes(theme['accent'])
-                                ui.label('2. 输入下面这串一次性验证码并确认授权').classes(theme['sub'])
-                                ui.input('一次性授权码', value=flow.get('user_code', '')).props('outlined readonly').classes('w-full text-center text-xl font-black tracking-[0.45em]')
-                                auth_status = ui.label('等待 GitHub 授权确认...').classes('text-xs text-cyan-500/80')
-
-                            async def open_verify_page() -> None:
-                                verify_url = flow.get('verification_uri') or flow.get('verification_uri_complete') or 'https://github.com/login/device'
-                                await ui.run_javascript(f'window.open({json.dumps(verify_url)}, "_blank", "width=960,height=760");')
-
-                            async def wait_for_authorization() -> None:
-                                try:
-                                    result = await poll_device_flow(
-                                        flow.get('device_code', ''),
-                                        flow.get('interval', 5),
-                                        flow.get('expires_in', 900),
-                                    )
-                                    profile = await save_github_auth(result.get('access_token', ''))
-                                    await persist_github_repo_settings()
-                                    update_github_status()
-                                    auth_status.set_text(f"授权成功：@{profile.get('login', 'unknown')}")
-                                    safe_notify(f"✅ GitHub 授权成功：@{profile.get('login', 'unknown')}", 'positive')
-                                    await asyncio.sleep(0.8)
-                                    auth_d.close()
-                                except GitHubBackupError as e:
-                                    auth_status.set_text(f'授权失败：{e}')
-                                    safe_notify(f'GitHub 授权失败: {e}', 'negative')
-                                except Exception as e:
-                                    auth_status.set_text(f'授权失败：{e}')
-                                    safe_notify(f'GitHub 授权失败: {e}', 'negative')
-
-                            with ui.row().classes(theme['footer'] + ' gap-3'):
-                                ui.button('打开 GitHub 授权页', icon='open_in_new', on_click=open_verify_page).props('flat').classes(theme['primary'])
-                                ui.button('开始检测授权结果', icon='sync', on_click=lambda: asyncio.create_task(wait_for_authorization())).props('flat').classes(theme['action'])
-
-                        auth_d.open()
-                        await open_verify_page()
+                        safe_notify('请在 GitHub 官方页面登录并确认授权...', 'ongoing', timeout=5000)
+                        for _ in range(180):
+                            await asyncio.sleep(1)
+                            current_success_at = float(ADMIN_CONFIG.get('github_oauth_last_success_at') or 0)
+                            if current_success_at > last_success_at and is_github_connected():
+                                update_github_status()
+                                safe_notify(f"✅ GitHub 授权成功：@{ADMIN_CONFIG.get('github_user_login', 'unknown')}", 'positive')
+                                return
+                        update_github_status()
+                        safe_notify('等待 GitHub 授权超时，请确认是否已在新窗口完成授权', 'warning', timeout=5000)
 
                     async def disconnect_github() -> None:
                         clear_github_auth()
@@ -190,7 +164,7 @@ async def open_data_mgmt_dialog():
 
                     async def upload_github_backup() -> None:
                         try:
-                            await persist_github_repo_settings()
+                            await persist_github_settings()
                             result = await upload_backup_to_github(build_full_backup_payload())
                             update_github_status()
                             safe_notify(
@@ -203,6 +177,7 @@ async def open_data_mgmt_dialog():
 
                     update_github_status()
                     with ui.row().classes('w-full gap-3 max-sm:flex-col'):
+                        ui.button('保存 GitHub OAuth 配置', icon='save', on_click=lambda: asyncio.create_task(persist_github_settings())).props('flat').classes(theme['action'] + ' flex-1')
                         ui.button('连接 GitHub 授权', icon='login', on_click=connect_github).props('flat').classes(theme['action'] + ' flex-1')
                         ui.button('上传到 GitHub 私有仓库', icon='cloud_upload', on_click=upload_github_backup).props('flat').classes(theme['action'] + ' flex-1')
                         ui.button('断开授权', icon='link_off', on_click=disconnect_github).props('flat').classes(theme['action'] + ' flex-1')
