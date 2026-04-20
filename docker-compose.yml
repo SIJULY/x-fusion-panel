@@ -17,6 +17,9 @@ services:
       - XUI_USERNAME=${XUI_USERNAME:-admin}
       - XUI_PASSWORD=${XUI_PASSWORD:-admin}
       - XUI_SECRET_KEY=${XUI_SECRET_KEY:-sijuly_secret_key}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_BACKUP_REPO=${GITHUB_BACKUP_REPO:-x-fusion-panel-backups}
+      - GITHUB_BACKUP_DIR=${GITHUB_BACKUP_DIR:-backups}
 
   subconverter:
     # 关键：必须换成支持 ARM64 的镜像，否则在 ARM VPS 上依然启动失败
