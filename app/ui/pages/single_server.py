@@ -455,7 +455,7 @@ PY'''
                                 elif has_manager_access:
                                     async def on_edit_success():
                                         ui.notify('修改成功')
-                                        await refresh_after_inbound_change()
+                                        await refresh_after_inbound_change(delay_second_refresh=True)
 
                                     edit_btn = ui.button(icon='edit_square',
                                                          on_click=lambda i=n: open_inbound_dialog(mgr, i,
