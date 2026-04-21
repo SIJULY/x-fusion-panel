@@ -65,7 +65,7 @@ def _sidebar_theme():
         'btn_keycap_base': 'border rounded-sm transition-all',
         'btn_name_text': '',
         'btn_settings_text': '',
-        'top_btn': 'xf-btn-primary w-full border rounded-sm font-bold px-3 py-2 transition-all',
+        'top_btn': 'xf-btn-primary w-full h-[44px] border rounded-sm font-bold px-3 py-2 transition-all',
         'top_wrap': 'w-full p-4 border-b flex-shrink-0 relative overflow-hidden',
         'logo_text': 'hidden',
         'title': 'text-sm font-black tracking-widest uppercase z-10',
@@ -73,12 +73,12 @@ def _sidebar_theme():
         'ip_label': 'text-[11px] font-bold',
         'ip_value': 'text-[11px] font-mono font-bold',
         'scroll_wrap': 'w-full flex-grow overflow-y-auto p-2 gap-2',
-        'group_action_base': 'flex-grow text-xs font-black rounded-sm border px-3 py-2 tracking-wide transition-all',
+        'group_action_base': 'flex-grow h-[44px] text-xs font-black rounded-sm border px-3 py-2 tracking-wide transition-all',
         'new_group_btn': '',
         'new_server_btn': '',
 
         # 保持外层菜单的固定高度和禁止垂直收缩
-        'list_item': 'w-full h-[52px] shrink-0 items-center justify-between px-3 border rounded-2xl mb-2 cursor-pointer group transition-all duration-200',
+        'list_item': 'w-full h-[44px] shrink-0 items-center justify-between px-3 border rounded-2xl mb-2 cursor-pointer group transition-all duration-200',
 
         'list_icon_box': 'xf-sidebar-icon-box w-8 h-8 items-center justify-center rounded-sm border transition-colors shrink-0',
         'list_icon': 'text-sm',
@@ -90,19 +90,19 @@ def _sidebar_theme():
         'expansion_region': 'w-full shrink-0 border rounded-2xl overflow-hidden',
 
         # 关键修复 1：为右侧的折叠箭头保留 12px 的安全边距（padding-right）
-        'expansion_header_props': 'expand-icon-toggle header-style="padding: 0 14px 0 0; min-height: 52px; border-radius: 18px;"',
+        'expansion_header_props': 'expand-icon-toggle header-style="padding: 0 14px 0 0; min-height: 44px; border-radius: 18px;"',
 
         'drag_icon': 'xf-icon-3d cursor-grab active:cursor-grabbing p-0.5 rounded transition-colors select-none',
         'group_name': 'font-bold truncate text-sm',
 
         # 关键修复 2：移除 shrink-0。因为在水平 Flex 布局中，它必须允许适度收缩，才能给右侧箭头留出位置！
-        'group_header_row': 'group-sort-header w-full h-[52px] items-center justify-between pl-3 pr-2 cursor-grab active:cursor-grabbing group transition-all duration-200 select-none rounded-[18px]',
+        'group_header_row': 'group-sort-header w-full h-[44px] items-center justify-between pl-3 pr-2 cursor-grab active:cursor-grabbing group transition-all duration-200 select-none rounded-[18px]',
 
         'icon_btn': 'xf-icon-3d',
         'expansion_body': 'w-full gap-2 p-2 border-t',
         'flag_name': 'font-bold truncate',
         'bottom_wrap': 'w-full p-2 border-t mt-auto mb-4 gap-2 z-10',
-        'bottom_btn': 'xf-btn-subtle w-full text-xs font-bold border rounded-sm px-3 py-2 transition-all',
+        'bottom_btn': 'xf-btn-subtle w-full h-[44px] text-xs font-bold border rounded-sm px-3 py-2 transition-all',
     }
 
 
@@ -215,7 +215,7 @@ def render_sidebar_content():
             with ui.row().classes('items-center gap-3'):
                 with ui.column().classes(theme['list_icon_box']):
                     ui.icon('dns').classes(f"{theme['list_icon']} xf-sidebar-icon-glyph").style('color: var(--xf-accent);')
-                ui.label('所有服务器').classes(theme['list_label']).style('color: var(--xf-text-strong);')
+                ui.label('所有服务器').classes(theme['list_label']).style('color: var(--xf-text-main);')
             ui.badge(str(len(SERVERS_CACHE)), color='blue').props('rounded-sm outline').classes(
                 'text-[10px] font-black').style('color: var(--xf-accent); border-color: var(--xf-card-border);')
 
@@ -245,14 +245,14 @@ def render_sidebar_content():
                                     g)) as exp:
                             with exp.add_slot('header'):
                                 with ui.row().classes(f"{theme['group_header_row']} no-wrap").style(
-                                        'color: var(--xf-text-strong);').on('click',
+                                        'color: var(--xf-text-main);').on('click',
                                                                             lambda _, g=tag_group: open_tag_group(g)):
                                     with ui.row().classes('items-center gap-3 flex-grow overflow-hidden no-wrap'):
                                         ui.icon('drag_indicator').classes(theme['drag_icon']).on('click.stop').tooltip(
                                             '按住拖拽排序')
 
                                         with ui.row().classes('items-center gap-2 flex-grow overflow-hidden no-wrap'):
-                                            ui.label(tag_group).classes(theme['group_name'])
+                                            ui.label(tag_group).classes(theme['group_name']).style('color: var(--xf-text-main);')
 
                                     with ui.row().classes('no-drag items-center gap-1 pr-2 flex-shrink-0').on(
                                             'mousedown.stop').on('click.stop'):
@@ -305,7 +305,8 @@ def render_sidebar_content():
                                     g)) as exp:
                         with exp.add_slot('header'):
                             with ui.row().classes(f"{theme['group_header_row']} no-wrap").style(
-                                    'color: var(--xf-text-strong);').on('click',
+                                    'color: var(--xf-text-main);').on('click',
+
                                                                         lambda _, g=c_name: open_country_group(g)):
                                 with ui.row().classes('items-center gap-3 flex-grow overflow-hidden'):
                                     ui.icon('drag_indicator').classes(theme['drag_icon']).on('click.stop').tooltip(
@@ -313,10 +314,10 @@ def render_sidebar_content():
                                     with ui.row().classes('items-center gap-2 flex-grow'):
                                         flag = c_name.split(' ')[0] if ' ' in c_name else '🏳️'
                                         ui.label(flag).classes('text-lg filter drop-shadow-md').style(
-                                            'color: var(--xf-text-strong);')
+                                            'color: var(--xf-text-main);')
                                         display_name = c_name.split(' ')[1] if ' ' in c_name else c_name
                                         ui.label(display_name).classes(theme['flag_name']).style(
-                                            'color: var(--xf-text-strong);')
+                                            'color: var(--xf-text-main);')
                                 with ui.row().classes('no-drag items-center gap-1 pr-2').on('mousedown.stop').on('click.stop'):
                                     ui.button(icon='edit_note',
                                               on_click=lambda _, s=c_servers, t=c_name: open_bulk_edit_dialog(s,
