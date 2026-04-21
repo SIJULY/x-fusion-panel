@@ -1,5 +1,7 @@
 import asyncio
+import json
 
+from fastapi import Request
 from nicegui import app, ui
 
 from app.core.logging import logger
@@ -25,7 +27,35 @@ from app.utils.formatters import smart_sort_key
 from app.utils.geo import detect_country_group
 
 batch_ssh_manager = BatchSSH()
-_current_dragged_group = None
+
+
+async def _save_sidebar_group_order(kind: str, order: list[str]):
+    if kind == 'custom':
+        current = ADMIN_CONFIG.get('custom_groups', [])
+        ADMIN_CONFIG['custom_groups'] = [name for name in order if name in current]
+    elif kind == 'region':
+        ADMIN_CONFIG['group_order'] = list(order)
+    else:
+        raise ValueError(f'unknown reorder kind: {kind}')
+
+    await save_admin_config()
+
+
+@app.post('/api/sidebar/reorder')
+async def api_sidebar_reorder(request: Request):
+    try:
+        payload = await request.json()
+        kind = str(payload.get('kind', '')).strip()
+        order = payload.get('order', [])
+        if kind not in {'custom', 'region'}:
+            return {'ok': False, 'msg': 'invalid kind'}
+        if not isinstance(order, list) or not all(isinstance(i, str) for i in order):
+            return {'ok': False, 'msg': 'invalid order'}
+        await _save_sidebar_group_order(kind, order)
+        return {'ok': True}
+    except Exception as e:
+        logger.error(f'[SidebarSort] save order failed: {e}')
+        return {'ok': False, 'msg': str(e)}
 
 
 def _sidebar_theme():
@@ -62,7 +92,7 @@ def _sidebar_theme():
         # 关键修复 1：为右侧的折叠箭头保留 12px 的安全边距（padding-right）
         'expansion_header_props': 'expand-icon-toggle header-style="padding: 0 12px 0 0; min-height: 52px;"',
 
-        'drag_icon': 'cursor-move p-0.5 rounded transition-colors',
+        'drag_icon': 'group-drag-handle cursor-grab active:cursor-grabbing p-0.5 rounded transition-colors select-none',
         'group_name': 'font-bold truncate text-sm',
 
         # 关键修复 2：移除 shrink-0。因为在水平 Flex 布局中，它必须允许适度收缩，才能给右侧箭头留出位置！
@@ -132,7 +162,6 @@ def render_single_sidebar_row(s):
 
 @ui.refreshable
 def render_sidebar_content():
-    global _current_dragged_group
     theme = _sidebar_theme()
 
     logger.info(
@@ -190,76 +219,56 @@ def render_sidebar_content():
             ui.badge(str(len(SERVERS_CACHE)), color='blue').props('rounded-sm outline').classes(
                 'text-[10px] font-black').style('color: var(--xf-accent); border-color: var(--xf-card-border);')
 
-        def on_drag_start(e, name):
-            global _current_dragged_group
-            _current_dragged_group = name
-
         final_tags = ADMIN_CONFIG.get('custom_groups', [])
-
-        async def on_tag_drop(e, target_name):
-            global _current_dragged_group
-            if not _current_dragged_group or _current_dragged_group == target_name:
-                return
-            try:
-                current_list = list(final_tags)
-                if _current_dragged_group in current_list and target_name in current_list:
-                    old_idx = current_list.index(_current_dragged_group)
-                    item = current_list.pop(old_idx)
-                    new_idx = current_list.index(target_name)
-                    current_list.insert(new_idx, item)
-                    ADMIN_CONFIG['custom_groups'] = current_list
-                    await save_admin_config()
-                    _current_dragged_group = None
-                    render_sidebar_content.refresh()
-            except:
-                pass
 
         if final_tags:
             ui.label('自定义分组').classes(theme['section_label']).style('color: var(--xf-accent); opacity: 0.75;')
-            for tag_group in final_tags:
-                tag_servers = [s for s in SERVERS_CACHE if
-                               isinstance(s, dict) and (tag_group in s.get('tags', []) or s.get('group') == tag_group)]
-                try:
-                    tag_servers.sort(key=smart_sort_key)
-                except:
-                    tag_servers.sort(key=lambda x: x.get('name', ''))
-                is_open = tag_group in EXPANDED_GROUPS
+            with ui.column().props('id=sidebar-custom-group-list').classes('w-full gap-0'):
+                for tag_group in final_tags:
+                    tag_servers = [
+                        s for s in SERVERS_CACHE
+                        if isinstance(s, dict) and (tag_group in s.get('tags', []) or s.get('group') == tag_group)
+                    ]
+                    try:
+                        tag_servers.sort(key=smart_sort_key)
+                    except:
+                        tag_servers.sort(key=lambda x: x.get('name', ''))
+                    is_open = tag_group in EXPANDED_GROUPS
 
-                with ui.element('div').classes('w-full').on('dragover.prevent', lambda _: None).on('drop', lambda e,
-                                                                                                                  n=tag_group: on_tag_drop(
-                        e, n)):
-                    with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_custom']).props(
-                            theme['expansion_header_props']).style(
-                            'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(
-                            lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(
+                    with ui.element('div').props(
+                            f'data-group-name={json.dumps(tag_group, ensure_ascii=False)}').classes(
+                            'sidebar-sort-item w-full'):
+                        with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_custom']).props(
+                                theme['expansion_header_props']).style(
+                                'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(
+                                lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(
                                     g)) as exp:
-                        with exp.add_slot('header'):
-                            with ui.row().classes(f"{theme['group_header_row']} no-wrap").style(
-                                    'color: var(--xf-text-strong);').on('click',
-                                                                        lambda _, g=tag_group: open_tag_group(g)):
-                                with ui.row().classes('items-center gap-3 flex-grow overflow-hidden no-wrap'):
-                                    ui.icon('drag_indicator').props('draggable="true"').classes(theme['drag_icon']).on(
-                                        'dragstart', lambda e, n=tag_group: on_drag_start(e, n)).on(
-                                        'click.stop').tooltip('按住拖拽')
+                            with exp.add_slot('header'):
+                                with ui.row().classes(f"{theme['group_header_row']} no-wrap").style(
+                                        'color: var(--xf-text-strong);').on('click',
+                                                                            lambda _, g=tag_group: open_tag_group(g)):
+                                    with ui.row().classes('items-center gap-3 flex-grow overflow-hidden no-wrap'):
+                                        ui.icon('drag_indicator').classes(theme['drag_icon']).on('click.stop').tooltip(
+                                            '按住拖拽排序')
 
-                                    with ui.row().classes('items-center gap-2 flex-grow overflow-hidden no-wrap'):
-                                        ui.label(tag_group).classes(theme['group_name'])
+                                        with ui.row().classes('items-center gap-2 flex-grow overflow-hidden no-wrap'):
+                                            ui.label(tag_group).classes(theme['group_name'])
 
-                                with ui.row().classes('items-center gap-1 pr-2 flex-shrink-0').on('mousedown.stop').on(
-                                        'click.stop'):
-                                    ui.button(icon='settings',
-                                              on_click=lambda _, g=tag_group: open_combined_group_management(g)).props(
-                                        'flat dense round size=xs padding=4px').classes(theme['icon_btn']).tooltip(
-                                        '管理分组')
-                                    ui.badge(str(len(tag_servers)), color='green').props(
-                                        'rounded-sm outline text-color=green-4').classes(
-                                        'text-[10px] font-black').style('border-color: var(--xf-card-border);')
+                                    with ui.row().classes('items-center gap-1 pr-2 flex-shrink-0').on(
+                                            'mousedown.stop').on('click.stop'):
+                                        ui.button(icon='settings',
+                                                  on_click=lambda _, g=tag_group: open_combined_group_management(g)).props(
+                                            'flat dense round size=xs padding=4px').classes(theme['icon_btn']).tooltip(
+                                            '管理分组')
+                                        ui.badge(str(len(tag_servers)), color='green').props(
+                                            'rounded-sm outline text-color=green-4').classes(
+                                            'text-[10px] font-black').style('border-color: var(--xf-card-border);')
 
-                        with ui.column().classes(theme['expansion_body']).style(
-                                'background: color-mix(in srgb, var(--xf-elevated-bg) 82%, var(--xf-bg-main)); border-color: var(--xf-card-border);') as col:
-                            SIDEBAR_UI_REFS['groups'][tag_group] = col
-                            for s in tag_servers:
-                                render_single_sidebar_row(s)
+                            with ui.column().classes(theme['expansion_body']).style(
+                                    'background: color-mix(in srgb, var(--xf-elevated-bg) 82%, var(--xf-bg-main)); border-color: var(--xf-card-border);') as col:
+                                SIDEBAR_UI_REFS['groups'][tag_group] = col
+                                for s in tag_servers:
+                                    render_single_sidebar_row(s)
 
         ui.label('区域分组').classes(theme['section_label']).style('color: var(--xf-accent); opacity: 0.75;')
         country_buckets = {}
@@ -278,25 +287,7 @@ def render_sidebar_content():
 
         sorted_regions = sorted(country_buckets.keys(), key=region_sort_key)
 
-        async def on_region_drop(e, target_name):
-            global _current_dragged_group
-            if not _current_dragged_group or _current_dragged_group == target_name:
-                return
-            try:
-                current_list = list(sorted_regions)
-                if _current_dragged_group in current_list and target_name in current_list:
-                    old_idx = current_list.index(_current_dragged_group)
-                    item = current_list.pop(old_idx)
-                    new_idx = current_list.index(target_name)
-                    current_list.insert(new_idx, item)
-                    ADMIN_CONFIG['group_order'] = current_list
-                    await save_admin_config()
-                    _current_dragged_group = None
-                    render_sidebar_content.refresh()
-            except:
-                pass
-
-        with ui.column().classes('w-full gap-2 pb-4'):
+        with ui.column().props('id=sidebar-region-group-list').classes('w-full gap-2 pb-4'):
             for c_name in sorted_regions:
                 c_servers = country_buckets[c_name]
                 try:
@@ -305,9 +296,7 @@ def render_sidebar_content():
                     c_servers.sort(key=lambda x: x.get('name', ''))
                 is_open = c_name in EXPANDED_GROUPS
 
-                with ui.element('div').classes('w-full').on('dragover.prevent', lambda _: None).on('drop', lambda e,
-                                                                                                                  n=c_name: on_region_drop(
-                        e, n)):
+                with ui.element('div').props(f'data-group-name={json.dumps(c_name, ensure_ascii=False)}').classes('sidebar-sort-item w-full'):
                     with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_region']).props(
                             theme['expansion_header_props']).style(
                             'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(
@@ -318,9 +307,8 @@ def render_sidebar_content():
                                     'color: var(--xf-text-strong);').on('click',
                                                                         lambda _, g=c_name: open_country_group(g)):
                                 with ui.row().classes('items-center gap-3 flex-grow overflow-hidden'):
-                                    ui.icon('drag_indicator').props('draggable="true"').classes(theme['drag_icon']).on(
-                                        'dragstart', lambda e, n=c_name: on_drag_start(e, n)).on('click.stop').tooltip(
-                                        '按住拖拽')
+                                    ui.icon('drag_indicator').classes(theme['drag_icon']).on('click.stop').tooltip(
+                                        '按住拖拽排序')
                                     with ui.row().classes('items-center gap-2 flex-grow'):
                                         flag = c_name.split(' ')[0] if ' ' in c_name else '🏳️'
                                         ui.label(flag).classes('text-lg filter drop-shadow-md').style(
@@ -346,11 +334,100 @@ def render_sidebar_content():
 
     ui.run_javascript('''
         (function() {
-            var el = document.getElementById("sidebar-scroll-box");
+            function saveSidebarOrder(kind, order) {
+                return fetch('/api/sidebar/reorder', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({kind, order}),
+                }).then(r => r.json()).catch(() => ({ok: false}));
+            }
+
+            function getOrder(container) {
+                return Array.from(container.querySelectorAll(':scope > .sidebar-sort-item'))
+                    .map(el => el.dataset.groupName)
+                    .filter(Boolean);
+            }
+
+            function initSortable(listId, kind) {
+                const container = document.getElementById(listId);
+                if (!container) return;
+
+                const boot = () => {
+                    window.xfSidebarSortables = window.xfSidebarSortables || {};
+                    if (window.xfSidebarSortables[listId]) {
+                        window.xfSidebarSortables[listId].destroy();
+                    }
+                    window.xfSidebarSortables[listId] = new Sortable(container, {
+                        animation: 180,
+                        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                        handle: '.group-drag-handle',
+                        draggable: ':scope > .sidebar-sort-item',
+                        ghostClass: 'xf-sidebar-drag-ghost',
+                        chosenClass: 'xf-sidebar-drag-chosen',
+                        dragClass: 'xf-sidebar-drag-active',
+                        forceFallback: true,
+                        fallbackOnBody: true,
+                        swapThreshold: 0.65,
+                        delay: 120,
+                        delayOnTouchOnly: true,
+                        onEnd: async function () {
+                            const order = getOrder(container);
+                            const res = await saveSidebarOrder(kind, order);
+                            if (!res || !res.ok) {
+                                console.warn('[SidebarSort] 保存排序失败', kind, order);
+                            }
+                        },
+                    });
+                };
+
+                if (window.Sortable) {
+                    boot();
+                    return;
+                }
+
+                if (!window.__xfSidebarSortableLoading) {
+                    window.__xfSidebarSortableLoading = new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+
+                window.__xfSidebarSortableLoading.then(boot).catch(err => {
+                    console.error('[SidebarSort] SortableJS 加载失败', err);
+                });
+            }
+
+            if (!document.getElementById('xf-sidebar-sort-style')) {
+                const style = document.createElement('style');
+                style.id = 'xf-sidebar-sort-style';
+                style.textContent = `
+                    .xf-sidebar-drag-ghost { opacity: 0.22 !important; }
+                    .xf-sidebar-drag-chosen { transform: scale(1.01); }
+                    .xf-sidebar-drag-active {
+                        opacity: 0.96 !important;
+                        transform: scale(1.015);
+                        filter: drop-shadow(0 14px 24px rgba(15, 23, 42, 0.28));
+                        z-index: 9999 !important;
+                    }
+                    .group-drag-handle { touch-action: none; }
+                `;
+                document.head.appendChild(style);
+            }
+
+            var el = document.getElementById('sidebar-scroll-box');
             if (el) {
                 if (window.sidebarScroll) el.scrollTop = window.sidebarScroll;
-                el.addEventListener("scroll", function() { window.sidebarScroll = el.scrollTop; });
+                if (!el.dataset.scrollBound) {
+                    el.addEventListener('scroll', function() { window.sidebarScroll = el.scrollTop; });
+                    el.dataset.scrollBound = '1';
+                }
             }
+
+            initSortable('sidebar-custom-group-list', 'custom');
+            initSortable('sidebar-region-group-list', 'region');
         })();
     ''')
 
