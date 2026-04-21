@@ -318,8 +318,84 @@ def main_page(request: Request):
             ::-webkit-scrollbar-track {{ background: var(--xf-scroll-track); }}
             ::-webkit-scrollbar-thumb {{ background: var(--xf-scroll-thumb); border-radius: 3px; }}
             ::-webkit-scrollbar-thumb:hover {{ background: var(--xf-scroll-thumb-hover); }}
-            .q-card {{ background-color: var(--xf-card-bg) !important; border: 1px solid var(--xf-card-border) !important; }}
+            .q-card {{
+                background-color: var(--xf-card-bg) !important;
+                border: 1px solid var(--xf-card-border) !important;
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.10), 0 1px 0 rgba(255,255,255,0.06) inset !important;
+                transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease !important;
+            }}
+            .q-card:hover {{
+                transform: translateY(-1px);
+                box-shadow: 0 16px 34px rgba(15, 23, 42, 0.13), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+            }}
             .q-drawer {{ background-color: var(--xf-drawer-bg) !important; }}
+            .q-btn {{
+                border-radius: 10px !important;
+                position: relative;
+                transform: translateY(0);
+                box-shadow: 0 5px 14px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+                transition: transform .14s ease, box-shadow .14s ease, filter .14s ease, border-color .14s ease, background-color .14s ease !important;
+            }}
+            .q-btn::before {{
+                content: '';
+                position: absolute;
+                inset: 1px;
+                border-radius: inherit;
+                pointer-events: none;
+                background: linear-gradient(180deg, rgba(255,255,255,0.11) 0%, rgba(255,255,255,0.04) 42%, rgba(255,255,255,0) 100%);
+                opacity: 0.9;
+            }}
+            .q-btn:hover {{
+                transform: translateY(-1px);
+                box-shadow: 0 9px 20px rgba(15, 23, 42, 0.11), 0 1px 0 rgba(255,255,255,0.10) inset !important;
+                filter: saturate(1.02);
+            }}
+            .q-btn:active, .q-btn.q-btn--active {{
+                transform: translateY(1px) scale(0.996);
+                box-shadow: 0 3px 8px rgba(15, 23, 42, 0.09), 0 1px 0 rgba(255,255,255,0.05) inset !important;
+            }}
+            .q-btn--round, .q-btn--fab, .q-btn--fab-mini,
+            .q-btn--flat, .q-btn--outline {{
+                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07), 0 1px 0 rgba(255,255,255,0.07) inset !important;
+            }}
+            .xf-btn-primary,
+            .xf-btn-primary.q-btn {{
+                box-shadow: 0 10px 24px color-mix(in srgb, var(--xf-accent) 20%, rgba(15, 23, 42, 0.14)), 0 1px 0 rgba(255,255,255,0.14) inset !important;
+                border-color: color-mix(in srgb, var(--xf-accent) 32%, var(--xf-card-border)) !important;
+            }}
+            .xf-btn-primary:hover,
+            .xf-btn-primary.q-btn:hover {{
+                box-shadow: 0 14px 30px color-mix(in srgb, var(--xf-accent) 24%, rgba(15, 23, 42, 0.16)), 0 1px 0 rgba(255,255,255,0.18) inset !important;
+                filter: saturate(1.06);
+            }}
+            .xf-btn-primary:active,
+            .xf-btn-primary.q-btn:active {{
+                box-shadow: 0 5px 12px color-mix(in srgb, var(--xf-accent) 18%, rgba(15, 23, 42, 0.10)), 0 1px 0 rgba(255,255,255,0.10) inset !important;
+            }}
+            .xf-btn-subtle,
+            .xf-btn-subtle.q-btn {{
+                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07), 0 1px 0 rgba(255,255,255,0.07) inset !important;
+            }}
+            .xf-btn-subtle:hover,
+            .xf-btn-subtle.q-btn:hover {{
+                box-shadow: 0 7px 16px rgba(15, 23, 42, 0.10), 0 1px 0 rgba(255,255,255,0.10) inset !important;
+            }}
+            .xf-icon-3d,
+            .xf-icon-3d.q-btn,
+            .xf-sidebar-icon-box {{
+                border-radius: 12px !important;
+                box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255,255,255,0.10) inset !important;
+                transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease !important;
+            }}
+            .xf-icon-3d:hover,
+            .xf-icon-3d.q-btn:hover,
+            .xf-sidebar-icon-box:hover {{
+                transform: translateY(-1px);
+                box-shadow: 0 10px 20px rgba(15, 23, 42, 0.11), 0 1px 0 rgba(255,255,255,0.14) inset !important;
+            }}
+            .xf-sidebar-icon-glyph {{
+                filter: drop-shadow(0 1px 1px rgba(255,255,255,0.18));
+            }}
             .q-layout,
             .q-page-container,
             .q-page,
@@ -358,7 +434,23 @@ def main_page(request: Request):
             .q-menu,
             .q-select__dialog {{
                 border: 1px solid var(--xf-popup-border) !important;
-                box-shadow: var(--xf-tooltip-shadow) !important;
+                box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+            }}
+            .q-dialog .q-card,
+            .q-menu,
+            .q-select__dialog,
+            .q-field__control {{
+                transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease !important;
+            }}
+            .q-field__control {{
+                border-radius: 12px !important;
+                background: color-mix(in srgb, var(--xf-elevated-bg) 86%, white 14%) !important;
+                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+            }}
+            .q-field--focused .q-field__control,
+            .q-field:hover .q-field__control {{
+                transform: translateY(-1px);
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.11), 0 1px 0 rgba(255,255,255,0.10) inset !important;
             }}
             .q-item:hover,
             .q-manual-focusable--focused,
@@ -386,6 +478,7 @@ def main_page(request: Request):
                 align-items: center !important;
                 justify-content: center !important;
                 flex: 0 0 40px !important;
+                border-radius: 12px !important;
             }}
             #xf-security-btn .q-icon,
             #xf-key-btn .q-icon,
@@ -511,18 +604,18 @@ def main_page(request: Request):
     with ui.header().classes(current_theme['header_classes']).props('id=xf-header'):
         with ui.row().classes('w-full items-center justify-between'):
             with ui.row().classes('items-center gap-2'):
-                ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense id=xf-menu-btn').classes(current_theme['menu_btn_classes'])
+                ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense id=xf-menu-btn').classes(f"{current_theme['menu_btn_classes']} xf-icon-3d")
                 ui.label('X-Fusion-Pro').classes(current_theme['title_classes']).props('id=xf-title')
 
             with ui.row().classes('items-center gap-3 mr-2 flex-nowrap'):
-                with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat round id=xf-security-btn').classes(current_theme['security_btn_classes']).tooltip('安全重置'):
+                with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat round id=xf-security-btn').classes(f"{current_theme['security_btn_classes']} xf-icon-3d").tooltip('安全重置'):
                     ui.badge('Reset', color='orange').props('floating rounded-sm').classes('text-[10px] font-black')
 
-                with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat round id=xf-key-btn').classes(current_theme['key_btn_classes']).tooltip('复制通讯密钥'):
+                with ui.button(icon='vpn_key', on_click=lambda: safe_copy_to_clipboard(AUTO_REGISTER_SECRET)).props('flat round id=xf-key-btn').classes(f"{current_theme['key_btn_classes']} xf-icon-3d").tooltip('复制通讯密钥'):
                     ui.badge('Key', color='red').props('floating rounded-sm').classes('text-[10px] font-black')
 
-                ui.button(icon=current_theme['theme_icon'], on_click=toggle_theme).props('flat round id=xf-theme-btn').classes(current_theme['theme_btn_classes']).tooltip(current_theme['theme_tooltip'])
-                ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round id=xf-logout-btn').classes(current_theme['logout_btn_classes']).tooltip('退出登录')
+                ui.button(icon=current_theme['theme_icon'], on_click=toggle_theme).props('flat round id=xf-theme-btn').classes(f"{current_theme['theme_btn_classes']} xf-icon-3d").tooltip(current_theme['theme_tooltip'])
+                ui.button(icon='logout', on_click=lambda: (app.storage.user.clear(), ui.navigate.to('/login'))).props('flat round id=xf-logout-btn').classes(f"{current_theme['logout_btn_classes']} xf-icon-3d").tooltip('退出登录')
 
     from app.ui.pages import content_router
 

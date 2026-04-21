@@ -65,7 +65,7 @@ def _sidebar_theme():
         'btn_keycap_base': 'border rounded-sm transition-all',
         'btn_name_text': '',
         'btn_settings_text': '',
-        'top_btn': 'w-full border rounded-sm font-bold px-3 py-2 transition-all',
+        'top_btn': 'xf-btn-primary w-full border rounded-sm font-bold px-3 py-2 transition-all',
         'top_wrap': 'w-full p-4 border-b flex-shrink-0 relative overflow-hidden',
         'logo_text': 'hidden',
         'title': 'text-sm font-black tracking-widest uppercase z-10',
@@ -80,7 +80,7 @@ def _sidebar_theme():
         # 保持外层菜单的固定高度和禁止垂直收缩
         'list_item': 'w-full h-[52px] shrink-0 items-center justify-between px-3 border rounded-sm mb-1 cursor-pointer group transition-all duration-200',
 
-        'list_icon_box': 'p-1.5 rounded-sm border transition-colors',
+        'list_icon_box': 'xf-sidebar-icon-box p-1.5 rounded-sm border transition-colors',
         'list_icon': 'text-sm',
         'list_label': 'font-bold text-sm',
         'section_label': 'text-xs font-bold mt-4 mb-2 px-2 uppercase tracking-wider',
@@ -92,17 +92,17 @@ def _sidebar_theme():
         # 关键修复 1：为右侧的折叠箭头保留 12px 的安全边距（padding-right）
         'expansion_header_props': 'expand-icon-toggle header-style="padding: 0 12px 0 0; min-height: 52px;"',
 
-        'drag_icon': 'cursor-grab active:cursor-grabbing p-0.5 rounded transition-colors select-none',
+        'drag_icon': 'xf-icon-3d cursor-grab active:cursor-grabbing p-0.5 rounded transition-colors select-none',
         'group_name': 'font-bold truncate text-sm',
 
         # 关键修复 2：移除 shrink-0。因为在水平 Flex 布局中，它必须允许适度收缩，才能给右侧箭头留出位置！
         'group_header_row': 'group-sort-header w-full h-[52px] items-center justify-between pl-3 pr-2 cursor-grab active:cursor-grabbing group transition-all duration-200 select-none',
 
-        'icon_btn': '',
+        'icon_btn': 'xf-icon-3d',
         'expansion_body': 'w-full gap-2 p-2 border-t',
         'flag_name': 'font-bold truncate',
         'bottom_wrap': 'w-full p-2 border-t mt-auto mb-4 gap-2 z-10',
-        'bottom_btn': 'w-full text-xs font-bold border rounded-sm px-3 py-2 transition-all',
+        'bottom_btn': 'xf-btn-subtle w-full text-xs font-bold border rounded-sm px-3 py-2 transition-all',
     }
 
 
@@ -203,10 +203,10 @@ def render_sidebar_content():
             'background: var(--xf-bg-main);'):
         with ui.row().classes('w-full gap-2 px-1 mb-2'):
             ui.button('新建分组', icon='create_new_folder', on_click=open_quick_group_create_dialog).props(
-                'flat dense').classes(f"{theme['new_group_btn']} {theme['group_action_base']}").style(
+                'flat dense').classes(f"xf-btn-primary {theme['new_group_btn']} {theme['group_action_base']}").style(
                 'background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
             ui.button('添加服务器', icon='add', on_click=open_new_server_dialog).props('flat dense').classes(
-                f"{theme['new_server_btn']} {theme['group_action_base']}").style(
+                f"xf-btn-subtle {theme['new_server_btn']} {theme['group_action_base']}").style(
                 'background: var(--xf-soft-bg); color: var(--xf-text-strong); border-color: var(--xf-card-border);')
 
         with ui.row().classes(theme['list_item']).style(
@@ -214,7 +214,7 @@ def render_sidebar_content():
                 'click', open_all_servers):
             with ui.row().classes('items-center gap-3'):
                 with ui.column().classes(theme['list_icon_box']):
-                    ui.icon('dns').classes(theme['list_icon']).style('color: var(--xf-accent);')
+                    ui.icon('dns').classes(f"{theme['list_icon']} xf-sidebar-icon-glyph").style('color: var(--xf-accent);')
                 ui.label('所有服务器').classes(theme['list_label']).style('color: var(--xf-text-strong);')
             ui.badge(str(len(SERVERS_CACHE)), color='blue').props('rounded-sm outline').classes(
                 'text-[10px] font-black').style('color: var(--xf-accent); border-color: var(--xf-card-border);')
