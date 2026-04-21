@@ -86,7 +86,7 @@ def _sidebar_theme():
         'new_server_btn': '',
 
         # 保持外层菜单的固定高度和禁止垂直收缩
-        'list_item': 'w-full h-[52px] shrink-0 items-center justify-between px-3 border rounded-sm mb-1 cursor-pointer group transition-all duration-200',
+        'list_item': 'w-full h-[56px] shrink-0 items-center justify-between px-3 border rounded-2xl mb-2 cursor-pointer group transition-all duration-200',
 
         'list_icon_box': 'xf-sidebar-icon-box w-8 h-8 items-center justify-center rounded-sm border transition-colors shrink-0',
         'list_icon': 'text-sm',
@@ -94,17 +94,17 @@ def _sidebar_theme():
         'section_label': 'text-xs font-bold uppercase tracking-wider',
 
         # 保持分组外层卡片的固定高度和禁止垂直收缩
-        'expansion_custom': 'w-full shrink-0 border rounded-sm mb-2 transition-all',
-        'expansion_region': 'w-full shrink-0 border rounded-sm',
+        'expansion_custom': 'w-full shrink-0 border rounded-2xl mb-3 transition-all overflow-hidden',
+        'expansion_region': 'w-full shrink-0 border rounded-2xl overflow-hidden',
 
         # 关键修复 1：为右侧的折叠箭头保留 12px 的安全边距（padding-right）
-        'expansion_header_props': 'expand-icon-toggle header-style="padding: 0 12px 0 0; min-height: 52px;"',
+        'expansion_header_props': 'expand-icon-toggle header-style="padding: 0 14px 0 0; min-height: 56px; border-radius: 18px;"',
 
         'drag_icon': 'xf-icon-3d cursor-grab active:cursor-grabbing p-0.5 rounded transition-colors select-none',
         'group_name': 'font-bold truncate text-sm',
 
         # 关键修复 2：移除 shrink-0。因为在水平 Flex 布局中，它必须允许适度收缩，才能给右侧箭头留出位置！
-        'group_header_row': 'group-sort-header w-full h-[52px] items-center justify-between pl-3 pr-2 cursor-grab active:cursor-grabbing group transition-all duration-200 select-none',
+        'group_header_row': 'group-sort-header w-full h-[56px] items-center justify-between pl-3 pr-2 cursor-grab active:cursor-grabbing group transition-all duration-200 select-none rounded-[18px]',
 
         'icon_btn': 'xf-icon-3d',
         'expansion_body': 'w-full gap-2 p-2 border-t',
@@ -218,7 +218,7 @@ def render_sidebar_content():
                 'background: var(--xf-soft-bg); color: var(--xf-text-strong); border-color: var(--xf-card-border);')
 
         with ui.row().classes(theme['list_item']).style(
-                'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on(
+                'background: color-mix(in srgb, var(--xf-elevated-bg) 92%, white 8%); border-color: color-mix(in srgb, var(--xf-accent) 12%, var(--xf-card-border)); box-shadow: 0 10px 24px rgba(15,23,42,0.10), 0 1px 0 rgba(255,255,255,0.08) inset;').on(
                 'click', open_all_servers):
             with ui.row().classes('items-center gap-3'):
                 with ui.column().classes(theme['list_icon_box']):
@@ -248,7 +248,7 @@ def render_sidebar_content():
                             'sidebar-sort-item w-full'):
                         with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_custom']).props(
                                 theme['expansion_header_props']).style(
-                                'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(
+                                'background: color-mix(in srgb, var(--xf-elevated-bg) 94%, white 6%); border-color: color-mix(in srgb, var(--xf-accent) 10%, var(--xf-card-border)); box-shadow: 0 10px 24px rgba(15,23,42,0.10), 0 1px 0 rgba(255,255,255,0.08) inset;').on_value_change(
                                 lambda e, g=tag_group: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(
                                     g)) as exp:
                             with exp.add_slot('header'):
@@ -277,7 +277,7 @@ def render_sidebar_content():
                                             'text-[10px] font-black').style('border-color: var(--xf-card-border);')
 
                             with ui.column().classes(theme['expansion_body']).style(
-                                    'background: color-mix(in srgb, var(--xf-elevated-bg) 82%, var(--xf-bg-main)); border-color: var(--xf-card-border);') as col:
+                                    'background: color-mix(in srgb, var(--xf-elevated-bg) 84%, var(--xf-bg-main)); border-color: color-mix(in srgb, var(--xf-accent) 8%, var(--xf-card-border));') as col:
                                 SIDEBAR_UI_REFS['groups'][tag_group] = col
                                 for s in tag_servers:
                                     render_single_sidebar_row(s)
@@ -311,7 +311,8 @@ def render_sidebar_content():
                 with ui.element('div').props(f'data-group-name={json.dumps(c_name, ensure_ascii=False)}').classes('sidebar-sort-item w-full'):
                     with ui.expansion('', icon=None, value=is_open).classes(theme['expansion_region']).props(
                             theme['expansion_header_props']).style(
-                            'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 6px 18px rgba(15,23,42,0.10);').on_value_change(
+                            'background: color-mix(in srgb, var(--xf-elevated-bg) 94%, white 6%); border-color: color-mix(in srgb, var(--xf-accent) 10%, var(--xf-card-border)); box-shadow: 0 10px 24px rgba(15,23,42,0.10), 0 1px 0 rgba(255,255,255,0.08) inset;').on_value_change(
+
                             lambda e, g=c_name: EXPANDED_GROUPS.add(g) if e.value else EXPANDED_GROUPS.discard(
                                     g)) as exp:
                         with exp.add_slot('header'):
@@ -342,7 +343,8 @@ def render_sidebar_content():
                                         'text-[10px] font-black').style('border-color: var(--xf-card-border);')
 
                         with ui.column().classes(theme['expansion_body']).style(
-                                'background: color-mix(in srgb, var(--xf-elevated-bg) 82%, var(--xf-bg-main)); border-color: var(--xf-card-border);') as col:
+                                'background: color-mix(in srgb, var(--xf-elevated-bg) 84%, var(--xf-bg-main)); border-color: color-mix(in srgb, var(--xf-accent) 8%, var(--xf-card-border));') as col:
+
                             SIDEBAR_UI_REFS['groups'][c_name] = col
                             for s in c_servers:
                                 render_single_sidebar_row(s)
