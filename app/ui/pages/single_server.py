@@ -865,13 +865,13 @@ PY'''
                 with ui.element('div').classes(
                         'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
                     SINGLE_COLS_NO_PING):
-                    ui.label('节点名称').classes('text-left pl-2')
+                    ui.label('节点名称').classes('text-left pl-14')
                     ui.label('类型').classes('text-center')
                     ui.label('流量').classes('text-center')
-                    ui.label('协议').classes('text-center')
-                    ui.label('端口').classes('text-center')
-                    ui.label('状态').classes('text-center')
-                    ui.label('操作').classes('text-center')
+                    ui.label('协议').classes('text-center pr-6')
+                    ui.label('端口').classes('text-center pr-6')
+                    ui.label('状态').classes('text-center pr-6')
+                    ui.label('操作').classes('text-center pr-9')
 
                 with ui.element('div').classes('w-full relative flex-1 min-h-0'):
                     with ui.element('div').classes(
