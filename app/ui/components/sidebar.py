@@ -92,11 +92,11 @@ def _sidebar_theme():
         # 关键修复 1：为右侧的折叠箭头保留 12px 的安全边距（padding-right）
         'expansion_header_props': 'expand-icon-toggle header-style="padding: 0 12px 0 0; min-height: 52px;"',
 
-        'drag_icon': 'group-drag-handle cursor-grab active:cursor-grabbing p-0.5 rounded transition-colors select-none',
+        'drag_icon': 'cursor-grab active:cursor-grabbing p-0.5 rounded transition-colors select-none',
         'group_name': 'font-bold truncate text-sm',
 
         # 关键修复 2：移除 shrink-0。因为在水平 Flex 布局中，它必须允许适度收缩，才能给右侧箭头留出位置！
-        'group_header_row': 'w-full h-[52px] items-center justify-between pl-3 pr-2 cursor-pointer group transition-all duration-200',
+        'group_header_row': 'group-sort-header w-full h-[52px] items-center justify-between pl-3 pr-2 cursor-grab active:cursor-grabbing group transition-all duration-200 select-none',
 
         'icon_btn': '',
         'expansion_body': 'w-full gap-2 p-2 border-t',
@@ -254,7 +254,7 @@ def render_sidebar_content():
                                         with ui.row().classes('items-center gap-2 flex-grow overflow-hidden no-wrap'):
                                             ui.label(tag_group).classes(theme['group_name'])
 
-                                    with ui.row().classes('items-center gap-1 pr-2 flex-shrink-0').on(
+                                    with ui.row().classes('no-drag items-center gap-1 pr-2 flex-shrink-0').on(
                                             'mousedown.stop').on('click.stop'):
                                         ui.button(icon='settings',
                                                   on_click=lambda _, g=tag_group: open_combined_group_management(g)).props(
@@ -316,7 +316,7 @@ def render_sidebar_content():
                                         display_name = c_name.split(' ')[1] if ' ' in c_name else c_name
                                         ui.label(display_name).classes(theme['flag_name']).style(
                                             'color: var(--xf-text-strong);')
-                                with ui.row().classes('items-center gap-1 pr-2').on('mousedown.stop').on('click.stop'):
+                                with ui.row().classes('no-drag items-center gap-1 pr-2').on('mousedown.stop').on('click.stop'):
                                     ui.button(icon='edit_note',
                                               on_click=lambda _, s=c_servers, t=c_name: open_bulk_edit_dialog(s,
                                                                                                               f"区域: {t}")).props(
@@ -361,7 +361,7 @@ def render_sidebar_content():
                         filter: drop-shadow(0 14px 24px rgba(15, 23, 42, 0.28));
                         z-index: 9999 !important;
                     }
-                    .group-drag-handle {
+                    .group-sort-header {
                         touch-action: none;
                         user-select: none;
                         -webkit-user-select: none;
@@ -415,8 +415,10 @@ def render_sidebar_content():
                     window.xfSidebarSortables[listId] = new window.Sortable(container, {
                         animation: 220,
                         easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-                        handle: '.group-drag-handle',
+                        handle: '.group-sort-header',
                         draggable: '.sidebar-sort-item',
+                        filter: '.no-drag, .no-drag *, .q-btn, .q-btn *, .q-expansion-item__toggle-icon, .q-expansion-item__toggle-icon *',
+                        preventOnFilter: false,
                         ghostClass: 'xf-sidebar-drag-ghost',
                         chosenClass: 'xf-sidebar-drag-chosen',
                         dragClass: 'xf-sidebar-drag-active',
@@ -424,8 +426,18 @@ def render_sidebar_content():
                         fallbackOnBody: true,
                         swapThreshold: 0.65,
                         fallbackTolerance: 3,
+                        scroll: true,
+                        bubbleScroll: true,
+                        scrollSensitivity: 70,
+                        scrollSpeed: 18,
                         delay: 0,
+                        onStart: function () {
+                            window.__xfSidebarDragJustEndedAt = 0;
+                            document.body.classList.add('xf-sidebar-sorting');
+                        },
                         onEnd: async function () {
+                            document.body.classList.remove('xf-sidebar-sorting');
+                            window.__xfSidebarDragJustEndedAt = Date.now();
                             const order = getOrder(container);
                             const res = await saveSidebarOrder(kind, order);
                             if (!res || !res.ok) {
@@ -442,6 +454,20 @@ def render_sidebar_content():
             }
 
             ensureStyle();
+
+            if (!window.__xfSidebarDragClickGuardBound) {
+                document.addEventListener('click', function(e) {
+                    const header = e.target && e.target.closest ? e.target.closest('.group-sort-header') : null;
+                    if (!header) return;
+                    const justEndedAt = window.__xfSidebarDragJustEndedAt || 0;
+                    if (Date.now() - justEndedAt < 280) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation && e.stopImmediatePropagation();
+                    }
+                }, true);
+                window.__xfSidebarDragClickGuardBound = true;
+            }
 
             var el = document.getElementById('sidebar-scroll-box');
             if (el) {
