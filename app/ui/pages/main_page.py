@@ -384,8 +384,10 @@ def main_page(request: Request):
             .xf-icon-3d.q-btn,
             .xf-sidebar-icon-box {{
                 border-radius: 12px !important;
+                background: color-mix(in srgb, var(--xf-elevated-bg) 88%, white 12%) !important;
+                border-color: color-mix(in srgb, var(--xf-accent) 16%, var(--xf-card-border)) !important;
                 box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255,255,255,0.10) inset !important;
-                transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease !important;
+                transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease, background-color .14s ease !important;
             }}
             .xf-icon-3d:hover,
             .xf-icon-3d.q-btn:hover,
@@ -395,6 +397,9 @@ def main_page(request: Request):
             }}
             .xf-sidebar-icon-glyph {{
                 filter: drop-shadow(0 1px 1px rgba(255,255,255,0.18));
+            }}
+            .xf-sidebar-section-text {{
+                letter-spacing: .08em;
             }}
             .q-layout,
             .q-page-container,

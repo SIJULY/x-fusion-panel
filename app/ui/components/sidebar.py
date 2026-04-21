@@ -29,6 +29,14 @@ from app.utils.geo import detect_country_group
 batch_ssh_manager = BatchSSH()
 
 
+def _render_sidebar_section_title(icon_name: str, text: str, *, accent: str = 'var(--xf-accent)'):
+    with ui.row().classes('items-center gap-2 mt-4 mb-2 px-1'):
+        with ui.row().classes('xf-sidebar-icon-box w-7 h-7 items-center justify-center border rounded-sm shrink-0'):
+            ui.icon(icon_name).classes('text-[14px] xf-sidebar-icon-glyph').style(f'color: {accent};')
+        ui.label(text).classes('text-xs font-bold uppercase tracking-wider').style(
+            f'color: {accent}; opacity: 0.8;')
+
+
 async def _save_sidebar_group_order(kind: str, order: list[str]):
     if kind == 'custom':
         current = ADMIN_CONFIG.get('custom_groups', [])
@@ -80,10 +88,10 @@ def _sidebar_theme():
         # 保持外层菜单的固定高度和禁止垂直收缩
         'list_item': 'w-full h-[52px] shrink-0 items-center justify-between px-3 border rounded-sm mb-1 cursor-pointer group transition-all duration-200',
 
-        'list_icon_box': 'xf-sidebar-icon-box p-1.5 rounded-sm border transition-colors',
+        'list_icon_box': 'xf-sidebar-icon-box w-8 h-8 items-center justify-center rounded-sm border transition-colors shrink-0',
         'list_icon': 'text-sm',
         'list_label': 'font-bold text-sm',
-        'section_label': 'text-xs font-bold mt-4 mb-2 px-2 uppercase tracking-wider',
+        'section_label': 'text-xs font-bold uppercase tracking-wider',
 
         # 保持分组外层卡片的固定高度和禁止垂直收缩
         'expansion_custom': 'w-full shrink-0 border rounded-sm mb-2 transition-all',
@@ -222,7 +230,7 @@ def render_sidebar_content():
         final_tags = ADMIN_CONFIG.get('custom_groups', [])
 
         if final_tags:
-            ui.label('自定义分组').classes(theme['section_label']).style('color: var(--xf-accent); opacity: 0.75;')
+            _render_sidebar_section_title('folder_copy', '自定义分组')
             with ui.column().props('id=sidebar-custom-group-list').classes('w-full gap-0'):
                 for tag_group in final_tags:
                     tag_servers = [
@@ -251,6 +259,10 @@ def render_sidebar_content():
                                         ui.icon('drag_indicator').classes(theme['drag_icon']).on('click.stop').tooltip(
                                             '按住拖拽排序')
 
+                                        with ui.row().classes('xf-sidebar-icon-box w-8 h-8 items-center justify-center rounded-sm border shrink-0'):
+                                            ui.icon('folder').classes('text-[15px] xf-sidebar-icon-glyph').style(
+                                                'color: var(--xf-accent);')
+
                                         with ui.row().classes('items-center gap-2 flex-grow overflow-hidden no-wrap'):
                                             ui.label(tag_group).classes(theme['group_name'])
 
@@ -270,7 +282,7 @@ def render_sidebar_content():
                                 for s in tag_servers:
                                     render_single_sidebar_row(s)
 
-        ui.label('区域分组').classes(theme['section_label']).style('color: var(--xf-accent); opacity: 0.75;')
+        _render_sidebar_section_title('public', '区域分组')
         country_buckets = {}
         for s in SERVERS_CACHE:
             c_group = detect_country_group(s.get('name', ''), s)
@@ -309,6 +321,9 @@ def render_sidebar_content():
                                 with ui.row().classes('items-center gap-3 flex-grow overflow-hidden'):
                                     ui.icon('drag_indicator').classes(theme['drag_icon']).on('click.stop').tooltip(
                                         '按住拖拽排序')
+                                    with ui.row().classes('xf-sidebar-icon-box w-8 h-8 items-center justify-center rounded-sm border shrink-0'):
+                                        ui.icon('public').classes('text-[15px] xf-sidebar-icon-glyph').style(
+                                            'color: var(--xf-accent);')
                                     with ui.row().classes('items-center gap-2 flex-grow'):
                                         flag = c_name.split(' ')[0] if ' ' in c_name else '🏳️'
                                         ui.label(flag).classes('text-lg filter drop-shadow-md').style(
