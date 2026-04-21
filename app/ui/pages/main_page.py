@@ -20,7 +20,7 @@ from app.utils.network import get_dynamic_origin
 def main_page(request: Request):
     def build_theme(is_dark: bool):
         return {
-            'body_bg': 'radial-gradient(circle at top, rgba(34,211,238,0.08), transparent 28%), linear-gradient(180deg, #050a14 0%, #030712 100%)' if is_dark else 'radial-gradient(circle at top, rgba(59,130,246,0.10), transparent 24%), linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%)',
+            'body_bg': 'radial-gradient(circle at top, rgba(34,211,238,0.08), transparent 28%), linear-gradient(180deg, #050a14 0%, #030712 100%)' if is_dark else '#ffffff',
             'body_text': '#e2e8f0' if is_dark else '#0f172a',
             'card_bg': '#070b14' if is_dark else '#ffffff',
             'card_border': 'rgba(30,58,95,0.55)' if is_dark else 'rgba(148,163,184,0.35)',
@@ -28,7 +28,7 @@ def main_page(request: Request):
             'scroll_track': '#030712' if is_dark else '#e2e8f0',
             'scroll_thumb': '#1e3a5f' if is_dark else '#94a3b8',
             'scroll_thumb_hover': '#2563eb' if is_dark else '#64748b',
-            'content_bg': '#030712' if is_dark else '#eef4ff',
+            'content_bg': '#030712' if is_dark else '#ffffff',
             'panel_bg': '#070b14' if is_dark else '#ffffff',
             'soft_bg': '#0a1120' if is_dark else '#f8fbff',
             'elevated_bg': '#08101d' if is_dark else '#ffffff',
