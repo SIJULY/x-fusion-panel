@@ -375,7 +375,7 @@ PY'''
                                 server_conf.get('probe_installed') and server_conf.get('ssh_host'))
 
                         # 🛠️ 科技风：节点列表行
-                        row_tech_cls = 'grid w-full gap-4 py-2.5 px-4 mb-2 items-center group border border-l-[3px] transition-all duration-300 cursor-default rounded-sm relative overflow-hidden'
+                        row_tech_cls = 'grid w-full gap-4 py-2.5 px-3 mb-2 items-center group border border-l-[3px] transition-all duration-300 cursor-default rounded-sm relative overflow-hidden'
                         row_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
                         row_accent = '#a855f7' if is_custom else ('#14b8a6' if is_ssh_mode else '#3b82f6')
                         row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
@@ -861,22 +861,23 @@ PY'''
                                 'text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5 border').style(
                                 'background: var(--xf-soft-bg); color: var(--xf-text-subtle); border-color: var(--xf-card-border); opacity: 0.8;')
 
+                # 🛠️ 修改表头：精确补偿 scroll_area(8px) + border(3px/1px) 的偏移量
+                with ui.element('div').classes(
+                        'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
+                    SINGLE_COLS_NO_PING):
+                    ui.label('节点名称').classes('text-left pl-15')
+                    ui.label('类型').classes('text-center') # 往左移一点
+                    ui.label('流量').classes('text-center pr-6') # 往左移多一点
+                    ui.label('协议').classes('text-center pr-6')
+                    ui.label('端口').classes('text-center pr-6')      # 保持完全居中不移
+                    ui.label('状态').classes('text-center pr-8') # 如果想往右移，就用 pl
+                    ui.label('操作').classes('text-center pr-16')
+
                 with ui.element('div').classes('w-full relative flex-1 min-h-0'):
                     with ui.element('div').classes(
                             'absolute inset-0 bg-[#030712]' if is_dark else 'absolute inset-0 bg-[#f8fbff]'):
-                        with ui.scroll_area().classes('w-full h-full'):
-                            with ui.column().classes('w-full gap-0 p-2'):
-                                with ui.element('div').classes(
-                                        'grid w-full gap-4 font-black pb-2 px-4 mb-1 uppercase tracking-wider text-[11px] rounded-sm pt-3 sticky top-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-black pb-2 px-4 mb-1 uppercase tracking-wider text-[11px] rounded-sm pt-3 sticky top-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
-                                    SINGLE_COLS_NO_PING):
-                                    ui.label('节点名称').classes('text-left pl-2')
-                                    ui.label('类型').classes('text-center')
-                                    ui.label('流量').classes('text-center')
-                                    ui.label('协议').classes('text-center')
-                                    ui.label('端口').classes('text-center')
-                                    ui.label('状态').classes('text-center')
-                                    ui.label('操作').classes('text-center')
-                                await render_node_list()
+                        with ui.scroll_area().classes('w-full h-full p-2'):
+                            await render_node_list()
 
             if has_manager_access and not NODES_DATA.get(server_conf['url']):
                 ui.timer(0.2, lambda: asyncio.create_task(reload_and_refresh_ui()), once=True)
