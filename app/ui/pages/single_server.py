@@ -416,7 +416,7 @@ PY'''
                                 ui.label(text).classes(f'text-[10px] font-bold text-{color}-400 tracking-wider')
 
                             with ui.row().classes(
-                                    'gap-1.5 justify-center w-full no-wrap opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10'):
+                                    'gap-1 justify-center w-full no-wrap min-w-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10'):
                                 btn_props = 'flat dense size=sm round'
                                 raw_link = n.get('_raw_link', '') or generate_node_link(n, server_conf['url'])
                                 if raw_link:
@@ -861,17 +861,17 @@ PY'''
                                 'text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5 border').style(
                                 'background: var(--xf-soft-bg); color: var(--xf-text-subtle); border-color: var(--xf-card-border); opacity: 0.8;')
 
-                # 🛠️ 修改表头：精确补偿 scroll_area(8px) + border(3px/1px) 的偏移量
+                # 表头与数据行必须使用完全一致的列宽规则，避免窗口缩小时发生错位
                 with ui.element('div').classes(
                         'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
                     SINGLE_COLS_NO_PING):
-                    ui.label('节点名称').classes('text-left pl-15')
-                    ui.label('类型').classes('text-center') # 往左移一点
-                    ui.label('流量').classes('text-center pr-6') # 往左移多一点
-                    ui.label('协议').classes('text-center pr-6')
-                    ui.label('端口').classes('text-center pr-6')      # 保持完全居中不移
-                    ui.label('状态').classes('text-center pr-8') # 如果想往右移，就用 pl
-                    ui.label('操作').classes('text-center pr-16')
+                    ui.label('节点名称').classes('text-left pl-2')
+                    ui.label('类型').classes('text-center')
+                    ui.label('流量').classes('text-center')
+                    ui.label('协议').classes('text-center')
+                    ui.label('端口').classes('text-center')
+                    ui.label('状态').classes('text-center')
+                    ui.label('操作').classes('text-center')
 
                 with ui.element('div').classes('w-full relative flex-1 min-h-0'):
                     with ui.element('div').classes(
