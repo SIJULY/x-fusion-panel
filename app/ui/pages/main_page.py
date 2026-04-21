@@ -300,6 +300,7 @@ def main_page(request: Request):
                 --xf-map-scatter-shadow: {theme['map_scatter_shadow']};
                 --xf-map-me: {theme['map_me']};
                 --xf-map-line: {theme['map_line']};
+                --xf-3d-shadow: {'rgba(2, 6, 23, 0.34)' if is_dark else 'rgba(148, 163, 184, 0.22)'};
             }}
             @font-face {{
                 font-family: 'Twemoji Country Flags';
@@ -318,8 +319,67 @@ def main_page(request: Request):
             ::-webkit-scrollbar-track {{ background: var(--xf-scroll-track); }}
             ::-webkit-scrollbar-thumb {{ background: var(--xf-scroll-thumb); border-radius: 3px; }}
             ::-webkit-scrollbar-thumb:hover {{ background: var(--xf-scroll-thumb-hover); }}
-            .q-card {{ background-color: var(--xf-card-bg) !important; border: 1px solid var(--xf-card-border) !important; }}
+            .q-card {{
+                background-color: var(--xf-card-bg) !important;
+                border: 1px solid var(--xf-card-border) !important;
+                box-shadow: 0 10px 24px rgba(2, 6, 23, 0.12), 0 2px 0 rgba(255,255,255,0.04) inset !important;
+                transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease !important;
+            }}
+            .q-card:hover {{
+                transform: translateY(-1px);
+                box-shadow: 0 16px 34px rgba(2, 6, 23, 0.16), 0 2px 0 rgba(255,255,255,0.05) inset !important;
+            }}
             .q-drawer {{ background-color: var(--xf-drawer-bg) !important; }}
+            .q-btn {{
+                border-radius: 10px !important;
+                position: relative;
+                overflow: hidden;
+                transform: translateY(0);
+                box-shadow: 0 8px 18px rgba(2, 6, 23, 0.14), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+                transition: transform .14s ease, box-shadow .14s ease, filter .14s ease, border-color .14s ease !important;
+            }}
+            .q-btn::before {{
+                content: '';
+                position: absolute;
+                inset: 0;
+                border-radius: inherit;
+                pointer-events: none;
+                background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.03) 38%, rgba(255,255,255,0) 100%);
+                opacity: 0.95;
+            }}
+            .q-btn::after {{
+                content: '';
+                position: absolute;
+                left: 8px;
+                right: 8px;
+                bottom: 0;
+                height: 3px;
+                border-radius: 999px;
+                pointer-events: none;
+                background: rgba(2, 6, 23, 0.22);
+                opacity: 0.8;
+            }}
+            .q-btn:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 14px 28px rgba(2, 6, 23, 0.18), 0 1px 0 rgba(255,255,255,0.1) inset !important;
+                filter: saturate(1.03);
+            }}
+            .q-btn:active, .q-btn.q-btn--active {{
+                transform: translateY(2px) scale(0.995);
+                box-shadow: 0 4px 10px rgba(2, 6, 23, 0.14), 0 1px 0 rgba(255,255,255,0.04) inset !important;
+            }}
+            .q-btn:active::after, .q-btn.q-btn--active::after {{
+                opacity: 0.18;
+            }}
+            .q-btn--round, .q-btn--fab, .q-btn--fab-mini {{
+                box-shadow: 0 8px 18px rgba(2, 6, 23, 0.16), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+            }}
+            .q-btn--flat {{
+                box-shadow: 0 6px 14px rgba(2, 6, 23, 0.10), 0 1px 0 rgba(255,255,255,0.06) inset !important;
+            }}
+            .q-btn--outline {{
+                box-shadow: 0 8px 18px rgba(2, 6, 23, 0.10), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+            }}
             .q-layout,
             .q-page-container,
             .q-page,
@@ -358,7 +418,29 @@ def main_page(request: Request):
             .q-menu,
             .q-select__dialog {{
                 border: 1px solid var(--xf-popup-border) !important;
-                box-shadow: var(--xf-tooltip-shadow) !important;
+                box-shadow: 0 18px 44px rgba(2, 6, 23, 0.18), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+                transform: translateZ(0);
+            }}
+            .q-dialog .q-card,
+            .q-menu,
+            .q-select__dialog,
+            .q-field__control,
+            .q-expansion-item,
+            .q-list > .q-item {{
+                transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease !important;
+            }}
+            .q-field__control {{
+                border-radius: 12px !important;
+                box-shadow: 0 6px 14px rgba(2, 6, 23, 0.08), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+            }}
+            .q-field--focused .q-field__control,
+            .q-field:hover .q-field__control {{
+                transform: translateY(-1px);
+                box-shadow: 0 10px 20px rgba(2, 6, 23, 0.12), 0 1px 0 rgba(255,255,255,0.10) inset !important;
+            }}
+            .q-expansion-item,
+            .q-list > .q-item {{
+                box-shadow: 0 8px 18px rgba(2, 6, 23, 0.08);
             }}
             .q-item:hover,
             .q-manual-focusable--focused,
@@ -386,6 +468,7 @@ def main_page(request: Request):
                 align-items: center !important;
                 justify-content: center !important;
                 flex: 0 0 40px !important;
+                border-radius: 12px !important;
             }}
             #xf-security-btn .q-icon,
             #xf-key-btn .q-icon,
