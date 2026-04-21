@@ -343,64 +343,13 @@ def render_sidebar_content():
             }
 
             function getOrder(container) {
-                return Array.from(container.querySelectorAll(':scope > .sidebar-sort-item'))
+                return Array.from(container.querySelectorAll('.sidebar-sort-item'))
                     .map(el => el.dataset.groupName)
                     .filter(Boolean);
             }
 
-            function initSortable(listId, kind) {
-                const container = document.getElementById(listId);
-                if (!container) return;
-
-                const boot = () => {
-                    window.xfSidebarSortables = window.xfSidebarSortables || {};
-                    if (window.xfSidebarSortables[listId]) {
-                        window.xfSidebarSortables[listId].destroy();
-                    }
-                    window.xfSidebarSortables[listId] = new Sortable(container, {
-                        animation: 180,
-                        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-                        handle: '.group-drag-handle',
-                        draggable: ':scope > .sidebar-sort-item',
-                        ghostClass: 'xf-sidebar-drag-ghost',
-                        chosenClass: 'xf-sidebar-drag-chosen',
-                        dragClass: 'xf-sidebar-drag-active',
-                        forceFallback: true,
-                        fallbackOnBody: true,
-                        swapThreshold: 0.65,
-                        delay: 120,
-                        delayOnTouchOnly: true,
-                        onEnd: async function () {
-                            const order = getOrder(container);
-                            const res = await saveSidebarOrder(kind, order);
-                            if (!res || !res.ok) {
-                                console.warn('[SidebarSort] 保存排序失败', kind, order);
-                            }
-                        },
-                    });
-                };
-
-                if (window.Sortable) {
-                    boot();
-                    return;
-                }
-
-                if (!window.__xfSidebarSortableLoading) {
-                    window.__xfSidebarSortableLoading = new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
-                }
-
-                window.__xfSidebarSortableLoading.then(boot).catch(err => {
-                    console.error('[SidebarSort] SortableJS 加载失败', err);
-                });
-            }
-
-            if (!document.getElementById('xf-sidebar-sort-style')) {
+            function ensureStyle() {
+                if (document.getElementById('xf-sidebar-sort-style')) return;
                 const style = document.createElement('style');
                 style.id = 'xf-sidebar-sort-style';
                 style.textContent = `
@@ -412,10 +361,87 @@ def render_sidebar_content():
                         filter: drop-shadow(0 14px 24px rgba(15, 23, 42, 0.28));
                         z-index: 9999 !important;
                     }
-                    .group-drag-handle { touch-action: none; }
+                    .group-drag-handle {
+                        touch-action: none;
+                        user-select: none;
+                        -webkit-user-select: none;
+                    }
                 `;
                 document.head.appendChild(style);
             }
+
+            function ensureSortableScript() {
+                if (window.Sortable) return Promise.resolve(window.Sortable);
+                if (!window.__xfSidebarSortableLoading) {
+                    window.__xfSidebarSortableLoading = new Promise((resolve, reject) => {
+                        const existing = document.getElementById('xf-sidebar-sortable-script');
+                        if (existing) {
+                            existing.addEventListener('load', () => resolve(window.Sortable));
+                            existing.addEventListener('error', reject);
+                            return;
+                        }
+                        const script = document.createElement('script');
+                        script.id = 'xf-sidebar-sortable-script';
+                        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
+                        script.onload = () => resolve(window.Sortable);
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+                return window.__xfSidebarSortableLoading;
+            }
+
+            function bootSortable(listId, kind, retries) {
+                const container = document.getElementById(listId);
+                const items = container ? container.querySelectorAll('.sidebar-sort-item') : [];
+                if (!container || !items.length) {
+                    if (retries > 0) {
+                        setTimeout(() => bootSortable(listId, kind, retries - 1), 180);
+                    } else {
+                        console.warn('[SidebarSort] 容器或分组项未就绪', listId, {hasContainer: !!container, itemCount: items.length});
+                    }
+                    return;
+                }
+
+                ensureSortableScript().then(() => {
+                    if (!window.Sortable) {
+                        console.warn('[SidebarSort] Sortable 仍未可用', listId);
+                        return;
+                    }
+                    window.xfSidebarSortables = window.xfSidebarSortables || {};
+                    if (window.xfSidebarSortables[listId]) {
+                        window.xfSidebarSortables[listId].destroy();
+                    }
+                    window.xfSidebarSortables[listId] = new window.Sortable(container, {
+                        animation: 220,
+                        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                        handle: '.group-drag-handle',
+                        draggable: '.sidebar-sort-item',
+                        ghostClass: 'xf-sidebar-drag-ghost',
+                        chosenClass: 'xf-sidebar-drag-chosen',
+                        dragClass: 'xf-sidebar-drag-active',
+                        forceFallback: true,
+                        fallbackOnBody: true,
+                        swapThreshold: 0.65,
+                        fallbackTolerance: 3,
+                        delay: 0,
+                        onEnd: async function () {
+                            const order = getOrder(container);
+                            const res = await saveSidebarOrder(kind, order);
+                            if (!res || !res.ok) {
+                                console.warn('[SidebarSort] 保存排序失败', kind, order, res);
+                            } else {
+                                console.info('[SidebarSort] 排序已保存', kind, order);
+                            }
+                        },
+                    });
+                    console.info('[SidebarSort] 初始化成功', listId, {kind, itemCount: items.length});
+                }).catch(err => {
+                    console.error('[SidebarSort] SortableJS 加载失败', err);
+                });
+            }
+
+            ensureStyle();
 
             var el = document.getElementById('sidebar-scroll-box');
             if (el) {
@@ -426,8 +452,10 @@ def render_sidebar_content():
                 }
             }
 
-            initSortable('sidebar-custom-group-list', 'custom');
-            initSortable('sidebar-region-group-list', 'region');
+            setTimeout(() => {
+                bootSortable('sidebar-custom-group-list', 'custom', 8);
+                bootSortable('sidebar-region-group-list', 'region', 8);
+            }, 120);
         })();
     ''')
 
