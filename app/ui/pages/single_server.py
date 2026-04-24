@@ -891,8 +891,7 @@ PY'''
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('query_stats').classes('drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]').style(
                             'color: var(--xf-accent);')
-                        ui.label('VPS 运行信息').classes('text-xs font-black tracking-wide').style(
-                            'color: var(--xf-text-strong);')
+                        ui.label('VPS 运行信息').classes('text-sm font-black tracking-wide').style('color: var(--xf-text-strong);')
 
                     @ui.refreshable
                     def render_sync_status():
@@ -1030,7 +1029,7 @@ PY'''
                     with ui.row().classes(f'w-full items-center justify-between px-4 py-2 min-h-[48px] {shell_header_cls}'):
                         with ui.row().classes('items-center gap-2'):
                             ui.icon('cloud').classes('text-orange-400 drop-shadow-[0_0_5px_rgba(251,146,60,0.8)]')
-                            ui.label('Cloudflare 解析记录').classes('text-xs font-black tracking-wide').style('color: var(--xf-text-strong);')
+                            ui.label('Cloudflare 解析记录').classes('text-sm font-black tracking-wide').style('color: var(--xf-text-strong);')
                         with ui.row().classes('items-center justify-end'):
                             render_cf_header_actions()
 
