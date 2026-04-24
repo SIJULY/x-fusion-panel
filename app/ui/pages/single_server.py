@@ -1033,8 +1033,8 @@ PY'''
                         with ui.row().classes('items-center justify-end'):
                             render_cf_header_actions()
 
-                    # 🛠️ 修订：统一 Cloudflare 卡片内边距为 p-4 (等同于16px)
-                    with ui.column().classes(f'w-full p-4 gap-2 relative {shell_body_cls}'):
+                    # 👇 完美对齐密码 1：强制 33px 对齐上方内部的彩色指标条
+                    with ui.column().classes(f'w-full py-4 px-[16px] gap-2 relative {shell_body_cls}'):
                         if not cf_config_ready:
                             with ui.column().classes('w-full items-center justify-center gap-3 rounded-sm border px-6 py-8 text-center').style(
                                     'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
@@ -1076,8 +1076,10 @@ PY'''
                                 row_accent = '#f59e0b'
                                 row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
                                 
-                                # 🛠️ 修订：移除 pr-2，使滚动区域右侧能完美对齐主内容区边缘
-                                with ui.scroll_area().classes('w-full max-h-[240px]'):
+                                # 👇 重新启用 scroll_area 保障宽度，并用 Python 动态计算高度确保单行时完美收缩！
+                                record_count = len(records)
+                                scroll_h = min(record_count * 48, 240)
+                                with ui.scroll_area().classes('w-full').style(f'height: {scroll_h}px;'):
                                     with ui.column().classes('w-full gap-0'):
                                         for rec in records:
                                             with ui.row().classes(row_tech_cls).style(
@@ -1119,7 +1121,7 @@ PY'''
             with ui.element('div').classes(
                     f'w-full flex-1 min-h-[300px] flex flex-col p-0 mb-14 relative {shell_card_cls}'):
                 with ui.row().classes(
-                        f'w-full items-center justify-between p-3 gap-3 flex-wrap flex-shrink-0 relative z-10 {shell_header_cls}'):
+                        f'w-full items-center justify-between px-4 py-3 gap-3 flex-wrap flex-shrink-0 relative z-10 {shell_header_cls}'):
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('hub').classes('text-blue-500 drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]')
                         ui.label('节点列表').classes(
@@ -1169,24 +1171,25 @@ PY'''
                                 'text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5 border').style(
                                 'background: var(--xf-soft-bg); color: var(--xf-text-subtle); border-color: var(--xf-card-border); opacity: 0.8;')
 
-                # 🛠️ 修订：将表头的左右内边距分别增加 8px (配合下方区域的 px-4)，保持文字表头绝对对齐
+                # 👇 完美对齐密码 2：抛弃之前的硬编码便宜，让表头精确设定为 pl-[48px] pr-[46px]，然后通过 CSS Grid 自动吸附对齐！
                 with ui.element('div').classes(
-                        'grid w-full gap-4 font-bold pb-2 pt-2 pl-[31px] pr-[29px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 pl-[31px] pr-[29px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
+                        'grid w-full gap-4 font-bold pb-2 pt-2 pl-[48px] pr-[46px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 pl-[48px] pr-[46px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
                     SINGLE_COLS_NO_PING):
-                    ui.label('节点名称').classes('text-left pl-14')
+                    ui.label('节点名称').classes('text-left pl-2')
                     ui.label('类型').classes('text-center')
                     ui.label('流量').classes('text-center')
-                    ui.label('协议').classes('text-center pr-6')
-                    ui.label('端口').classes('text-center pr-6')
-                    ui.label('状态').classes('text-center pr-6')
-                    ui.label('操作').classes('text-center pr-9')
+                    ui.label('协议').classes('text-center')
+                    ui.label('端口').classes('text-center')
+                    ui.label('状态').classes('text-center')
+                    ui.label('操作').classes('text-center')
 
                 with ui.element('div').classes('w-full relative flex-1 min-h-0'):
+                    # 👇 完美对齐密码 3：强锁左右内边距为 33px，不给任何原生滚动条留破坏布局的空间
                     with ui.element('div').classes(
-                            'absolute inset-0 bg-[#030712]' if is_dark else 'absolute inset-0 bg-[#f8fbff]'):
+                            'absolute inset-0 bg-[#030712] px-[16px] py-2' if is_dark else 'absolute inset-0 bg-[#f8fbff] px-[16px] py-2'):
                         
-                        # 🛠️ 修订：将原本的 p-2 更改为 px-4 py-2，与其余卡片保持 16px 相同左边界
-                        with ui.scroll_area().classes('w-full h-full px-4 py-2'):
+                        # scroll_area 回归本源，不再挂载 padding
+                        with ui.scroll_area().classes('w-full h-full'):
                             await render_node_list()
 
             if has_manager_access and not NODES_DATA.get(server_conf['url']):
