@@ -1119,7 +1119,7 @@ PY'''
             ui.element('div').classes('h-6 flex-shrink-0')
 
             with ui.element('div').classes(
-                    f'w-full flex-1 min-h-[300px] flex flex-col p-0 mb-12 relative {shell_card_cls}'):
+                    f'w-full flex-1 min-h-[300px] flex flex-col p-0 mb-13 relative {shell_card_cls}'):
                 with ui.row().classes(
                         f'w-full items-center justify-between px-4 py-3 gap-3 flex-wrap flex-shrink-0 relative z-10 {shell_header_cls}'):
                     with ui.row().classes('items-center gap-2'):
