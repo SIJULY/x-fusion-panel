@@ -1078,7 +1078,7 @@ PY'''
                                 
                                 # 👇 重新启用 scroll_area 保障宽度，并用 Python 动态计算高度确保单行时完美收缩！
                                 record_count = len(records)
-                                scroll_h = min(record_count * 48, 240)
+                                scroll_h = min(record_count * 68, 240)
                                 with ui.scroll_area().classes('w-full').style(f'height: {scroll_h}px;'):
                                     with ui.column().classes('w-full gap-0'):
                                         for rec in records:
