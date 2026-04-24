@@ -1,4 +1,4 @@
-from nicegui import app, ui
+from nicegui import app, run, ui
 
 
 def _settings_theme():
@@ -24,6 +24,7 @@ def _settings_theme():
     }
 
 from app.core.state import ADMIN_CONFIG
+from app.services.cloudflare import CloudflareHandler
 from app.storage.repositories import save_admin_config
 from app.ui.common.notifications import safe_notify
 
@@ -43,11 +44,48 @@ def open_cloudflare_settings_dialog():
             cf_token = ui.input('API Token', value=ADMIN_CONFIG.get('cf_api_token', '')).props(theme['password_props']).classes('w-full')
             ui.label('权限要求: Zone.DNS (Edit), Zone.Settings (Edit)').classes('text-[10px] text-slate-500 ml-1')
 
-            cf_domain_root = ui.input('根域名 (例如: example.com)', value=ADMIN_CONFIG.get('cf_root_domain', '')).props(theme['input_props']).classes('w-full')
+            with ui.row().classes('w-full items-end gap-2'):
+                cf_domain_root = ui.select([], label='根域名').props(theme['input_props']).classes('flex-1')
+                ui.button('刷新域名', icon='refresh', on_click=lambda: refresh_zones(True)).props('flat').classes(theme['save'])
+
+            async def refresh_zones(show_notify=False):
+                token_val = cf_token.value.strip()
+                saved_root = ADMIN_CONFIG.get('cf_root_domain', '').strip()
+                current_value = str(cf_domain_root.value or '').strip() or saved_root
+                if not token_val:
+                    cf_domain_root.options = [saved_root] if saved_root else []
+                    cf_domain_root.value = saved_root or None
+                    if show_notify:
+                        safe_notify('请先输入 Cloudflare API Token', 'warning')
+                    return
+
+                handler = CloudflareHandler()
+                handler.token = token_val
+                ok, result = await run.io_bound(handler.list_zones)
+                if ok:
+                    zones = [item.get('name', '') for item in (result or []) if item.get('name')]
+                    cf_domain_root.options = zones
+                    if current_value in zones:
+                        cf_domain_root.value = current_value
+                    elif saved_root in zones:
+                        cf_domain_root.value = saved_root
+                    elif zones:
+                        cf_domain_root.value = zones[0]
+                    else:
+                        cf_domain_root.value = None
+                    if show_notify:
+                        safe_notify(f'已获取 {len(zones)} 个 Cloudflare 域名', 'positive')
+                else:
+                    fallback = [saved_root] if saved_root else []
+                    cf_domain_root.options = fallback
+                    cf_domain_root.value = saved_root or None
+                    if show_notify:
+                        safe_notify(str(result), 'warning')
+
 
         async def save_cf():
             ADMIN_CONFIG['cf_api_token'] = cf_token.value.strip()
-            ADMIN_CONFIG['cf_root_domain'] = cf_domain_root.value.strip()
+            ADMIN_CONFIG['cf_root_domain'] = str(cf_domain_root.value or '').strip()
             await save_admin_config()
             safe_notify('✅ Cloudflare 配置已保存', 'positive')
             d.close()
@@ -55,6 +93,8 @@ def open_cloudflare_settings_dialog():
         with ui.row().classes(theme['footer']):
             ui.button('取消', on_click=d.close).props('outline color=grey').classes(theme['cancel'])
             ui.button('保存配置', on_click=save_cf).props('flat').classes(theme['save'])
+
+        ui.timer(0.1, lambda: refresh_zones(False), once=True)
     d.open()
 
 
