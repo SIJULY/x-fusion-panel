@@ -1018,8 +1018,10 @@ PY'''
 
                     def render_cf_header_actions():
                         add_btn = ui.button('添加记录', icon='add', on_click=open_new_cloudflare_record).props(
-                            'flat dense size=sm')
-                        add_btn.classes('px-3 py-1 font-bold text-[11px] rounded-sm transition-all border')
+                            'flat size=sm') 
+                        add_btn.classes('px-4 py-1.5 font-bold text-[11px] tracking-wider rounded-sm transition-all border') 
+                        
+                        add_btn.style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
                         add_btn.style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
                         if not cf_config_ready:
                             add_btn.disable()
@@ -1113,7 +1115,7 @@ PY'''
             ui.element('div').classes('h-6 flex-shrink-0')
 
             with ui.element('div').classes(
-                    f'w-full flex-1 min-h-[300px] flex flex-col p-0 relative {shell_card_cls}'):
+                    f'w-full flex-1 min-h-[300px] flex flex-col p-0 mb-14 relative {shell_card_cls}'):
                 with ui.row().classes(
                         f'w-full items-center justify-between p-3 gap-3 flex-wrap flex-shrink-0 relative z-10 {shell_header_cls}'):
                     with ui.row().classes('items-center gap-2'):
