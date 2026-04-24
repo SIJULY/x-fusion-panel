@@ -369,10 +369,10 @@ PY'''
                 })
                 try:
                     cf_handler = CloudflareHandler()
-                    if not cf_handler.token:
+                    if not cf_handler.token or not cf_handler.root_domain:
                         cloudflare_dns_state.update({
                             'loading': False,
-                            'error': '未配置 Cloudflare API Token',
+                            'error': '',
                             'records': [],
                             'zones': [],
                             'ip': '--',
@@ -1015,11 +1015,16 @@ PY'''
                     async def open_edit_cloudflare_record(item):
                         await open_cloudflare_record_dialog(item)
 
+                    cf_config_ready = bool(ADMIN_CONFIG.get('cf_api_token', '').strip() and ADMIN_CONFIG.get('cf_root_domain', '').strip())
+
                     def render_cf_header_actions():
                         add_btn = ui.button('添加记录', icon='add', on_click=open_new_cloudflare_record).props(
                             'flat dense size=sm')
                         add_btn.classes('px-3 py-1 font-bold text-[11px] rounded-sm transition-all border')
                         add_btn.style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
+                        if not cf_config_ready:
+                            add_btn.disable()
+                            apply_tooltip(add_btn, '请先完成 Cloudflare API 配置')
 
                     # 🛠️ 修复 2：移除旧的 render_section_header，替换为标准的深色实线边框标题栏 (shell_header_cls)
                     with ui.row().classes(f'w-full items-center justify-between px-4 py-2 min-h-[48px] {shell_header_cls}'):
@@ -1031,7 +1036,22 @@ PY'''
 
                     # 🛠️ 修复 3：为主体内容区添加 shell_body_cls 保持结构统一
                     with ui.column().classes(f'w-full p-4 gap-2 relative {shell_body_cls}'):
-                        if cloudflare_dns_state.get('loading', False):
+                        if not cf_config_ready:
+                            with ui.column().classes('w-full items-center justify-center gap-3 rounded-sm border px-6 py-8 text-center').style(
+                                    'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                                ui.icon('cloud_off').classes('text-[28px] text-orange-400 drop-shadow-[0_0_8px_rgba(251,146,60,0.45)]')
+                                ui.label('尚未设置 Cloudflare API 配置').classes('text-sm font-black').style(
+                                    'color: var(--xf-text-strong);')
+                                ui.label('请按以下方式创建并填写 API Token 后启用：').classes('text-xs').style(
+                                    'color: var(--xf-text-muted);')
+                                with ui.column().classes('w-full max-w-[760px] gap-1 text-left rounded-sm border px-4 py-4').style(
+                                        'background: color-mix(in srgb, var(--xf-soft-bg) 82%, transparent); border-color: var(--xf-card-border);'):
+                                    ui.label('1. 登录 Cloudflare → 右上角头像 → My Profile / 个人资料 → API Tokens').classes('text-[12px]').style('color: var(--xf-text-strong);')
+                                    ui.label('2. 点击 Create Token → Create Custom Token').classes('text-[12px]').style('color: var(--xf-text-strong);')
+                                    ui.label('3. 权限添加：Zone: Read、DNS Settings: Edit、Zone Settings: Edit').classes('text-[12px]').style('color: var(--xf-text-strong);')
+                                    ui.label('4. Zone Resources 选择 Include → All zones').classes('text-[12px]').style('color: var(--xf-text-strong);')
+                                    ui.label('5. 创建后复制 Token，打开面板“系统设置 → Cloudflare API 配置”，填写 Token 并选择根域名后保存').classes('text-[12px]').style('color: var(--xf-text-strong);')
+                        elif cloudflare_dns_state.get('loading', False):
                             with ui.row().classes('items-center gap-2 rounded-sm border px-4 py-3').style(
                                     'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
                                 ui.spinner(size='sm', color='orange')
@@ -1088,7 +1108,8 @@ PY'''
                                                 apply_tooltip(del_btn, '删除记录')
 
                 render_cloudflare_dns_card()
-                ui.timer(0.2, load_cloudflare_records, once=True)
+                if ADMIN_CONFIG.get('cf_api_token', '').strip() and ADMIN_CONFIG.get('cf_root_domain', '').strip():
+                    ui.timer(0.2, load_cloudflare_records, once=True)
 
             ui.element('div').classes('h-6 flex-shrink-0')
 
