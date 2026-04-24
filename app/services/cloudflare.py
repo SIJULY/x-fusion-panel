@@ -40,6 +40,40 @@ class CloudflareHandler:
         except Exception as e:
             return None, str(e)
 
+    def list_zones(self):
+        if not self.token:
+            return False, "未配置 Cloudflare Token"
+
+        url = f"{self.base_url}/zones?per_page=100"
+        try:
+            r = requests.get(url, headers=self._headers(), timeout=10)
+            data = r.json()
+            if not data.get('success'):
+                return False, f"查询 Zone 失败: {data}"
+
+            zones = []
+            for item in data.get('result', []) or []:
+                name = item.get('name', '').strip()
+                zone_id = item.get('id', '').strip()
+                if name and zone_id:
+                    zones.append({'id': zone_id, 'name': name})
+
+            zones.sort(key=lambda x: x.get('name', ''))
+            return True, zones
+        except Exception as e:
+            return False, str(e)
+
+    def _ensure_fqdn(self, record_name, zone_name):
+        record_name = str(record_name or '').strip()
+        zone_name = str(zone_name or '').strip()
+        if not record_name or not zone_name:
+            return ''
+        if record_name == '@':
+            return zone_name
+        if record_name.endswith(f'.{zone_name}') or record_name == zone_name:
+            return record_name
+        return f"{record_name}.{zone_name}"
+
     def set_ssl_flexible(self, zone_id):
         url = f"{self.base_url}/zones/{zone_id}/settings/ssl"
         try:
@@ -71,6 +105,166 @@ class CloudflareHandler:
                     return True, f"解析成功: {full_domain}"
                 else:
                     return False, f"CF API 报错: {r.text}"
+            except Exception as e:
+                return False, str(e)
+
+        return await run.io_bound(_task)
+
+    async def list_a_records_by_ip(self, ip):
+        if not self.token:
+            return False, "未配置 Cloudflare Token"
+        if not ip:
+            return False, "IP 为空"
+
+        def _task():
+            ok, zones = self.list_zones()
+            if not ok:
+                if not self.root_domain:
+                    return False, zones
+                zone_id, err = self.get_zone_id()
+                if not zone_id:
+                    return False, err
+                zones = [{'id': zone_id, 'name': self.root_domain}]
+
+            matched = []
+
+            try:
+                for zone in zones:
+                    zone_id = zone.get('id', '')
+                    zone_name = zone.get('name', '')
+                    if not zone_id:
+                        continue
+
+                    page = 1
+                    per_page = 100
+                    while True:
+                        search_url = (
+                            f"{self.base_url}/zones/{zone_id}/dns_records"
+                            f"?type=A&content={ip}&page={page}&per_page={per_page}"
+                        )
+                        r = requests.get(search_url, headers=self._headers(), timeout=10)
+                        data = r.json()
+                        if not data.get('success'):
+                            return False, f"查询记录失败: {data}"
+
+                        result = data.get('result', []) or []
+                        for rec in result:
+                            matched.append({
+                                'id': rec.get('id', ''),
+                                'zone_id': zone_id,
+                                'zone_name': zone_name,
+                                'name': rec.get('name', ''),
+                                'type': rec.get('type', 'A'),
+                                'content': rec.get('content', ''),
+                                'proxied': bool(rec.get('proxied', False)),
+                                'ttl': rec.get('ttl', 1),
+                            })
+
+                        result_info = data.get('result_info', {}) or {}
+                        total_pages = int(result_info.get('total_pages') or 1)
+                        if page >= total_pages:
+                            break
+                        page += 1
+
+                matched.sort(key=lambda x: (x.get('zone_name', ''), x.get('name', '')))
+                return True, matched
+            except Exception as e:
+                return False, str(e)
+
+        return await run.io_bound(_task)
+
+    async def create_a_record(self, record_name, zone_name, ip, proxied=False):
+        if not self.token:
+            return False, "未配置 Cloudflare Token"
+        if not record_name:
+            return False, "记录名称不能为空"
+        if not zone_name:
+            return False, "域名不能为空"
+        if not ip:
+            return False, "IP 不能为空"
+
+        def _task():
+            zone_id, err = self.get_zone_id(zone_name)
+            if not zone_id:
+                return False, err
+
+            full_domain = self._ensure_fqdn(record_name, zone_name)
+            url = f"{self.base_url}/zones/{zone_id}/dns_records"
+            payload = {
+                "type": "A",
+                "name": full_domain,
+                "content": ip,
+                "ttl": 1,
+                "proxied": bool(proxied),
+            }
+            try:
+                r = requests.post(url, headers=self._headers(), json=payload, timeout=10)
+                data = r.json()
+                if data.get('success'):
+                    return True, data.get('result', {})
+                return False, f"CF API 报错: {data}"
+            except Exception as e:
+                return False, str(e)
+
+        return await run.io_bound(_task)
+
+    async def update_a_record(self, record_id, record_name, zone_name, ip, proxied=False):
+        if not self.token:
+            return False, "未配置 Cloudflare Token"
+        if not record_id:
+            return False, "记录 ID 不能为空"
+        if not record_name:
+            return False, "记录名称不能为空"
+        if not zone_name:
+            return False, "域名不能为空"
+        if not ip:
+            return False, "IP 不能为空"
+
+        def _task():
+            zone_id, err = self.get_zone_id(zone_name)
+            if not zone_id:
+                return False, err
+
+            full_domain = self._ensure_fqdn(record_name, zone_name)
+            url = f"{self.base_url}/zones/{zone_id}/dns_records/{record_id}"
+            payload = {
+                "type": "A",
+                "name": full_domain,
+                "content": ip,
+                "ttl": 1,
+                "proxied": bool(proxied),
+            }
+            try:
+                r = requests.put(url, headers=self._headers(), json=payload, timeout=10)
+                data = r.json()
+                if data.get('success'):
+                    return True, data.get('result', {})
+                return False, f"CF API 报错: {data}"
+            except Exception as e:
+                return False, str(e)
+
+        return await run.io_bound(_task)
+
+    async def delete_record_by_id(self, record_id, zone_name):
+        if not self.token:
+            return False, "未配置 Cloudflare Token"
+        if not record_id:
+            return False, "记录 ID 不能为空"
+        if not zone_name:
+            return False, "域名不能为空"
+
+        def _task():
+            zone_id, err = self.get_zone_id(zone_name)
+            if not zone_id:
+                return False, err
+
+            del_url = f"{self.base_url}/zones/{zone_id}/dns_records/{record_id}"
+            try:
+                r = requests.delete(del_url, headers=self._headers(), timeout=10)
+                data = r.json()
+                if data.get('success'):
+                    return True, "删除成功"
+                return False, f"删除失败: {data}"
             except Exception as e:
                 return False, str(e)
 
