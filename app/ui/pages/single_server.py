@@ -1036,7 +1036,7 @@ PY'''
                             render_cf_header_actions()
 
                     # 🛠️ 修复 3：为主体内容区添加 shell_body_cls 保持结构统一
-                    with ui.column().classes(f'w-full p-4 gap-2 relative {shell_body_cls}'):
+                    with ui.column().classes(f'w-full py-4 px-[23px] gap-2 relative {shell_body_cls}'):
                         if not cf_config_ready:
                             with ui.column().classes('w-full items-center justify-center gap-3 rounded-sm border px-6 py-8 text-center').style(
                                     'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
