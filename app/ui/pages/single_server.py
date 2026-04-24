@@ -1020,14 +1020,12 @@ PY'''
                         add_btn = ui.button('添加记录', icon='add', on_click=open_new_cloudflare_record).props(
                             'flat size=sm') 
                         add_btn.classes('px-4 py-1.5 font-bold text-[11px] tracking-wider rounded-sm transition-all border') 
+                        add_btn.style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
                         
-                        add_btn.style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
-                        add_btn.style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
                         if not cf_config_ready:
                             add_btn.disable()
                             apply_tooltip(add_btn, '请先完成 Cloudflare API 配置')
 
-                    # 🛠️ 修复 2：移除旧的 render_section_header，替换为标准的深色实线边框标题栏 (shell_header_cls)
                     with ui.row().classes(f'w-full items-center justify-between px-4 py-2 min-h-[48px] {shell_header_cls}'):
                         with ui.row().classes('items-center gap-2'):
                             ui.icon('cloud').classes('text-orange-400 drop-shadow-[0_0_5px_rgba(251,146,60,0.8)]')
@@ -1035,8 +1033,8 @@ PY'''
                         with ui.row().classes('items-center justify-end'):
                             render_cf_header_actions()
 
-                    # 🛠️ 修复 3：为主体内容区添加 shell_body_cls 保持结构统一
-                    with ui.column().classes(f'w-full py-4 px-[23px] gap-2 relative {shell_body_cls}'):
+                    # 🛠️ 修订：统一 Cloudflare 卡片内边距为 p-4 (等同于16px)
+                    with ui.column().classes(f'w-full p-4 gap-2 relative {shell_body_cls}'):
                         if not cf_config_ready:
                             with ui.column().classes('w-full items-center justify-center gap-3 rounded-sm border px-6 py-8 text-center').style(
                                     'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
@@ -1078,11 +1076,9 @@ PY'''
                                 row_accent = '#f59e0b'
                                 row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
                                 
-                                # 🛠️ 修改 1：在这里包裹一层 ui.scroll_area()，限制最大高度
-                                # 单行高度大概在 42px，加上底边距 8px 约 50px。4行大约 200px。
-                                # 设置 max-h-[210px] 刚好可以显示 4 行，如果超过 4 行，第 5 行会露出一点点头部，暗示用户可以往下滚。
-                                with ui.scroll_area().classes('w-full max-h-[240px] pr-2'):
-                                    with ui.column().classes('w-full gap-0'): # gap-0 避免内部额外空隙
+                                # 🛠️ 修订：移除 pr-2，使滚动区域右侧能完美对齐主内容区边缘
+                                with ui.scroll_area().classes('w-full max-h-[240px]'):
+                                    with ui.column().classes('w-full gap-0'):
                                         for rec in records:
                                             with ui.row().classes(row_tech_cls).style(
                                                     f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
@@ -1173,9 +1169,9 @@ PY'''
                                 'text-[11px] font-bold tracking-wider rounded-sm px-4 py-1.5 border').style(
                                 'background: var(--xf-soft-bg); color: var(--xf-text-subtle); border-color: var(--xf-card-border); opacity: 0.8;')
 
-                # 表头与数据行必须使用完全一致的列宽规则，避免窗口缩小时发生错位
+                # 🛠️ 修订：将表头的左右内边距分别增加 8px (配合下方区域的 px-4)，保持文字表头绝对对齐
                 with ui.element('div').classes(
-                        'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 pl-[23px] pr-[21px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
+                        'grid w-full gap-4 font-bold pb-2 pt-2 pl-[31px] pr-[29px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-[#1e3a5f]/50 text-cyan-600/80 bg-[#030712]' if is_dark else 'grid w-full gap-4 font-bold pb-2 pt-2 pl-[31px] pr-[29px] text-[11px] tracking-wider flex-shrink-0 z-10 border-b border-slate-300/90 text-sky-700/80 bg-[#f8fbff]').style(
                     SINGLE_COLS_NO_PING):
                     ui.label('节点名称').classes('text-left pl-14')
                     ui.label('类型').classes('text-center')
@@ -1188,7 +1184,9 @@ PY'''
                 with ui.element('div').classes('w-full relative flex-1 min-h-0'):
                     with ui.element('div').classes(
                             'absolute inset-0 bg-[#030712]' if is_dark else 'absolute inset-0 bg-[#f8fbff]'):
-                        with ui.scroll_area().classes('w-full h-full p-2'):
+                        
+                        # 🛠️ 修订：将原本的 p-2 更改为 px-4 py-2，与其余卡片保持 16px 相同左边界
+                        with ui.scroll_area().classes('w-full h-full px-4 py-2'):
                             await render_node_list()
 
             if has_manager_access and not NODES_DATA.get(server_conf['url']):
