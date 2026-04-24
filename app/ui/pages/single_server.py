@@ -97,7 +97,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
                 return 'color: var(--xf-text-strong); text-shadow: 0 1px 1px rgba(15,23,42,0.35);'
 
             def render_progress_row(label, pct, text, accent='#22d3ee'):
-                progress_row_cls = 'w-full min-h-[64px] items-center justify-between gap-4 px-4 py-4 rounded-sm border border-l-[3px] flex-nowrap relative overflow-hidden group transition-all'
+                progress_row_cls = 'w-full min-h-[32px] items-center justify-between gap-2 px-4 py-2 rounded-sm border border-l-[3px] flex-nowrap relative overflow-hidden group transition-all'
                 progress_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
                 glow_shadow = f'0 0 0 1px color-mix(in srgb, {accent} 18%, transparent), 0 0 16px color-mix(in srgb, {accent} {36 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
                 with ui.row().classes(progress_row_cls).style(
@@ -115,7 +115,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
 
             # 🛠️ 科技风：重构指标数据行（带发光左边框和悬浮高亮）
             def render_metric_row(label, value, sub_text='', value_color='#22d3ee', accent='#22d3ee'):
-                metric_row_cls = 'w-full min-h-[62px] items-center justify-between gap-4 px-4 py-4 border border-l-[3px] transition-all flex-nowrap relative overflow-hidden group'
+                metric_row_cls = 'w-full min-h-[31px] items-center justify-between gap-2 px-4 py-2 border border-l-[3px] transition-all flex-nowrap relative overflow-hidden group'
                 metric_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
                 glow_shadow = f'0 0 0 1px color-mix(in srgb, {accent} 18%, transparent), 0 0 16px color-mix(in srgb, {accent} {36 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
                 with ui.row().classes(metric_row_cls).style(
@@ -340,6 +340,204 @@ PY'''
                     'disk_usage_pct': disk_usage_pct,
                     'has_probe': bool(probe_cache)
                 }
+
+            cloudflare_dns_state = {
+                'loading': True,
+                'error': '',
+                'records': [],
+                'zones': [],
+                'ip': '--',
+            }
+
+            def relative_record_name(full_name, zone_name):
+                full_name = str(full_name or '').strip()
+                zone_name = str(zone_name or '').strip()
+                if not full_name or not zone_name:
+                    return ''
+                if full_name == zone_name:
+                    return '@'
+                suffix = f'.{zone_name}'
+                if full_name.endswith(suffix):
+                    return full_name[:-len(suffix)]
+                return full_name
+
+            async def load_cloudflare_records():
+                cloudflare_dns_state.update({
+                    'loading': True,
+                    'error': '',
+                    'records': [],
+                })
+                try:
+                    cf_handler = CloudflareHandler()
+                    if not cf_handler.token:
+                        cloudflare_dns_state.update({
+                            'loading': False,
+                            'error': '未配置 Cloudflare API Token',
+                            'records': [],
+                            'zones': [],
+                            'ip': '--',
+                        })
+                        return
+
+                    zone_success, zone_result = await run.io_bound(cf_handler.list_zones)
+                    zones = []
+                    if zone_success:
+                        zones = [item.get('name', '') for item in (zone_result or []) if item.get('name')]
+                    elif cf_handler.root_domain:
+                        zones = [cf_handler.root_domain]
+
+                    cloudflare_dns_state['zones'] = zones
+                    if not zones:
+                        cloudflare_dns_state.update({
+                            'loading': False,
+                            'error': '未找到可用的 Cloudflare 域名',
+                            'records': [],
+                            'ip': '--',
+                        })
+                        return
+
+                    target_host = server_conf.get('ssh_host') or server_conf.get('url', '').replace('http://', '').replace('https://', '').split(':')[0]
+                    resolved_ip = await run.io_bound(lambda: _sync_resolve_ip(target_host))
+                    cloudflare_dns_state['ip'] = resolved_ip or '--'
+
+                    if not resolved_ip:
+                        cloudflare_dns_state.update({
+                            'loading': False,
+                            'error': '无法解析当前服务器 IP',
+                            'records': [],
+                        })
+                        return
+
+                    success, result = await cf_handler.list_a_records_by_ip(resolved_ip)
+                    if success:
+                        cloudflare_dns_state.update({
+                            'loading': False,
+                            'error': '',
+                            'records': result or [],
+                        })
+                    else:
+                        cloudflare_dns_state.update({
+                            'loading': False,
+                            'error': str(result or 'Cloudflare 查询失败'),
+                            'records': [],
+                        })
+                except Exception as e:
+                    cloudflare_dns_state.update({
+                        'loading': False,
+                        'error': f'Cloudflare 查询失败: {e}',
+                        'records': [],
+                    })
+                finally:
+                    try:
+                        render_cloudflare_dns_card.refresh()
+                    except:
+                        pass
+
+            async def open_cloudflare_record_dialog(record=None):
+                from nicegui import app
+                dialog_is_dark = bool(app.storage.user.get('is_dark', True))
+                cf_handler = CloudflareHandler()
+                ok, result = await run.io_bound(cf_handler.list_zones)
+                zones = [item.get('name', '') for item in (result or []) if item.get('name')] if ok else []
+                if not zones:
+                    zones = cloudflare_dns_state.get('zones', []) or ([] if not cf_handler.root_domain else [cf_handler.root_domain])
+                if not zones:
+                    safe_notify('未获取到 Cloudflare 域名列表，请检查 Token 权限', 'warning')
+                    return
+
+                cloudflare_dns_state['zones'] = zones
+                default_zone = (record or {}).get('zone_name') or (zones[0] if zones else '')
+                default_name = relative_record_name((record or {}).get('name', ''), default_zone) if record else ''
+                dialog_title = '编辑 A 记录' if record else '添加 A 记录'
+
+                with ui.dialog() as d, ui.card().classes(
+                        'w-[680px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if dialog_is_dark else 'w-[680px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
+                    with ui.column().classes(
+                            'w-full bg-gradient-to-r from-[#0a1526] to-[#050a14] p-5 gap-2 border-b border-[#1e3a5f]/60 relative overflow-hidden' if dialog_is_dark else 'w-full bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] p-5 gap-2 border-b border-slate-300/90 relative overflow-hidden'):
+                        with ui.row().classes('items-center gap-3 z-10'):
+                            ui.icon('cloud').classes('text-orange-400 drop-shadow-[0_0_6px_currentColor]')
+                            ui.label(dialog_title).classes(
+                                'text-lg font-black text-slate-100 tracking-wide' if dialog_is_dark else 'text-lg font-black text-slate-800 tracking-wide')
+                    with ui.column().classes('w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
+                        with ui.grid().classes('w-full grid-cols-1 md:grid-cols-2 gap-4'):
+                            name_input = ui.input('名称', value=default_name, placeholder='例如: api 或 @').classes('w-full').props(
+                                'outlined dense dark color=cyan standout bg-color="[#050b14]" input-class=text-slate-100' if dialog_is_dark else 'outlined dense color=blue')
+                            zone_select = ui.select(zones, value=default_zone, label='域名').classes('w-full').props(
+                                'outlined dense dark color=cyan standout bg-color="[#050b14]" options-dark popup-content-class=bg-[#050b14] input-class=text-slate-100' if dialog_is_dark else 'outlined dense color=blue')
+                        ui.label(f"将解析到当前 VPS IP：{cloudflare_dns_state.get('ip', '--')}").classes('text-[11px]').style(
+                            'color: var(--xf-text-muted);')
+
+                    async def save_record():
+                        name_val = str(name_input.value or '').strip()
+                        zone_val = str(zone_select.value or '').strip()
+                        ip_val = str(cloudflare_dns_state.get('ip', '--')).strip()
+                        if not name_val:
+                            safe_notify('记录名称不能为空', 'warning')
+                            return
+                        if not zone_val:
+                            safe_notify('请选择域名', 'warning')
+                            return
+                        if not ip_val or ip_val == '--':
+                            safe_notify('当前 VPS IP 无效，无法保存', 'warning')
+                            return
+
+                        cf_handler = CloudflareHandler()
+                        if record:
+                            ok, msg = await cf_handler.update_a_record(record.get('id', ''), name_val, zone_val, ip_val,
+                                                                      proxied=bool(record.get('proxied', False)))
+                        else:
+                            ok, msg = await cf_handler.create_a_record(name_val, zone_val, ip_val, proxied=False)
+
+                        if ok:
+                            safe_notify('Cloudflare A 记录已保存', 'positive')
+                            d.close()
+                            await load_cloudflare_records()
+                        else:
+                            safe_notify(str(msg), 'negative')
+
+                    with ui.row().classes(
+                            'w-full justify-end p-4 gap-3 border-t border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1526] to-[#050a14]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff]'):
+                        ui.button('取消', on_click=d.close).props('outline color=grey')
+                        ui.button('保存', on_click=save_record).props('flat').classes(
+                            'bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 px-6 font-black text-xs tracking-wide rounded-sm' if dialog_is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 px-6 font-black text-xs tracking-wide rounded-sm')
+                d.open()
+
+            def open_delete_cloudflare_record(record):
+                from nicegui import app
+                dialog_is_dark = bool(app.storage.user.get('is_dark', True))
+                with ui.dialog() as d, ui.card().classes(
+                        'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if dialog_is_dark else 'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
+                    with ui.column().classes(
+                            'w-full bg-gradient-to-r from-[#0a1526] to-[#050a14] p-5 gap-2 border-b border-[#1e3a5f]/60 relative overflow-hidden' if dialog_is_dark else 'w-full bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] p-5 gap-2 border-b border-slate-300/90 relative overflow-hidden'):
+                        with ui.row().classes('items-center gap-3 z-10'):
+                            ui.icon('delete').classes('text-rose-400 drop-shadow-[0_0_6px_currentColor]')
+                            ui.label('删除 A 记录').classes(
+                                'text-lg font-black text-slate-100 tracking-wide' if dialog_is_dark else 'text-lg font-black text-slate-800 tracking-wide')
+                    with ui.column().classes('w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
+                        ui.label('确认删除下面这条 Cloudflare A 记录吗？').classes('text-sm font-bold').style(
+                            'color: var(--xf-text-strong);')
+                        with ui.row().classes('items-center gap-2 rounded-sm border px-4 py-3').style(
+                                'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                            ui.icon('cloud').classes('text-orange-400')
+                            ui.label(record.get('name', '--')).classes('text-sm font-black break-all').style(
+                                'color: var(--xf-text-strong);')
+
+                    async def do_delete():
+                        cf_handler = CloudflareHandler()
+                        ok, msg = await cf_handler.delete_record_by_id(record.get('id', ''), record.get('zone_name', ''))
+                        if ok:
+                            safe_notify('Cloudflare A 记录已删除', 'positive')
+                            d.close()
+                            await load_cloudflare_records()
+                        else:
+                            safe_notify(str(msg), 'negative')
+
+                    with ui.row().classes(
+                            'w-full justify-end p-4 gap-3 border-t border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1526] to-[#050a14]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff]'):
+                        ui.button('取消', on_click=d.close).props('outline color=grey')
+                        ui.button('删除', on_click=do_delete).props('flat').classes(
+                            'bg-rose-950/45 text-rose-300 border border-rose-500/45 hover:bg-rose-900/55 px-6 font-black text-xs tracking-wide rounded-sm' if dialog_is_dark else 'bg-rose-100 text-rose-700 border border-rose-300 hover:bg-rose-200 px-6 font-black text-xs tracking-wide rounded-sm')
+                d.open()
 
             server_dialog_key = server_conf.get('url') or server_conf.get('ssh_host') or str(id(server_conf))
 
@@ -805,6 +1003,92 @@ PY'''
                         pass
 
                 ui.timer(2.0, safe_refresh)
+
+            ui.element('div').classes('h-4 flex-shrink-0')
+
+            with ui.element('div').classes(f'w-full flex-shrink-0 p-0 gap-0 flex flex-col relative z-10 {shell_card_cls}'):
+                @ui.refreshable
+                def render_cloudflare_dns_card():
+                    async def open_new_cloudflare_record(_=None):
+                        await open_cloudflare_record_dialog()
+
+                    async def open_edit_cloudflare_record(item):
+                        await open_cloudflare_record_dialog(item)
+
+                    def render_cf_header_actions():
+                        add_btn = ui.button('添加记录', icon='add', on_click=open_new_cloudflare_record).props(
+                            'flat dense size=sm')
+                        add_btn.classes('px-3 py-1 font-bold text-[11px] rounded-sm transition-all border')
+                        add_btn.style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
+
+                    # 🛠️ 修复 2：移除旧的 render_section_header，替换为标准的深色实线边框标题栏 (shell_header_cls)
+                    with ui.row().classes(f'w-full items-center justify-between px-4 py-2 min-h-[48px] {shell_header_cls}'):
+                        with ui.row().classes('items-center gap-2'):
+                            ui.icon('cloud').classes('text-orange-400 drop-shadow-[0_0_5px_rgba(251,146,60,0.8)]')
+                            ui.label('Cloudflare 解析记录').classes('text-xs font-black tracking-wide').style('color: var(--xf-text-strong);')
+                        with ui.row().classes('items-center justify-end'):
+                            render_cf_header_actions()
+
+                    # 🛠️ 修复 3：为主体内容区添加 shell_body_cls 保持结构统一
+                    with ui.column().classes(f'w-full p-4 gap-2 relative {shell_body_cls}'):
+                        if cloudflare_dns_state.get('loading', False):
+                            with ui.row().classes('items-center gap-2 rounded-sm border px-4 py-3').style(
+                                    'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                                ui.spinner(size='sm', color='orange')
+                                ui.label('正在查询 Cloudflare A 记录...').classes('text-sm font-bold').style(
+                                    'color: var(--xf-text-strong);')
+                        elif cloudflare_dns_state.get('error'):
+                            with ui.row().classes('items-center gap-2 rounded-sm border px-4 py-3').style(
+                                    'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                                ui.icon('warning').classes('text-amber-400')
+                                ui.label(cloudflare_dns_state.get('error')).classes('text-sm break-all').style(
+                                    'color: var(--xf-text-muted);')
+                        else:
+                            records = cloudflare_dns_state.get('records', []) or []
+                            if not records:
+                                with ui.row().classes('items-center gap-2 rounded-sm border px-4 py-3').style(
+                                        'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                                    ui.icon('dns').classes('text-slate-400')
+                                    ui.label('当前没有解析到该 VPS IP 的 Cloudflare A 记录').classes('text-sm').style(
+                                        'color: var(--xf-text-muted);')
+                            else:
+                                row_tech_cls = 'w-full items-center justify-between gap-3 py-2.5 px-3 mb-2 group border border-l-[3px] transition-all duration-300 cursor-default rounded-sm relative overflow-hidden'
+                                row_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
+                                row_accent = '#f59e0b'
+                                row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
+                                for rec in records:
+                                    with ui.row().classes(row_tech_cls).style(
+                                            f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
+                                        ui.element('div').classes(row_overlay_cls).style(
+                                            f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
+                                        ui.label(rec.get('name', '--')).classes(
+                                            'font-bold truncate flex-1 min-w-0 text-left pl-2 text-[13px] transition-colors relative z-10').style(
+                                            'color: var(--xf-text-strong);')
+                                        with ui.row().classes('items-center gap-1 shrink-0 relative z-10'):
+                                            ui.label('已代理' if rec.get('proxied') else '仅 DNS').classes(
+                                                'text-[10px] font-black px-2 py-1 rounded-sm border tracking-wider').style(
+                                                ('color: #f59e0b; background: rgba(245, 158, 11, 0.10); border-color: rgba(245, 158, 11, 0.35);'
+                                                 if rec.get('proxied') else
+                                                 'color: #94a3b8; background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.35);'))
+                                            action_wrap = ui.row().classes(
+                                                'gap-1 justify-center no-wrap min-w-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10')
+                                            with action_wrap:
+                                                copy_btn = ui.button(icon='content_copy',
+                                                                     on_click=lambda domain=rec.get('name', ''): safe_copy_to_clipboard(domain)).props(
+                                                    'flat dense round size=sm')
+                                                copy_btn.style('color: var(--xf-text-muted);')
+                                                apply_tooltip(copy_btn, '复制域名')
+                                                edit_btn = ui.button(icon='edit_square', on_click=lambda _, item=rec: open_edit_cloudflare_record(item)).props(
+                                                    'flat dense round size=sm')
+                                                edit_btn.style('color: #3b82f6;')
+                                                apply_tooltip(edit_btn, '编辑记录')
+                                                del_btn = ui.button(icon='delete', on_click=lambda _, item=rec: open_delete_cloudflare_record(item)).props(
+                                                    'flat dense round size=sm')
+                                                del_btn.style('color: #f43f5e;')
+                                                apply_tooltip(del_btn, '删除记录')
+
+                render_cloudflare_dns_card()
+                ui.timer(0.2, load_cloudflare_records, once=True)
 
             ui.element('div').classes('h-6 flex-shrink-0')
 
