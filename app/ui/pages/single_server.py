@@ -1081,7 +1081,7 @@ PY'''
                                 # 🛠️ 修改 1：在这里包裹一层 ui.scroll_area()，限制最大高度
                                 # 单行高度大概在 42px，加上底边距 8px 约 50px。4行大约 200px。
                                 # 设置 max-h-[210px] 刚好可以显示 4 行，如果超过 4 行，第 5 行会露出一点点头部，暗示用户可以往下滚。
-                                with ui.scroll_area().classes('w-full max-h-[210px] pr-2'):
+                                with ui.scroll_area().classes('w-full max-h-[240px] pr-2'):
                                     with ui.column().classes('w-full gap-0'): # gap-0 避免内部额外空隙
                                         for rec in records:
                                             with ui.row().classes(row_tech_cls).style(
