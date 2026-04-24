@@ -1077,36 +1077,42 @@ PY'''
                                 row_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
                                 row_accent = '#f59e0b'
                                 row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
-                                for rec in records:
-                                    with ui.row().classes(row_tech_cls).style(
-                                            f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
-                                        ui.element('div').classes(row_overlay_cls).style(
-                                            f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
-                                        ui.label(rec.get('name', '--')).classes(
-                                            'font-bold truncate flex-1 min-w-0 text-left pl-2 text-[13px] transition-colors relative z-10').style(
-                                            'color: var(--xf-text-strong);')
-                                        with ui.row().classes('items-center gap-1 shrink-0 relative z-10'):
-                                            ui.label('已代理' if rec.get('proxied') else '仅 DNS').classes(
-                                                'text-[10px] font-black px-2 py-1 rounded-sm border tracking-wider').style(
-                                                ('color: #f59e0b; background: rgba(245, 158, 11, 0.10); border-color: rgba(245, 158, 11, 0.35);'
-                                                 if rec.get('proxied') else
-                                                 'color: #94a3b8; background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.35);'))
-                                            action_wrap = ui.row().classes(
-                                                'gap-1 justify-center no-wrap min-w-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10')
-                                            with action_wrap:
-                                                copy_btn = ui.button(icon='content_copy',
-                                                                     on_click=lambda domain=rec.get('name', ''): safe_copy_to_clipboard(domain)).props(
-                                                    'flat dense round size=sm')
-                                                copy_btn.style('color: var(--xf-text-muted);')
-                                                apply_tooltip(copy_btn, '复制域名')
-                                                edit_btn = ui.button(icon='edit_square', on_click=lambda _, item=rec: open_edit_cloudflare_record(item)).props(
-                                                    'flat dense round size=sm')
-                                                edit_btn.style('color: #3b82f6;')
-                                                apply_tooltip(edit_btn, '编辑记录')
-                                                del_btn = ui.button(icon='delete', on_click=lambda _, item=rec: open_delete_cloudflare_record(item)).props(
-                                                    'flat dense round size=sm')
-                                                del_btn.style('color: #f43f5e;')
-                                                apply_tooltip(del_btn, '删除记录')
+                                
+                                # 🛠️ 修改 1：在这里包裹一层 ui.scroll_area()，限制最大高度
+                                # 单行高度大概在 42px，加上底边距 8px 约 50px。4行大约 200px。
+                                # 设置 max-h-[210px] 刚好可以显示 4 行，如果超过 4 行，第 5 行会露出一点点头部，暗示用户可以往下滚。
+                                with ui.scroll_area().classes('w-full max-h-[210px] pr-2'):
+                                    with ui.column().classes('w-full gap-0'): # gap-0 避免内部额外空隙
+                                        for rec in records:
+                                            with ui.row().classes(row_tech_cls).style(
+                                                    f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
+                                                ui.element('div').classes(row_overlay_cls).style(
+                                                    f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
+                                                ui.label(rec.get('name', '--')).classes(
+                                                    'font-bold truncate flex-1 min-w-0 text-left pl-2 text-[13px] transition-colors relative z-10').style(
+                                                    'color: var(--xf-text-strong);')
+                                                with ui.row().classes('items-center gap-1 shrink-0 relative z-10'):
+                                                    ui.label('已代理' if rec.get('proxied') else '仅 DNS').classes(
+                                                        'text-[10px] font-black px-2 py-1 rounded-sm border tracking-wider').style(
+                                                        ('color: #f59e0b; background: rgba(245, 158, 11, 0.10); border-color: rgba(245, 158, 11, 0.35);'
+                                                         if rec.get('proxied') else
+                                                         'color: #94a3b8; background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.35);'))
+                                                    action_wrap = ui.row().classes(
+                                                        'gap-1 justify-center no-wrap min-w-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10')
+                                                    with action_wrap:
+                                                        copy_btn = ui.button(icon='content_copy',
+                                                                             on_click=lambda domain=rec.get('name', ''): safe_copy_to_clipboard(domain)).props(
+                                                            'flat dense round size=sm')
+                                                        copy_btn.style('color: var(--xf-text-muted);')
+                                                        apply_tooltip(copy_btn, '复制域名')
+                                                        edit_btn = ui.button(icon='edit_square', on_click=lambda _, item=rec: open_edit_cloudflare_record(item)).props(
+                                                            'flat dense round size=sm')
+                                                        edit_btn.style('color: #3b82f6;')
+                                                        apply_tooltip(edit_btn, '编辑记录')
+                                                        del_btn = ui.button(icon='delete', on_click=lambda item=rec: open_delete_cloudflare_record(item)).props(
+                                                            'flat dense round size=sm')
+                                                        del_btn.style('color: #f43f5e;')
+                                                        apply_tooltip(del_btn, '删除记录')
 
                 render_cloudflare_dns_card()
                 if ADMIN_CONFIG.get('cf_api_token', '').strip() and ADMIN_CONFIG.get('cf_root_domain', '').strip():
