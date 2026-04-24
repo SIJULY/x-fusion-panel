@@ -582,10 +582,17 @@ def main_page(request: Request):
             content_router.content_container.style(f'background-color: {new_theme["content_bg"]};')
 
         from app.core.state import CURRENT_VIEW_STATE
-        if CURRENT_VIEW_STATE.get('scope') == 'DASHBOARD':
+        current_scope = CURRENT_VIEW_STATE.get('scope')
+        if current_scope == 'DASHBOARD':
             from app.ui.components.dashboard import refresh_dashboard_ui
             await refresh_dashboard_ui()
             await ui.run_javascript('setTimeout(() => { window.applyDashboardTheme && window.applyDashboardTheme(); }, 80)')
+        elif current_scope == 'PROBE':
+            from app.ui.pages.probe_page import render_probe_page
+            await render_probe_page()
+        elif current_scope == 'SUBS':
+            from app.ui.pages.subs_page import load_subs_view
+            await load_subs_view()
 
     async def run_security_check():
         if last_ip and last_ip != current_ip:
