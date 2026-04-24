@@ -69,10 +69,16 @@ def main_page(request: Request):
             'map_scatter_shadow': 'rgba(15,23,42,0.9)' if is_dark else 'rgba(148,163,184,0.65)',
             'map_me': '#facc15' if is_dark else '#f59e0b',
             'map_line': '#22d3ee' if is_dark else '#38bdf8',
-            'header_classes': 'bg-gradient-to-r from-[#070e1a] to-[#0a1526] text-white h-14 border-b border-[#1e3a5f]/60 shadow-[0_4px_20px_rgba(0,0,0,0.6)]' if is_dark else 'bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] text-slate-900 h-14 border-b border-[#cbd5e1] shadow-[0_4px_16px_rgba(148,163,184,0.18)]',
+            
+            # 高度设为 64px
+            'header_classes': 'bg-gradient-to-r from-[#070e1a] to-[#0a1526] text-white h-16 border-b border-[#1e3a5f]/60 shadow-[0_4px_20px_rgba(0,0,0,0.6)]' if is_dark else 'bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] text-slate-900 h-16 border-b border-[#cbd5e1] shadow-[0_4px_16px_rgba(148,163,184,0.18)]',
             'drawer_classes': 'bg-[#070b14] border-r border-[#1e3a5f]/55' if is_dark else 'bg-[#f8fbff] border-r border-[#cbd5e1]/80',
             'menu_btn_classes': 'text-slate-300 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-600 hover:text-blue-600 hover:bg-blue-100/80',
-            'title_classes': 'text-xl font-black ml-2 tracking-wide text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.55)]' if is_dark else 'text-xl font-black ml-2 tracking-wide text-sky-700',
+            
+            # 🛠️ 扫光渐变背景色：中间是一个高亮耀眼的白色 #ffffff 光斑
+            'title_grad': 'linear-gradient(110deg, #3b82f6 0%, #22d3ee 35%, #ffffff 50%, #a855f7 65%, #3b82f6 100%)' if is_dark else 'linear-gradient(110deg, #2563eb 0%, #0284c7 35%, #ffffff 50%, #4f46e5 65%, #2563eb 100%)',
+            'title_shadow': 'drop-shadow(0 0 6px rgba(34,211,238,0.5))' if is_dark else 'drop-shadow(0 2px 4px rgba(2,132,199,0.25))',
+            
             'security_btn_classes': 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-rose-400 hover:bg-rose-950/30 hover:text-rose-300' if is_dark else 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-rose-500 hover:bg-rose-100 hover:text-rose-600',
             'key_btn_classes': 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-slate-400 hover:bg-cyan-950/30 hover:text-cyan-300' if is_dark else 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-slate-500 hover:bg-sky-100 hover:text-sky-600',
             'theme_btn_classes': 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-amber-300 hover:bg-amber-950/30 hover:text-yellow-200' if is_dark else 'w-10 h-10 min-w-[40px] min-h-[40px] shrink-0 flex items-center justify-center text-slate-500 hover:bg-indigo-100 hover:text-indigo-600',
@@ -108,6 +114,7 @@ def main_page(request: Request):
         <script src="/static/xterm.js"></script>
         <script src="/static/xterm-addon-fit.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
         <script>
             window.applyXFusionTheme = function(theme) {{
@@ -163,6 +170,8 @@ def main_page(request: Request):
                     '--xf-map-scatter-shadow': theme.map_scatter_shadow,
                     '--xf-map-me': theme.map_me,
                     '--xf-map-line': theme.map_line,
+                    '--xf-title-grad': theme.title_grad,
+                    '--xf-title-shadow': theme.title_shadow,
                 }};
                 Object.entries(pairs).forEach(([key, value]) => root.style.setProperty(key, value));
             }};
@@ -175,7 +184,6 @@ def main_page(request: Request):
                 setStyle('xf-header', payload.header_style);
                 setStyle('xf-drawer', payload.drawer_style);
                 setStyle('xf-menu-btn', payload.menu_btn_style);
-                setStyle('xf-title', payload.title_style);
                 setStyle('xf-security-btn', payload.security_btn_style);
                 setStyle('xf-key-btn', payload.key_btn_style);
                 setStyle('xf-theme-btn', payload.theme_btn_style);
@@ -300,7 +308,43 @@ def main_page(request: Request):
                 --xf-map-scatter-shadow: {theme['map_scatter_shadow']};
                 --xf-map-me: {theme['map_me']};
                 --xf-map-line: {theme['map_line']};
+                --xf-title-grad: {theme['title_grad']};
+                --xf-title-shadow: {theme['title_shadow']};
             }}
+            
+            /* 🛠️ 从左至右光效扫过动画：5秒为一个周期，其中大部分时间保持停滞，每隔几秒迅速扫过 */
+            @keyframes sweep-shine {{
+                0%, 75% {{ background-position: 120% center; }}  /* 光效停留在右侧视窗外 (隐藏状态) */
+                90%, 100% {{ background-position: -20% center; }} /* 迅速从左往右扫到左侧视窗外 */
+            }}
+            
+            @keyframes slow-spin {{
+                100% {{ transform: rotate(360deg); }}
+            }}
+            .tech-spin {{
+                animation: slow-spin 8s linear infinite;
+            }}
+            
+            .xf-tech-title {{
+                font-family: 'Orbitron', sans-serif;
+                font-weight: 900;
+                font-size: 1.45rem;
+                letter-spacing: 0.08em;
+                background: var(--xf-title-grad);
+                background-size: 200% auto; /* 放大背景，制造局部高光 */
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                animation: sweep-shine 5s ease-in-out infinite; /* 5秒触发一次间歇扫光 */
+                filter: var(--xf-title-shadow);
+                line-height: 1;
+            }}
+            
+            .xf-tech-logo {{
+                font-size: 1.8rem;
+                color: var(--xf-accent);
+                filter: var(--xf-title-shadow);
+            }}
+
             @font-face {{
                 font-family: 'Twemoji Country Flags';
                 src: url('https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1/dist/TwemojiCountryFlags.woff2') format('woff2');
@@ -412,7 +456,7 @@ def main_page(request: Request):
                 background-color: transparent !important;
             }}
             .q-page-container {{
-                min-height: calc(100vh - 56px) !important;
+                min-height: calc(100vh - 64px) !important;
             }}
             .q-dialog__backdrop,
             .q-overlay,
@@ -556,7 +600,6 @@ def main_page(request: Request):
             'header_style': 'background: linear-gradient(to right, #070e1a, #0a1526); color: white; border-bottom: 1px solid rgba(30,58,95,0.60); box-shadow: 0 4px 20px rgba(0,0,0,0.6);' if new_is_dark else 'background: linear-gradient(to right, #f8fbff, #eaf2ff); color: #0f172a; border-bottom: 1px solid #cbd5e1; box-shadow: 0 4px 16px rgba(148,163,184,0.18);',
             'drawer_style': 'background-color: #070b14; border-right: 1px solid rgba(30,58,95,0.55);' if new_is_dark else 'background-color: #f8fbff; border-right: 1px solid rgba(203,213,225,0.80);',
             'menu_btn_style': 'color: #cbd5e1;' if new_is_dark else 'color: #475569;',
-            'title_style': 'color: #22d3ee; text-shadow: 0 0 6px rgba(34,211,238,0.55);' if new_is_dark else 'color: #0369a1;',
             'security_btn_style': 'color: #fb7185;' if new_is_dark else 'color: #f43f5e;',
             'key_btn_style': 'color: #94a3b8;' if new_is_dark else 'color: #64748b;',
             'theme_btn_style': 'color: #fcd34d;' if new_is_dark else 'color: #64748b;',
@@ -615,9 +658,18 @@ def main_page(request: Request):
 
     with ui.header().classes(current_theme['header_classes']).props('id=xf-header'):
         with ui.row().classes('w-full items-center justify-between'):
-            with ui.row().classes('items-center gap-2'):
+            
+            with ui.row().classes('items-center gap-2 cursor-default flex-nowrap pl-1'):
                 ui.button(icon='menu', on_click=lambda: drawer.toggle()).props('flat round dense id=xf-menu-btn').classes(f"{current_theme['menu_btn_classes']} xf-icon-3d")
-                ui.label('X-Fusion-Pro').classes(current_theme['title_classes']).props('id=xf-title')
+                
+                # 🛠️ 炫酷科技风图标 (bubble_chart) 与流光扫掠文字
+                with ui.row().classes('items-center gap-2 ml-1'):
+                    ui.icon('bubble_chart').classes('xf-tech-logo tech-spin')
+                    ui.label('X-FUSION').classes('xf-tech-title')
+                    
+                    ui.badge('PRO').classes(
+                        'bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black border-none px-1.5 py-0.5 shadow-[0_0_8px_rgba(34,211,238,0.5)] tracking-widest text-[10px] transform -skew-x-12 mt-0.5'
+                    )
 
             with ui.row().classes('items-center gap-3 mr-2 flex-nowrap'):
                 with ui.button(icon='gpp_bad', on_click=lambda: reset_global_session(None)).props('flat round id=xf-security-btn').classes(f"{current_theme['security_btn_classes']} xf-icon-3d").tooltip('安全重置'):
@@ -631,7 +683,7 @@ def main_page(request: Request):
 
     from app.ui.pages import content_router
 
-    content_router.content_container = ui.column().classes('w-full h-full min-h-[calc(100vh-56px)] pl-4 pr-4 pt-4 overflow-y-auto').props('id=xf-content-container').style(f'background-color: {current_theme["content_bg"]};')
+    content_router.content_container = ui.column().classes('w-full h-full min-h-[calc(100vh-64px)] pl-4 pr-4 pt-4 overflow-y-auto').props('id=xf-content-container').style(f'background-color: {current_theme["content_bg"]};')
     logger.info(f"[MainPage] content_container assigned | id={id(content_router.content_container)}")
 
     async def auto_init_system_settings():
