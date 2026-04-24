@@ -21,17 +21,31 @@ class CloudflareHandler:
         return h
 
     def get_zone_id(self, domain_name=None):
-        target = self.root_domain
-        if domain_name:
-            if self.root_domain and domain_name.endswith(self.root_domain):
-                target = self.root_domain
-            else:
-                parts = domain_name.split('.')
-                if len(parts) >= 2:
-                    target = f"{parts[-2]}.{parts[-1]}"
+        target = str(domain_name or self.root_domain or '').strip().lower().rstrip('.')
+        if not target:
+            return None, "未指定 Zone 域名"
 
-        url = f"{self.base_url}/zones?name={target}"
         try:
+            ok, zones = self.list_zones()
+            if ok:
+                normalized = []
+                for item in zones or []:
+                    name = str(item.get('name', '')).strip().lower().rstrip('.')
+                    zone_id = str(item.get('id', '')).strip()
+                    if name and zone_id:
+                        normalized.append((name, zone_id))
+
+                for zone_name, zone_id in normalized:
+                    if zone_name == target:
+                        return zone_id, None
+
+                matched = [(zone_name, zone_id) for zone_name, zone_id in normalized
+                           if target == zone_name or target.endswith(f'.{zone_name}')]
+                if matched:
+                    zone_name, zone_id = max(matched, key=lambda x: len(x[0]))
+                    return zone_id, None
+
+            url = f"{self.base_url}/zones?name={target}"
             r = requests.get(url, headers=self._headers(), timeout=10)
             data = r.json()
             if data.get('success') and len(data['result']) > 0:
