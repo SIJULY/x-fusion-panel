@@ -269,15 +269,15 @@ python app/main.py
 ---
 
 ## 界面预览
-
-<img width="2541" height="1443" alt="image" src="https://github.com/user-attachments/assets/54f6d40f-2b56-4fef-9c66-fd15be689a7a" />
-<img width="1998" height="1443" alt="image" src="https://github.com/user-attachments/assets/106379b4-d0ae-4b30-94d8-36cecdefde86" />
-<img width="1786" height="1441" alt="image" src="https://github.com/user-attachments/assets/eba36b87-e0dd-427f-9c0e-66d596f42c8b" />
-<img width="3556" height="2886" alt="c6f58ec8-880d-4f79-bf89-59a7013c418f" src="https://github.com/user-attachments/assets/69045312-950e-4285-b7de-5ad09e9eae5b" />
-<img width="3566" height="2886" alt="1c1ddee9-49d9-4f63-9644-cb5e647f5479" src="https://github.com/user-attachments/assets/a82b44c5-cb8c-415d-9e52-36ec890ff30e" />
-<img width="1776" height="1376" alt="image" src="https://github.com/user-attachments/assets/47f28666-d7a2-41b5-bad8-177bfbe130ea" />
-<img width="3542" height="2872" alt="15ce7391-a8f7-4a9d-a44f-c0c380237ba2" src="https://github.com/user-attachments/assets/0fe695cc-cc59-4510-bbf6-21fdb0b600bc" />
-<img width="1783" height="1441" alt="image" src="https://github.com/user-attachments/assets/2ac41510-9f20-4c12-8a27-102000e2412b" />
+<img width="1498" height="1446" alt="image" src="https://github.com/user-attachments/assets/9240a298-c546-4ee4-ab84-086c86b36753" />
+<img width="1496" height="1443" alt="image" src="https://github.com/user-attachments/assets/68e89751-49c5-4392-b186-44a0dd285468" />
+<img width="1498" height="1454" alt="image" src="https://github.com/user-attachments/assets/fb1855e9-faab-4285-af15-4773b0326b03" />
+<img width="2996" height="2882" alt="de17c2d3-ddd6-41ce-86c7-a5f11493ffe7" src="https://github.com/user-attachments/assets/d0648a6c-77fd-43e1-96d4-ae1b1a0638d8" />
+<img width="1503" height="1441" alt="image" src="https://github.com/user-attachments/assets/29e69174-83c3-48eb-9eec-25d77e313f5d" />
+<img width="2982" height="2882" alt="d9f34f42-c9f3-4c69-907f-5e8b04c76afb" src="https://github.com/user-attachments/assets/89fe2b40-2b36-4d7f-ad6a-5f23e33b9f8a" />
+<img width="2986" height="2898" alt="aa5e3dfe-5a01-4393-84ae-745fea1d3410" src="https://github.com/user-attachments/assets/b70ca1d8-587f-4460-baca-7993414502d5" />
+<img width="2992" height="2886" alt="e0ab05cd-01bf-46b7-9280-224d3b80b596" src="https://github.com/user-attachments/assets/55a41c9b-50cb-4917-ac86-84c62914d5a9" />
+<img width="1494" height="1436" alt="image" src="https://github.com/user-attachments/assets/8cd8e0b7-fbbf-4cf8-8d24-ec0b13c3f071" />
 
 ---
 
