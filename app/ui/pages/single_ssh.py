@@ -56,6 +56,13 @@ async def render_single_ssh_view(server_conf):
     except:
         pass
 
+    # 生成唯一 ID 供 JS 操作
+    _tid = uuid.uuid4().hex[:8]
+    terminal_box_id   = f'term_box_{_tid}'
+    resize_handle_id  = f'term_resize_{_tid}'
+    file_panel_id     = f'file_panel_{_tid}'
+    outer_column_id   = f'outer_col_{_tid}'
+
     if content_container:
         content_container.clear()
         
@@ -748,37 +755,31 @@ async def render_single_ssh_view(server_conf):
     def make_open_handler(entry):
         async def handler(e=None):
             await handle_entry_open(entry)
-
         return handler
 
     def make_edit_handler(entry):
         async def handler(e=None):
             await open_file_editor(entry)
-
         return handler
 
     def make_download_handler(entry):
         async def handler(e=None):
             await download_entry(entry)
-
         return handler
 
     def make_delete_handler(entry):
         async def handler(e=None):
             await confirm_delete_entry(entry)
-
         return handler
 
     def make_rename_handler(entry):
         async def handler(e=None):
             open_rename_dialog(entry)
-
         return handler
 
     def make_chmod_handler(entry):
         async def handler(e=None):
             open_chmod_dialog(entry)
-
         return handler
 
     @ui.refreshable
@@ -894,13 +895,13 @@ async def render_single_ssh_view(server_conf):
                 row.on('dblclick', make_open_handler(item))
 
     with content_container:
-        with ui.column().classes('w-full max-w-[1440px] mx-auto h-full flex flex-col gap-0 flex-nowrap'):
+        # 外层容器：overflow-hidden 保证总高度不变
+        with ui.column().classes('w-full max-w-[1440px] mx-auto h-full flex flex-col gap-0 flex-nowrap overflow-hidden').props(f'id="{outer_column_id}"'):
+
+            # ── SSH 终端卡片 ──────────────────────────────────────────
             with ui.card().classes(
                     'w-full p-0 rounded-sm border border-t-[3px] overflow-hidden flex flex-col flex-shrink-0').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
-                
-                # --- 开始核心修改区域 ---
-                
-                # 提前定义状态和重连函数，以便在标题栏调用
+
                 conn_state = {'connected': True}
 
                 async def _do_reconnect():
@@ -957,28 +958,36 @@ async def render_single_ssh_view(server_conf):
                             ui.label(server_conf.get('name', '未命名服务器')).classes('text-xs').style('color: var(--xf-accent); opacity: 0.75;')
 
                     with ui.row().classes('items-center gap-2'):
-                        # 将重连按钮放置于返回详情的左侧
                         render_conn_btn()
                         ui.button('返回详情', icon='arrow_back', on_click=_back_to_detail).props(
                             'flat size=sm').classes('px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
 
-                # 此处删除了原有的 ui.row() (包含"独立路由终端"和"交互模式"的横条)
-                
-                # 调整终端容器的高度并去掉 border-t，让其紧贴标题栏底部
-                terminal_box = ui.element('div').classes('w-full overflow-hidden').style(
-                    'height: 462px; min-height: 462px; position: relative; background: var(--xf-code-bg);')
+                # 终端容器：加上唯一 ID，供 JS 拖拽调整高度
+                terminal_box = ui.element('div').classes('w-full overflow-hidden').props(
+                    f'id="{terminal_box_id}"').style(
+                    'height: 462px; min-height: 160px; position: relative; background: var(--xf-code-bg);')
                 with terminal_box:
                     with ui.column().classes('w-full h-full items-center justify-center text-slate-500'):
                         ui.label('正在初始化 SSH 终端...').classes('text-sm')
 
-                # --- 核心修改区域结束 ---
+            # ── 拖拽把手 ─────────────────────────────────────────────
+            with ui.element('div').props(f'id="{resize_handle_id}"').classes(
+                    'w-full flex items-center justify-center cursor-row-resize select-none flex-shrink-0').style(
+                    'height: 10px; margin-top: 4px; background: var(--xf-soft-bg); '
+                    'border-top: 1px solid var(--xf-card-border); border-bottom: 1px solid var(--xf-card-border);'):
+                ui.element('div').classes('w-20 h-1 rounded-full').style(
+                    'background: var(--xf-accent); opacity: 0.45;')
 
+            # ── 快捷命令卡片 ──────────────────────────────────────────
             with ui.card().classes(
-                    'w-full px-4 py-2 rounded-sm border overflow-hidden flex flex-col flex-shrink-0 mt-4').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+                    'w-full px-4 py-2 rounded-sm border overflow-hidden flex flex-col flex-shrink-0').style(
+                    'margin-top: 4px; background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
                 render_quick_commands()
 
-            with ui.card().classes(
-                    'w-full h-[46vh] min-h-[420px] p-0 rounded-sm border overflow-hidden flex flex-col flex-shrink-0 mt-4').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+            # ── 文件浏览器卡片：JS 动态计算高度填满剩余空间 ───────────
+            with ui.card().props(f'id="{file_panel_id}"').classes(
+                    'w-full p-0 rounded-sm border overflow-hidden flex flex-col').style(
+                    'min-height: 280px; margin-top: 4px; background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
                 with ui.row().classes(
                         'w-full items-center justify-between px-3 py-2 border-b gap-2 flex-nowrap').style('background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border);'):
                     path_input = ui.input(value=file_state['current_path']).classes(
@@ -1013,6 +1022,102 @@ async def render_single_ssh_view(server_conf):
                             render_file_list()
 
     _server_dialog.logger.info(f"[SingleSSHRoute] page opened | key={server_key}")
+
+    # ── 拖拽 + 高度锁定 JS（基于视口位置计算，彻底绕开 flex 链断裂问题）─
+    ui.run_javascript(f'''
+        setTimeout(() => {{
+            const handle        = document.getElementById("{resize_handle_id}");
+            const termBox       = document.getElementById("{terminal_box_id}");
+            const outerCol      = document.getElementById("{outer_column_id}");
+            const filePanelCard = document.getElementById("{file_panel_id}");
+
+            if (!handle || !termBox || !filePanelCard || !outerCol) {{
+                console.warn('XF-resize: element not found', {{handle, termBox, filePanelCard, outerCol}});
+                return;
+            }}
+
+            // ① 锁定 outerCol 的高度 = 视口高度 - outerCol 距视口顶部的距离 - 底部留白(16px)
+            //    这样无论 NiceGUI 的 flex 链是否传递，outerCol 都有一个精确的像素高度
+            function lockOuterHeight() {{
+                const top = outerCol.getBoundingClientRect().top;
+                const h   = window.innerHeight - top - 16;
+                outerCol.style.height    = h + 'px';
+                outerCol.style.maxHeight = h + 'px';
+                outerCol.style.overflow  = 'hidden';
+            }}
+
+            // ② 在 outerCol 高度已知后，把剩余空间全部分给文件面板
+            function recalcFilePanelHeight() {{
+                // 用 outerCol 的实际高度（已被锁定）
+                const outerH = outerCol.getBoundingClientRect().height;
+
+                // SSH 终端卡片（termBox 的父级 q-card）
+                const sshCard  = termBox.closest('.q-card') || termBox.parentElement;
+                const sshCardH = sshCard  ? sshCard.getBoundingClientRect().height  : termBox.getBoundingClientRect().height;
+
+                // 拖拽把手
+                const handleH  = handle.getBoundingClientRect().height;
+
+                // 快捷命令卡片（filePanelCard 往上数第一个兄弟）
+                const cmdCard  = filePanelCard.previousElementSibling;
+                const cmdH     = cmdCard ? cmdCard.getBoundingClientRect().height : 0;
+
+                // 3 段 margin-top: 4px
+                const gaps    = 4 * 3;
+                const finalH  = Math.max(280, outerH - sshCardH - handleH - cmdH - gaps);
+
+                filePanelCard.style.height    = finalH + 'px';
+                filePanelCard.style.minHeight = finalH + 'px';
+                filePanelCard.style.maxHeight = finalH + 'px';
+            }}
+
+            // 初始化：先锁外层再算内层
+            lockOuterHeight();
+            recalcFilePanelHeight();
+
+            // ③ 拖拽逻辑
+            let dragging = false, startY = 0, startH = 0;
+
+            handle.addEventListener('mousedown', (e) => {{
+                dragging = true;
+                startY   = e.clientY;
+                startH   = termBox.getBoundingClientRect().height;
+                document.body.style.cursor     = 'row-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            }});
+
+            document.addEventListener('mousemove', (e) => {{
+                if (!dragging) return;
+                // 拖拽时终端高度上限 = outerCol高度 - 最小文件面板(280) - 把手 - 快捷命令 - 间距
+                const outerH  = outerCol.getBoundingClientRect().height;
+                const cmdCard = filePanelCard.previousElementSibling;
+                const cmdH    = cmdCard ? cmdCard.getBoundingClientRect().height : 0;
+                const maxTerm = outerH - handle.getBoundingClientRect().height - cmdH - 280 - 4 * 3;
+                const newH    = Math.max(160, Math.min(maxTerm, startH + (e.clientY - startY)));
+
+                termBox.style.height    = newH + 'px';
+                termBox.style.minHeight = newH + 'px';
+                recalcFilePanelHeight();
+                if (window.fitAddon) window.fitAddon.fit();
+            }});
+
+            document.addEventListener('mouseup', () => {{
+                if (!dragging) return;
+                dragging = false;
+                document.body.style.cursor     = '';
+                document.body.style.userSelect = '';
+                recalcFilePanelHeight();
+            }});
+
+            // ④ 窗口大小变化时重新锁定并重算
+            window.addEventListener('resize', () => {{
+                lockOuterHeight();
+                recalcFilePanelHeight();
+            }});
+
+        }}, 800);
+    ''')
 
     ui.timer(0.05, lambda: _start_terminal(terminal_box), once=True)
     ui.timer(0.05, lambda: ensure_tree_children('/'), once=True)
