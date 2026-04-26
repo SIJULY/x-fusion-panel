@@ -105,6 +105,66 @@ class WebSSH:
         self.channel = None
         self.active = False
         self.term_id = f'term_{uuid.uuid4().hex}'
+        self._last_cols = None
+        self._last_rows = None
+        self._resize_debounce_task = None
+        self._pending_resize = None
+
+    def _schedule_resize_pty(self, cols, rows):
+        try:
+            cols = int(cols)
+            rows = int(rows)
+        except Exception:
+            return
+
+        if cols < 2 or rows < 1:
+            return
+
+        self._pending_resize = (cols, rows)
+        if self._resize_debounce_task and not self._resize_debounce_task.done():
+            self._resize_debounce_task.cancel()
+        self._resize_debounce_task = asyncio.create_task(self._apply_resize_pty_debounced())
+
+    async def _apply_resize_pty_debounced(self):
+        try:
+            await asyncio.sleep(0.05)
+        except asyncio.CancelledError:
+            return
+
+        pending = self._pending_resize
+        if not pending:
+            return
+
+        cols, rows = pending
+        if self._last_cols == cols and self._last_rows == rows:
+            return
+
+        self._last_cols = cols
+        self._last_rows = rows
+
+        if self.channel and self.active:
+            try:
+                self.channel.resize_pty(width=cols, height=rows)
+            except Exception:
+                pass
+
+    def _apply_pending_resize_now(self):
+        if not self._pending_resize:
+            return
+        cols, rows = self._pending_resize
+        self._last_cols = cols
+        self._last_rows = rows
+        if self.channel:
+            try:
+                self.channel.resize_pty(width=cols, height=rows)
+            except Exception:
+                pass
+
+    def _handle_resize_event(self, e):
+        detail = e.args.get('detail') if isinstance(e.args, dict) and 'detail' in e.args else e.args
+        if not isinstance(detail, dict):
+            return
+        self._schedule_resize_pty(detail.get('cols'), detail.get('rows'))
 
     async def connect(self):
         with self.container:
@@ -119,7 +179,7 @@ class WebSSH:
 
                 term_container = ui.element('div').props(f'id={self.term_id}').classes(
                     'w-full h-full rounded overflow-hidden relative').style(
-                    'min-height: 420px; height: 100%; width: 100%; display: block; position: relative; background: transparent; color: inherit;')
+                    'min-height: 0; height: 100%; width: 100%; display: block; position: relative; background: transparent; color: inherit;')
 
                 init_js = f"""
                 try {{
@@ -141,7 +201,7 @@ class WebSSH:
                     el.innerHTML = '';
                     el.style.width = '100%';
                     el.style.height = '100%';
-                    el.style.minHeight = '420px';
+                    el.style.minHeight = '0';
                     el.style.display = 'block';
                     el.style.position = 'relative';
 
@@ -239,9 +299,28 @@ class WebSSH:
                     window.addEventListener('xfusion-theme-change', window.{self.term_id}_themeListener);
                     applyTermTheme({str(is_dark).lower()});
 
+                    var lastResizeSignature = null;
+                    var emitResize = function() {{
+                        try {{
+                            var cols = term && term.cols ? term.cols : 0;
+                            var rows = term && term.rows ? term.rows : 0;
+                            if (!cols || !rows) return;
+                            var signature = cols + 'x' + rows;
+                            if (signature === lastResizeSignature) return;
+                            lastResizeSignature = signature;
+                            var node = document.getElementById('{self.term_id}');
+                            if (node) {{
+                                node.dispatchEvent(new CustomEvent('term_resize', {{
+                                    detail: {{ cols: cols, rows: rows }}
+                                }}));
+                            }}
+                        }} catch (e) {{}}
+                    }};
+
                     var doFit = function() {{
                         try {{
                             if (fitAddon) fitAddon.fit();
+                            emitResize();
                             term.scrollToBottom();
                             term.focus();
                         }} catch (e) {{}}
@@ -284,6 +363,7 @@ class WebSSH:
                     self._write_to_ssh(data)
                 
                 term_container.on('term_input', handle_input)
+                term_container.on('term_resize', self._handle_resize_event)
 
                 self.client, msg = await run.io_bound(get_ssh_client_sync, self.server_data)
 
@@ -316,9 +396,12 @@ class WebSSH:
                     b64_msg = base64.b64encode(formatted_msg.encode('utf-8')).decode('utf-8')
                     ui.run_javascript(f'if(window.{self.term_id}) window.{self.term_id}.write(atob("{b64_msg}"));')
 
-                self.channel = self.client.invoke_shell(term='xterm', width=100, height=30)
+                initial_cols = self._pending_resize[0] if self._pending_resize else 100
+                initial_rows = self._pending_resize[1] if self._pending_resize else 30
+                self.channel = self.client.invoke_shell(term='xterm', width=initial_cols, height=initial_rows)
                 self.channel.settimeout(0.0)
                 self.active = True
+                self._apply_pending_resize_now()
 
                 if self.initial_command:
                     try:
@@ -385,6 +468,8 @@ class WebSSH:
 
     def close(self):
         self.active = False
+        if self._resize_debounce_task and not self._resize_debounce_task.done():
+            self._resize_debounce_task.cancel()
         if self.client:
             try:
                 self.client.close()
