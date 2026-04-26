@@ -58,18 +58,18 @@ async def render_single_ssh_view(server_conf):
 
     # 生成唯一 ID 供 JS 操作
     _tid = uuid.uuid4().hex[:8]
-    terminal_box_id   = f'term_box_{_tid}'
-    resize_handle_id  = f'term_resize_{_tid}'
-    file_panel_id     = f'file_panel_{_tid}'
-    outer_column_id   = f'outer_col_{_tid}'
+    terminal_box_id = f'term_box_{_tid}'
+    resize_handle_id = f'term_resize_{_tid}'
+    file_panel_id = f'file_panel_{_tid}'
+    outer_column_id = f'outer_col_{_tid}'
 
     if content_container:
         content_container.clear()
-        
+
         bg_removes = 'overflow-y-auto block justify-start bg-[#0f172a] bg-[#030712] bg-[#eef4ff] bg-[#f8fbff] bg-white dark:bg-[#030712]'
         content_container.classes(remove=bg_removes,
                                   add='h-full flex-1 min-h-0 overflow-hidden flex flex-col p-4 gap-4')
-        
+
         content_container.style('background-color: var(--xf-bg-main) !important;')
 
         ui.run_javascript(f'''
@@ -78,7 +78,7 @@ async def render_single_ssh_view(server_conf):
                 if (isDark) {{
                     const themeIcon = document.querySelector('#xf-theme-btn i');
                     if (themeIcon) themeIcon.textContent = 'light_mode';
-                    
+
                     const header = document.getElementById('xf-header');
                     if (header) {{
                         header.style.cssText = 'background: linear-gradient(to right, #070e1a, #0a1526) !important; color: white !important; border-bottom: 1px solid rgba(30,58,95,0.60) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;';
@@ -87,7 +87,6 @@ async def render_single_ssh_view(server_conf):
             }}, 50);
         ''')
 
-        
     terminal_state = {'instance': None}
     file_state = {'current_path': '/', 'entries': [], 'loading': False}
     tree_state = {'expanded': {'/'}, 'selected': '/', 'cache': {}, 'loading': set()}
@@ -146,22 +145,35 @@ async def render_single_ssh_view(server_conf):
             safe_notify('SSH 正在连接或已断开，请稍后重试', 'warning')
 
     def open_cmd_editor(existing_cmd=None):
-        with ui.dialog() as edit_d, ui.card().classes('w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm border').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
-            with ui.row().classes('w-full justify-between items-center px-5 py-4 border-b relative overflow-hidden').style('border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
-                ui.element('div').classes('absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
+        with ui.dialog() as edit_d, ui.card().classes(
+                'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm border').style(
+                'background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+            with ui.row().classes(
+                    'w-full justify-between items-center px-5 py-4 border-b relative overflow-hidden').style(
+                    'border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
+                ui.element('div').classes(
+                    'absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
                 with ui.row().classes('items-center gap-3 z-10'):
-                    with ui.element('div').classes('w-9 h-9 rounded-sm flex items-center justify-center border text-cyan-400 relative overflow-hidden').style('background: var(--xf-code-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.12);'):
+                    with ui.element('div').classes(
+                            'w-9 h-9 rounded-sm flex items-center justify-center border text-cyan-400 relative overflow-hidden').style(
+                            'background: var(--xf-code-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.12);'):
                         ui.element('div').classes('absolute inset-0 bg-cyan-400/10')
                         ui.icon('terminal').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
-                    ui.label('管理快捷命令').classes('text-lg font-black tracking-wide').style('color: var(--xf-text-strong);')
-                ui.button(icon='close', on_click=edit_d.close).props('flat round dense color=grey').classes('z-10 text-slate-500').style('color: var(--xf-text-muted);')
+                    ui.label('管理快捷命令').classes('text-lg font-black tracking-wide').style(
+                        'color: var(--xf-text-strong);')
+                ui.button(icon='close', on_click=edit_d.close).props('flat round dense color=grey').classes(
+                    'z-10 text-slate-500').style('color: var(--xf-text-muted);')
             with ui.column().classes('w-full p-5 gap-4').style('background: var(--xf-bg-main);'):
-                with ui.element('div').classes('w-full rounded-sm border px-3 py-2 transition-all').style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.10);'):
+                with ui.element('div').classes('w-full rounded-sm border px-3 py-2 transition-all').style(
+                        'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.10);'):
                     name_input = ui.input('按钮名称', value=existing_cmd['name'] if existing_cmd else '').classes(
-                        'w-full').props('dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
-                with ui.element('div').classes('w-full rounded-sm border border-[#1e3a5f]/45 bg-[#08101d]/80 px-3 py-2 shadow-[0_0_8px_rgba(0,0,0,0.35)] transition-all hover:border-cyan-500/35' if is_dark else 'w-full rounded-sm border border-slate-300/90 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(148,163,184,0.12)] transition-all hover:border-sky-400/60'):
+                        'w-full').props(
+                        'dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
+                with ui.element('div').classes(
+                        'w-full rounded-sm border border-[#1e3a5f]/45 bg-[#08101d]/80 px-3 py-2 shadow-[0_0_8px_rgba(0,0,0,0.35)] transition-all hover:border-cyan-500/35' if is_dark else 'w-full rounded-sm border border-slate-300/90 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(148,163,184,0.12)] transition-all hover:border-sky-400/60'):
                     cmd_input = ui.textarea('执行命令', value=existing_cmd['cmd'] if existing_cmd else '').classes(
-                        'w-full').props('dense outlined dark color=cyan standout rows=4' if is_dark else 'dense outlined color=blue rows=4')
+                        'w-full').props(
+                        'dense outlined dark color=cyan standout rows=4' if is_dark else 'dense outlined color=blue rows=4')
 
             async def save():
                 name = name_input.value.strip()
@@ -200,14 +212,17 @@ async def render_single_ssh_view(server_conf):
     def render_quick_commands():
         commands = ADMIN_CONFIG.get('quick_commands', [])
         with ui.row().classes('w-full gap-2 items-center flex-wrap'):
-            ui.label('快捷命令').classes('text-xs font-bold mr-2 tracking-wide').style('color: var(--xf-accent); opacity: 0.75;')
+            ui.label('快捷命令').classes('text-xs font-bold mr-2 tracking-wide').style(
+                'color: var(--xf-accent); opacity: 0.75;')
             for cmd_obj in commands:
                 cmd_name = cmd_obj.get('name', '未命名')
                 cmd_text = cmd_obj.get('cmd', '')
                 with ui.element('div').classes(
-                        'flex items-center rounded-sm overflow-hidden border transition-all').style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border);'):
+                        'flex items-center rounded-sm overflow-hidden border transition-all').style(
+                    'background: var(--xf-elevated-bg); border-color: var(--xf-card-border);'):
                     ui.button(cmd_name, on_click=lambda c=cmd_text: exec_quick_cmd(c)).props('flat').classes(
-                        'bg-transparent text-[11px] font-bold px-3 py-1.5 rounded-none').style('color: var(--xf-text-strong);')
+                        'bg-transparent text-[11px] font-bold px-3 py-1.5 rounded-none').style(
+                        'color: var(--xf-text-strong);')
                     ui.element('div').classes('w-[1px] h-4 opacity-80').style('background: var(--xf-card-border);')
                     ui.button(icon='settings', on_click=lambda c=cmd_obj: open_cmd_editor(c)).props(
                         'flat dense size=xs').classes('px-1 py-1.5 rounded-none').style('color: var(--xf-text-muted);')
@@ -391,13 +406,14 @@ async def render_single_ssh_view(server_conf):
                 editor_state['dialog'] = editor_d
 
                 with ui.card().props(f'id="{card_id}"').classes(
-                        'flex flex-col p-0 border').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 20px 50px rgba(15,23,42,0.30);') \
+                        'flex flex-col p-0 border').style(
+                    'background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 20px 50px rgba(15,23,42,0.30);') \
                         .style(
                     'width: 900px; max-width: 95vw; height: 650px; max-height: 95vh; resize: both; overflow: hidden; position: fixed; top: 10vh; left: 15vw; margin: 0;'):
 
                     with ui.row().props(f'id="{header_id}"').classes(
                             'w-full items-center justify-between cursor-move select-none flex-nowrap no-wrap shrink-0 border-b').style(
-                            'min-height: 38px; padding-right: 8px; background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
+                        'min-height: 38px; padding-right: 8px; background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
 
                         with ui.row().classes(
                                 'flex-grow flex-nowrap overflow-x-auto no-scrollbar gap-0 h-full items-end'):
@@ -411,17 +427,19 @@ async def render_single_ssh_view(server_conf):
 
                                     with ui.row().classes(
                                             'px-3 py-2 items-center gap-2 cursor-pointer border-r transition-colors flex-nowrap group').style(
-                                            f'height: 100%; background: {bg_color}; border-right-color: var(--xf-card-border); border-top: 2px solid {border};'):
+                                        f'height: 100%; background: {bg_color}; border-right-color: var(--xf-card-border); border-top: 2px solid {border};'):
                                         ui.icon('description', size='xs').style(f'color: {txt_color};')
                                         ui.label(f['name']).classes(
-                                            'text-[12px] truncate max-w-[180px] font-mono select-none').style(f'color: {txt_color};').on(
+                                            'text-[12px] truncate max-w-[180px] font-mono select-none').style(
+                                            f'color: {txt_color};').on(
                                             'click', lambda _, path=p: switch_tab(path))
 
                                         if f['content'] != f['saved_content']:
                                             ui.element('div').classes('w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0')
 
                                         ui.icon('close', size='xs').classes(
-                                            'opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0').style('color: var(--xf-text-muted);').on(
+                                            'opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0').style(
+                                            'color: var(--xf-text-muted);').on(
                                             'click', lambda _, path=p: close_tab(path))
 
                             editor_state['refresh_tabs'] = render_editor_tabs.refresh
@@ -430,9 +448,11 @@ async def render_single_ssh_view(server_conf):
                         with ui.row().classes('gap-2 shrink-0 items-center pl-2'):
                             ui.button('保存 (Save)', icon='save', on_click=save_active_file).props(
                                 'flat dense').classes(
-                                'font-bold px-3 py-1 rounded text-[12px]').style('color: #22c55e; background: var(--xf-soft-bg);')
+                                'font-bold px-3 py-1 rounded text-[12px]').style(
+                                'color: #22c55e; background: var(--xf-soft-bg);')
                             ui.button('关闭 (Close)', icon='close', on_click=close_all).props('flat dense').classes(
-                                'px-3 py-1 rounded text-[12px]').style('color: var(--xf-text-muted); background: var(--xf-soft-bg);')
+                                'px-3 py-1 rounded text-[12px]').style(
+                                'color: var(--xf-text-muted); background: var(--xf-soft-bg);')
 
                     with ui.element('div').classes('w-full relative flex-grow').style(
                             'min-height: 0; flex: 1 1 auto; background: var(--xf-panel-bg);'):
@@ -562,17 +582,22 @@ async def render_single_ssh_view(server_conf):
         target_name = entry.get('name', '未知目标')
         target_path = entry.get('path', '')
         target_type = '目录' if entry.get('is_dir') else '文件'
-        with ui.dialog() as d, ui.card().classes('w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm border').style('background: var(--xf-panel-bg); border-color: #fda4af; box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
-            with ui.column().classes('w-full p-5 gap-3 border-b').style('background: linear-gradient(to right, color-mix(in srgb, #fb7185 14%, var(--xf-panel-bg)), var(--xf-panel-bg)); border-color: #fda4af;'):
+        with ui.dialog() as d, ui.card().classes(
+                'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm border').style(
+                'background: var(--xf-panel-bg); border-color: #fda4af; box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+            with ui.column().classes('w-full p-5 gap-3 border-b').style(
+                    'background: linear-gradient(to right, color-mix(in srgb, #fb7185 14%, var(--xf-panel-bg)), var(--xf-panel-bg)); border-color: #fda4af;'):
                 with ui.row().classes('items-center gap-3 text-rose-400'):
-                    with ui.element('div').classes('w-9 h-9 rounded-sm flex items-center justify-center bg-[#14070b] border border-rose-900/60 shadow-[0_0_8px_rgba(0,0,0,0.7)] relative overflow-hidden'):
+                    with ui.element('div').classes(
+                            'w-9 h-9 rounded-sm flex items-center justify-center bg-[#14070b] border border-rose-900/60 shadow-[0_0_8px_rgba(0,0,0,0.7)] relative overflow-hidden'):
                         ui.element('div').classes('absolute inset-0 bg-rose-400/10')
                         ui.icon('delete_sweep').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
                     with ui.column().classes('gap-0'):
                         ui.label('删除确认').classes('text-lg font-black tracking-wide')
                         ui.label('目录将递归删除，操作不可恢复。').classes('text-[10px] text-slate-400 tracking-wide')
             with ui.column().classes('w-full p-5 gap-3').style('background: var(--xf-bg-main);'):
-                ui.label(f'确定删除{target_type} [{target_name}] 吗？').classes('text-sm font-bold').style('color: var(--xf-text-strong);')
+                ui.label(f'确定删除{target_type} [{target_name}] 吗？').classes('text-sm font-bold').style(
+                    'color: var(--xf-text-strong);')
 
             async def do_delete():
                 try:
@@ -586,20 +611,28 @@ async def render_single_ssh_view(server_conf):
                 except Exception as e:
                     safe_notify(f'删除失败: {e}', 'negative')
 
-            with ui.row().classes('w-full justify-end gap-2 p-4 border-t').style('border-color: #fda4af; background: color-mix(in srgb, #fb7185 10%, var(--xf-panel-bg));'):
-                ui.button('取消', on_click=d.close).props('outline color=grey').classes('text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-white text-xs font-bold tracking-wide rounded-sm')
+            with ui.row().classes('w-full justify-end gap-2 p-4 border-t').style(
+                    'border-color: #fda4af; background: color-mix(in srgb, #fb7185 10%, var(--xf-panel-bg));'):
+                ui.button('取消', on_click=d.close).props('outline color=grey').classes(
+                    'text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-white text-xs font-bold tracking-wide rounded-sm')
                 ui.button('删除', icon='delete', on_click=do_delete).props('flat').classes(
                     'bg-rose-950/45 text-rose-300 border border-rose-500/45 hover:bg-rose-900/55 hover:shadow-[0_0_12px_rgba(244,63,94,0.28)] px-5 font-black text-xs tracking-wide rounded-sm' if is_dark else 'bg-rose-100 text-rose-700 border border-rose-300 hover:bg-rose-200 px-5 font-black text-xs tracking-wide rounded-sm')
         d.open()
 
     def open_create_dialog(kind):
         label = '文件夹' if kind == 'dir' else '文件'
-        with ui.dialog() as d, ui.card().classes('w-[420px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm border').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
-            with ui.column().classes('w-full p-5 gap-3 border-b').style('background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border);'):
-                ui.label(f'新建{label}').classes('text-lg font-black tracking-wide').style('color: var(--xf-text-strong);')
+        with ui.dialog() as d, ui.card().classes(
+                'w-[420px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm border').style(
+                'background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+            with ui.column().classes('w-full p-5 gap-3 border-b').style(
+                    'background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border);'):
+                ui.label(f'新建{label}').classes('text-lg font-black tracking-wide').style(
+                    'color: var(--xf-text-strong);')
             with ui.column().classes('w-full p-5 gap-4').style('background: var(--xf-bg-main);'):
-                with ui.element('div').classes('w-full rounded-sm border px-3 py-2 transition-all').style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.10);'):
-                    name_input = ui.input('名称').classes('w-full').props('dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
+                with ui.element('div').classes('w-full rounded-sm border px-3 py-2 transition-all').style(
+                        'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.10);'):
+                    name_input = ui.input('名称').classes('w-full').props(
+                        'dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
 
             async def create_target():
                 name = (name_input.value or '').strip()
@@ -619,8 +652,10 @@ async def render_single_ssh_view(server_conf):
                 except Exception as e:
                     safe_notify(f'创建失败: {e}', 'negative')
 
-            with ui.row().classes('w-full justify-end gap-2 p-4 border-t').style('border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
-                ui.button('取消', on_click=d.close).props('outline color=grey').classes('text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-white text-xs font-bold tracking-wide rounded-sm')
+            with ui.row().classes('w-full justify-end gap-2 p-4 border-t').style(
+                    'border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
+                ui.button('取消', on_click=d.close).props('outline color=grey').classes(
+                    'text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-white text-xs font-bold tracking-wide rounded-sm')
                 ui.button('创建', icon='add', on_click=create_target).props('flat').classes(
                     'bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 hover:shadow-[0_0_12px_rgba(34,211,238,0.32)] px-5 font-black text-xs tracking-wide rounded-sm' if is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 px-5 font-black text-xs tracking-wide rounded-sm')
         d.open()
@@ -628,11 +663,16 @@ async def render_single_ssh_view(server_conf):
     def open_rename_dialog(entry):
         old_name = entry.get('name', '')
         old_path = entry.get('path', '')
-        with ui.dialog() as d, ui.card().classes('w-[420px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm border').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
-            with ui.column().classes('w-full p-5 gap-3 bg-gradient-to-r from-[#0a1526] to-[#050a14] border-b border-[#1e3a5f]/60' if is_dark else 'w-full p-5 gap-3 bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] border-b border-slate-300/90'):
-                ui.label('重命名').classes('text-lg font-black text-slate-100 tracking-wide' if is_dark else 'text-lg font-black text-slate-800 tracking-wide')
+        with ui.dialog() as d, ui.card().classes(
+                'w-[420px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm border').style(
+                'background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+            with ui.column().classes(
+                    'w-full p-5 gap-3 bg-gradient-to-r from-[#0a1526] to-[#050a14] border-b border-[#1e3a5f]/60' if is_dark else 'w-full p-5 gap-3 bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff] border-b border-slate-300/90'):
+                ui.label('重命名').classes(
+                    'text-lg font-black text-slate-100 tracking-wide' if is_dark else 'text-lg font-black text-slate-800 tracking-wide')
             with ui.column().classes('w-full p-5 gap-4').style('background: var(--xf-bg-main);'):
-                with ui.element('div').classes('w-full rounded-sm border px-3 py-2 transition-all').style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.10);'):
+                with ui.element('div').classes('w-full rounded-sm border px-3 py-2 transition-all').style(
+                        'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 12px rgba(15,23,42,0.10);'):
                     new_name_input = ui.input('新名称', value=old_name).classes('w-full').props(
                         'dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
 
@@ -650,9 +690,12 @@ async def render_single_ssh_view(server_conf):
                 except Exception as e:
                     safe_notify(f'重命名失败: {e}', 'negative')
 
-            with ui.row().classes('w-full justify-end gap-2 p-4 border-t').style('border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
-                ui.button('取消', on_click=d.close).props('outline color=grey').classes('text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-white text-xs font-bold tracking-wide rounded-sm')
-                ui.button('确认', on_click=do_rename).props('flat').classes('bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 hover:shadow-[0_0_12px_rgba(34,211,238,0.32)] px-5 font-black text-xs tracking-wide rounded-sm' if is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 px-5 font-black text-xs tracking-wide rounded-sm')
+            with ui.row().classes('w-full justify-end gap-2 p-4 border-t').style(
+                    'border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
+                ui.button('取消', on_click=d.close).props('outline color=grey').classes(
+                    'text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-white text-xs font-bold tracking-wide rounded-sm')
+                ui.button('确认', on_click=do_rename).props('flat').classes(
+                    'bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 hover:shadow-[0_0_12px_rgba(34,211,238,0.32)] px-5 font-black text-xs tracking-wide rounded-sm' if is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 px-5 font-black text-xs tracking-wide rounded-sm')
         d.open()
 
     def open_chmod_dialog(entry):
@@ -673,19 +716,24 @@ async def render_single_ssh_view(server_conf):
         other_x = len(current_mode_str) > 9 and current_mode_str[9] in ('x', 't', 'T')
 
         with ui.dialog() as d, ui.card().classes(
-                'w-[360px] p-0 border overflow-hidden rounded-sm').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+                'w-[360px] p-0 border overflow-hidden rounded-sm').style(
+            'background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
             with ui.row().classes(
-                    'w-full items-center justify-between px-4 py-2 border-b').style('background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border);'):
+                    'w-full items-center justify-between px-4 py-2 border-b').style(
+                'background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border);'):
                 with ui.row().classes('items-center gap-2'):
                     ui.element('div').classes('w-3 h-3 rounded-full bg-[#ff5f56]')
                     ui.element('div').classes('w-3 h-3 rounded-full bg-[#ffbd2e]')
                     ui.element('div').classes('w-3 h-3 rounded-full bg-[#27c93f]')
-                    ui.label('修改文件权限').classes('text-xs font-bold ml-2 tracking-wide').style('color: var(--xf-accent);')
-                ui.button(icon='close', on_click=d.close).props('flat round dense size=xs color=grey').classes('text-slate-400 hover:text-cyan-400 hover:bg-cyan-950/30' if is_dark else 'text-slate-500 hover:text-sky-700 hover:bg-sky-100')
+                    ui.label('修改文件权限').classes('text-xs font-bold ml-2 tracking-wide').style(
+                        'color: var(--xf-accent);')
+                ui.button(icon='close', on_click=d.close).props('flat round dense size=xs color=grey').classes(
+                    'text-slate-400 hover:text-cyan-400 hover:bg-cyan-950/30' if is_dark else 'text-slate-500 hover:text-sky-700 hover:bg-sky-100')
 
             with ui.column().classes('w-full p-5 gap-0').style('background: var(--xf-bg-main);'):
                 ui.label(filename).classes(
-                    'text-xl font-bold mb-4 truncate w-full border-b pb-2').style('color: var(--xf-text-strong); border-color: var(--xf-card-border);')
+                    'text-xl font-bold mb-4 truncate w-full border-b pb-2').style(
+                    'color: var(--xf-text-strong); border-color: var(--xf-card-border);')
 
                 state = {
                     'owner': {'r': owner_r, 'w': owner_w, 'x': owner_x},
@@ -697,10 +745,14 @@ async def render_single_ssh_view(server_conf):
                     with ui.column().classes('w-full gap-1 mb-4'):
                         ui.label(title).classes('text-xs').style('color: var(--xf-text-muted);')
                         with ui.row().classes(
-                                'w-full gap-6 px-3 py-2 rounded-md border items-center justify-start').style('background: var(--xf-elevated-bg); border-color: var(--xf-card-border);'):
-                            state[key]['r_chk'] = ui.checkbox('读取', value=state[key]['r']).classes('text-sm').style('color: var(--xf-text-strong);')
-                            state[key]['w_chk'] = ui.checkbox('写入', value=state[key]['w']).classes('text-sm').style('color: var(--xf-text-strong);')
-                            state[key]['x_chk'] = ui.checkbox('执行', value=state[key]['x']).classes('text-sm').style('color: var(--xf-text-strong);')
+                                'w-full gap-6 px-3 py-2 rounded-md border items-center justify-start').style(
+                            'background: var(--xf-elevated-bg); border-color: var(--xf-card-border);'):
+                            state[key]['r_chk'] = ui.checkbox('读取', value=state[key]['r']).classes('text-sm').style(
+                                'color: var(--xf-text-strong);')
+                            state[key]['w_chk'] = ui.checkbox('写入', value=state[key]['w']).classes('text-sm').style(
+                                'color: var(--xf-text-strong);')
+                            state[key]['x_chk'] = ui.checkbox('执行', value=state[key]['x']).classes('text-sm').style(
+                                'color: var(--xf-text-strong);')
 
                 make_checkbox_group('所有者 (Owner)', 'owner')
                 make_checkbox_group('组 (Group)', 'group')
@@ -755,31 +807,37 @@ async def render_single_ssh_view(server_conf):
     def make_open_handler(entry):
         async def handler(e=None):
             await handle_entry_open(entry)
+
         return handler
 
     def make_edit_handler(entry):
         async def handler(e=None):
             await open_file_editor(entry)
+
         return handler
 
     def make_download_handler(entry):
         async def handler(e=None):
             await download_entry(entry)
+
         return handler
 
     def make_delete_handler(entry):
         async def handler(e=None):
             await confirm_delete_entry(entry)
+
         return handler
 
     def make_rename_handler(entry):
         async def handler(e=None):
             open_rename_dialog(entry)
+
         return handler
 
     def make_chmod_handler(entry):
         async def handler(e=None):
             open_chmod_dialog(entry)
+
         return handler
 
     @ui.refreshable
@@ -795,13 +853,15 @@ async def render_single_ssh_view(server_conf):
             row_classes += ' bg-transparent'
 
             with ui.column().classes('w-full gap-0'):
-                with ui.row().classes(row_classes).style(f'padding-left: {5 + depth * 16}px; background: {"var(--xf-soft-bg)" if is_selected else "transparent"};'):
+                with ui.row().classes(row_classes).style(
+                        f'padding-left: {5 + depth * 16}px; background: {"var(--xf-soft-bg)" if is_selected else "transparent"};'):
                     ui.button(icon='expand_more' if is_expanded else 'chevron_right',
                               on_click=lambda _, p=path: toggle_tree_node(p)).props(
                         'flat dense round size=xs color=grey').classes('!min-w-0 !p-0 opacity-80 shrink-0')
 
                     ui.icon('folder_open' if is_expanded else 'folder').classes('text-amber-400 text-[18px] shrink-0')
-                    ui.label(display_name).classes('text-[14px] cursor-pointer select-none truncate').style('color: var(--xf-text-strong);').on(
+                    ui.label(display_name).classes('text-[14px] cursor-pointer select-none truncate').style(
+                        'color: var(--xf-text-strong);').on(
                         'click', lambda _, p=path: select_tree_node(p))
 
                 if loading:
@@ -811,7 +871,8 @@ async def render_single_ssh_view(server_conf):
                     for child in sorted_children:
                         node(child.get('path', '/'), depth + 1)
 
-        with ui.column().classes('w-full gap-0 p-1 h-full overflow-hidden flex-nowrap').style('background: var(--xf-code-bg);'):
+        with ui.column().classes('w-full gap-0 p-1 h-full overflow-hidden flex-nowrap').style(
+                'background: var(--xf-code-bg);'):
             node('/')
 
     @ui.refreshable
@@ -819,14 +880,21 @@ async def render_single_ssh_view(server_conf):
         entries = file_state.get('entries', [])
         sorted_entries = sorted(entries, key=lambda x: (not x.get('is_dir'), x.get('name', '').lower()))
 
-        with ui.column().classes('w-full gap-0 h-full overflow-hidden flex-nowrap').style('background: var(--xf-panel-bg);'):
+        with ui.column().classes('w-full gap-0 h-full overflow-hidden flex-nowrap').style(
+                'background: var(--xf-panel-bg);'):
             with ui.row().classes(
-                    'w-full items-center px-2 py-2 text-[13px] border-b flex-nowrap no-wrap tracking-wider').style('color: var(--xf-text-muted); border-color: var(--xf-card-border); background: var(--xf-soft-bg);'):
-                ui.label('文件名').classes('w-[26%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
-                ui.label('大小').classes('w-[12%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
-                ui.label('类型').classes('w-[12%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
-                ui.label('修改时间').classes('w-[20%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
-                ui.label('权限').classes('w-[13%] border-r pl-2 truncate font-bold').style('border-color: var(--xf-card-border);')
+                    'w-full items-center px-2 py-2 text-[13px] border-b flex-nowrap no-wrap tracking-wider').style(
+                'color: var(--xf-text-muted); border-color: var(--xf-card-border); background: var(--xf-soft-bg);'):
+                ui.label('文件名').classes('w-[26%] border-r pl-2 truncate font-bold').style(
+                    'border-color: var(--xf-card-border);')
+                ui.label('大小').classes('w-[12%] border-r pl-2 truncate font-bold').style(
+                    'border-color: var(--xf-card-border);')
+                ui.label('类型').classes('w-[12%] border-r pl-2 truncate font-bold').style(
+                    'border-color: var(--xf-card-border);')
+                ui.label('修改时间').classes('w-[20%] border-r pl-2 truncate font-bold').style(
+                    'border-color: var(--xf-card-border);')
+                ui.label('权限').classes('w-[13%] border-r pl-2 truncate font-bold').style(
+                    'border-color: var(--xf-card-border);')
                 ui.label('用户/用户组').classes('w-[17%] pl-2 truncate font-bold')
 
             if file_state.get('loading'):
@@ -847,7 +915,8 @@ async def render_single_ssh_view(server_conf):
 
                 with ui.row().classes(row_classes) as row:
                     with ui.context_menu().classes(
-                            'text-[14px] font-bold min-w-[140px] border').style('background: var(--xf-panel-bg); color: var(--xf-text-strong); border-color: var(--xf-card-border);'):
+                            'text-[14px] font-bold min-w-[140px] border').style(
+                        'background: var(--xf-panel-bg); color: var(--xf-text-strong); border-color: var(--xf-card-border);'):
                         if is_dir:
                             ui.menu_item('📂 打开 (Open)', on_click=make_open_handler(item)).classes(
                                 'hover:bg-slate-700 py-1.5' if is_dark else 'hover:bg-sky-50 py-1.5')
@@ -877,30 +946,39 @@ async def render_single_ssh_view(server_conf):
                         icon_name = 'folder' if is_dir else 'description'
                         icon_color = 'text-amber-400' if is_dir else 'text-cyan-400'
                         ui.icon(icon_name).classes(f'{icon_color} text-[18px] shrink-0')
-                        ui.label(item.get('name', '')).classes('truncate text-[14px]').style('color: var(--xf-text-strong);')
+                        ui.label(item.get('name', '')).classes('truncate text-[14px]').style(
+                            'color: var(--xf-text-strong);')
 
                     size_str = '' if is_dir else format_file_size(item.get('size', 0))
-                    ui.label(size_str).classes('w-[12%] text-[13px] pl-2 truncate').style('color: var(--xf-text-muted);')
+                    ui.label(size_str).classes('w-[12%] text-[13px] pl-2 truncate').style(
+                        'color: var(--xf-text-muted);')
 
                     type_str = '文件夹' if is_dir else '文件'
-                    ui.label(type_str).classes('w-[12%] text-[13px] pl-2 truncate').style('color: var(--xf-text-muted);')
+                    ui.label(type_str).classes('w-[12%] text-[13px] pl-2 truncate').style(
+                        'color: var(--xf-text-muted);')
 
-                    ui.label(format_mtime(item.get('mtime', 0))).classes('w-[20%] text-[13px] pl-2 truncate').style('color: var(--xf-text-subtle);')
+                    ui.label(format_mtime(item.get('mtime', 0))).classes('w-[20%] text-[13px] pl-2 truncate').style(
+                        'color: var(--xf-text-subtle);')
 
-                    ui.label(item.get('mode', '--')).classes('w-[13%] text-[13px] font-mono pl-2 truncate').style('color: var(--xf-text-muted);')
+                    ui.label(item.get('mode', '--')).classes('w-[13%] text-[13px] font-mono pl-2 truncate').style(
+                        'color: var(--xf-text-muted);')
 
                     owner_str = item.get('owner', 'root/root')
-                    ui.label(owner_str).classes('w-[17%] text-[13px] pl-2 truncate').style('color: var(--xf-text-muted);')
+                    ui.label(owner_str).classes('w-[17%] text-[13px] pl-2 truncate').style(
+                        'color: var(--xf-text-muted);')
 
                 row.on('dblclick', make_open_handler(item))
 
     with content_container:
         # 外层容器：overflow-hidden 保证总高度不变
-        with ui.column().classes('w-full max-w-[1440px] mx-auto h-full flex flex-col gap-0 flex-nowrap overflow-hidden').props(f'id="{outer_column_id}"'):
+        with ui.column().classes(
+                'w-full max-w-[1440px] mx-auto h-full flex flex-col gap-0 flex-nowrap overflow-hidden').props(
+                f'id="{outer_column_id}"'):
 
             # ── SSH 终端卡片 ──────────────────────────────────────────
             with ui.card().classes(
-                    'w-full p-0 rounded-sm border border-t-[3px] overflow-hidden flex flex-col flex-shrink-0').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+                    'w-full p-0 rounded-sm border border-t-[3px] overflow-hidden flex flex-col flex-shrink-0').style(
+                'background: var(--xf-panel-bg); border-color: var(--xf-card-border); border-top-color: var(--xf-accent); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
 
                 conn_state = {'connected': True}
 
@@ -939,9 +1017,11 @@ async def render_single_ssh_view(server_conf):
                         btn.tooltip('点击重连 SSH')
 
                 with ui.row().classes(
-                        'w-full items-center justify-between px-4 py-3 border-b').style('border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
+                        'w-full items-center justify-between px-4 py-3 border-b').style(
+                    'border-color: var(--xf-card-border); background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg));'):
                     with ui.row().classes('items-center gap-3'):
-                        ui.icon('terminal').classes('drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]').style('color: var(--xf-accent);')
+                        ui.icon('terminal').classes('drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]').style(
+                            'color: var(--xf-accent);')
                         with ui.column().classes('gap-0'):
                             raw_host = server_conf.get('ssh_host') or \
                                        server_conf.get('url', '').replace('http://', '').replace('https://', '').split(
@@ -954,13 +1034,17 @@ async def render_single_ssh_view(server_conf):
                                 except:
                                     display_ip = raw_host
 
-                            ui.label(f"SSH Console · {server_conf.get('ssh_user', 'root')}@{display_ip}").classes('font-black tracking-wide').style('color: var(--xf-text-strong);')
-                            ui.label(server_conf.get('name', '未命名服务器')).classes('text-xs').style('color: var(--xf-accent); opacity: 0.75;')
+                            ui.label(f"SSH Console · {server_conf.get('ssh_user', 'root')}@{display_ip}").classes(
+                                'font-black tracking-wide').style('color: var(--xf-text-strong);')
+                            ui.label(server_conf.get('name', '未命名服务器')).classes('text-xs').style(
+                                'color: var(--xf-accent); opacity: 0.75;')
 
                     with ui.row().classes('items-center gap-2'):
                         render_conn_btn()
                         ui.button('返回详情', icon='arrow_back', on_click=_back_to_detail).props(
-                            'flat size=sm').classes('px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
+                            'flat size=sm').classes(
+                            'px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style(
+                            'background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
 
                 # 终端容器：加上唯一 ID，供 JS 拖拽调整高度
                 terminal_box = ui.element('div').classes('w-full overflow-hidden').props(
@@ -973,47 +1057,57 @@ async def render_single_ssh_view(server_conf):
             # ── 拖拽把手 ─────────────────────────────────────────────
             with ui.element('div').props(f'id="{resize_handle_id}"').classes(
                     'w-full flex items-center justify-center cursor-row-resize select-none flex-shrink-0').style(
-                    'height: 10px; margin-top: 4px; background: var(--xf-soft-bg); '
-                    'border-top: 1px solid var(--xf-card-border); border-bottom: 1px solid var(--xf-card-border);'):
+                'height: 10px; margin-top: 4px; background: var(--xf-soft-bg); '
+                'border-top: 1px solid var(--xf-card-border); border-bottom: 1px solid var(--xf-card-border);'):
                 ui.element('div').classes('w-20 h-1 rounded-full').style(
                     'background: var(--xf-accent); opacity: 0.45;')
 
             # ── 快捷命令卡片 ──────────────────────────────────────────
             with ui.card().classes(
                     'w-full px-4 py-2 rounded-sm border overflow-hidden flex flex-col flex-shrink-0').style(
-                    'margin-top: 4px; background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+                'margin-top: 4px; background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
                 render_quick_commands()
 
             # ── 文件浏览器卡片：JS 动态计算高度填满剩余空间 ───────────
             with ui.card().props(f'id="{file_panel_id}"').classes(
-                    'w-full p-0 rounded-sm border overflow-hidden flex flex-col').style(
-                    'min-height: 280px; margin-top: 4px; background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
+                    'w-full flex-1 min-h-0 p-0 rounded-sm border overflow-hidden flex flex-col').style(
+                'min-height: 280px; margin-top: 4px; background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 10px 28px rgba(15,23,42,0.18);'):
                 with ui.row().classes(
-                        'w-full items-center justify-between px-3 py-2 border-b gap-2 flex-nowrap').style('background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border);'):
+                        'w-full items-center justify-between px-3 py-2 border-b gap-2 flex-nowrap').style(
+                    'background: linear-gradient(to right, var(--xf-soft-bg), var(--xf-code-bg)); border-color: var(--xf-card-border);'):
                     path_input = ui.input(value=file_state['current_path']).classes(
-                        'flex-grow text-xs h-8 min-w-[200px]').props('dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
+                        'flex-grow text-xs h-8 min-w-[200px]').props(
+                        'dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
 
                     with ui.row().classes('items-center gap-1 flex-nowrap no-wrap'):
-                        ui.button('历史').props('outline dense size=sm color=grey').classes('h-7 hidden sm:block rounded-sm').style('color: var(--xf-text-muted); border-color: var(--xf-card-border);')
+                        ui.button('历史').props('outline dense size=sm color=grey').classes(
+                            'h-7 hidden sm:block rounded-sm').style(
+                            'color: var(--xf-text-muted); border-color: var(--xf-card-border);')
                         ui.button(icon='refresh',
                                   on_click=lambda: refresh_remote_dir(file_state['current_path'])).props(
-                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style('color: var(--xf-text-muted);').tooltip('刷新')
+                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style(
+                            'color: var(--xf-text-muted);').tooltip('刷新')
                         ui.button(icon='arrow_upward', on_click=go_parent_dir).props(
-                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style('color: var(--xf-text-muted);').tooltip('返回上级')
+                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style(
+                            'color: var(--xf-text-muted);').tooltip('返回上级')
 
                         hidden_uploader = ui.upload(on_upload=handle_direct_upload, multiple=True).props(
                             'auto-upload').style('display: none;')
                         ui.button(icon='file_upload', on_click=lambda: ui.run_javascript(
                             f'document.getElementById("c{hidden_uploader.id}").querySelector("input[type=file]").click()')).props(
-                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style('color: var(--xf-text-muted);').tooltip('上传文件')
+                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style(
+                            'color: var(--xf-text-muted);').tooltip('上传文件')
 
                         ui.button(icon='create_new_folder', on_click=lambda: open_create_dialog('dir')).props(
-                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style('color: #10b981;').tooltip('新建目录')
+                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style(
+                            'color: #10b981;').tooltip('新建目录')
                         ui.button(icon='note_add', on_click=lambda: open_create_dialog('file')).props(
-                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style('color: var(--xf-accent);').tooltip('新建文件')
+                            'flat dense size=sm color=grey').classes('h-7 w-7 rounded-sm').style(
+                            'color: var(--xf-accent);').tooltip('新建文件')
 
                 with ui.row().classes('w-full min-h-0 flex-grow flex-nowrap no-wrap gap-0'):
-                    with ui.column().classes('w-[25%] min-w-[150px] h-full border-r').style('border-right-color: var(--xf-card-border); background: var(--xf-code-bg);'):
+                    with ui.column().classes('w-[25%] min-w-[150px] h-full border-r').style(
+                            'border-right-color: var(--xf-card-border); background: var(--xf-code-bg);'):
                         with ui.scroll_area().classes('w-full h-full'):
                             render_tree()
 
@@ -1036,11 +1130,13 @@ async def render_single_ssh_view(server_conf):
                 return;
             }}
 
-            // ① 锁定 outerCol 的高度 = 视口高度 - outerCol 距视口顶部的距离 - 底部留白(16px)
-            //    这样无论 NiceGUI 的 flex 链是否传递，outerCol 都有一个精确的像素高度
+            // ① 锁定 outerCol 的高度 = 视口高度 - outerCol 距视口顶部的距离 - 底部留白
+            //    底部留白 = 16px(padding) + 快捷命令卡片高度，让页面底部留出一段空余
             function lockOuterHeight() {{
-                const top = outerCol.getBoundingClientRect().top;
-                const h   = window.innerHeight - top - 16;
+                const top     = outerCol.getBoundingClientRect().top;
+                const cmdCard = filePanelCard.previousElementSibling;
+                const cmdH    = cmdCard ? cmdCard.getBoundingClientRect().height : 40;
+                const h       = window.innerHeight - top - 16 - cmdH / 2;
                 outerCol.style.height    = h + 'px';
                 outerCol.style.maxHeight = h + 'px';
                 outerCol.style.overflow  = 'hidden';
@@ -1116,9 +1212,9 @@ async def render_single_ssh_view(server_conf):
                 recalcFilePanelHeight();
             }});
 
-        }}, 800);
+        }}, 50);
     ''')
-
+    
     ui.timer(0.05, lambda: _start_terminal(terminal_box), once=True)
     ui.timer(0.05, lambda: ensure_tree_children('/'), once=True)
     ui.timer(0.05, lambda: refresh_remote_dir('/'), once=True)
