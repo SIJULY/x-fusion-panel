@@ -717,6 +717,11 @@ def main_page(request: Request):
 
     ui.timer(1.0, auto_init_system_settings, once=True)
 
+    try:
+        page_client = ui.context.client
+    except:
+        page_client = None
+
     async def restore_last_view():
         from app.ui.components.dashboard import load_dashboard_stats
         from app.ui.pages.content_router import refresh_content
@@ -744,8 +749,8 @@ def main_page(request: Request):
             logger.info("[MainPage] restore_last_view branch=SUBS")
             await load_subs_view()
         else:
-            logger.info(f"[MainPage] restore_last_view branch={last_scope} target_data={target_data}")
-            await refresh_content(last_scope, target_data, page_num=last_page)
+            logger.info(f"[MainPage] restore_last_view branch={last_scope} target_data={target_data} client_present={page_client is not None}")
+            await refresh_content(last_scope, target_data, page_num=last_page, manual_client=page_client)
         logger.info(f'♻️ 自动恢复视图: {last_scope}')
 
     ui.timer(0.1, lambda: asyncio.create_task(restore_last_view()), once=True)
