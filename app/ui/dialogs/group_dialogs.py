@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from nicegui import app, ui
 
@@ -147,49 +148,45 @@ def open_group_sort_dialog():
         safe_notify("暂无自定义视图", "warning")
         return
 
-    temp_list = list(current_groups)
+    dialog_card_cls = 'w-[420px] max-w-[95vw] h-[60vh] flex flex-col p-0 gap-0 overflow-hidden rounded-sm'
+    dialog_card_style = (
+        'background: rgba(7, 11, 20, 0.8); border-color: rgba(30, 58, 95, 0.55); '
+        'backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);'
+        if theme['is_dark'] else
+        'background: rgba(255, 255, 255, 0.8); border-color: rgba(203, 213, 225, 0.9); '
+        'backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);'
+    )
 
-    with ui.dialog() as d, ui.card().classes(f'w-[400px] max-w-[95vw] h-[60vh] flex flex-col p-0 gap-0 overflow-hidden rounded-sm {theme["card"]}'):
+    with ui.dialog() as d, ui.card().classes(f'{dialog_card_cls} {theme["card"]}').style(dialog_card_style):
         with ui.row().classes(f'w-full p-4 border-b justify-between items-center flex-shrink-0 {theme["header"]}'):
             with ui.row().classes('items-center gap-2'):
-                ui.icon('sort').classes('text-lg text-cyan-400')
-                ui.label('视图排序').classes(f'font-black text-base tracking-wide {theme["title"]}')
+                ui.icon('sort').classes('text-lg text-cyan-400' if theme['is_dark'] else 'text-lg text-sky-600')
+                with ui.column().classes('gap-0'):
+                    ui.label('视图排序').classes(f'font-black text-base tracking-wide {theme["title"]}')
+                    ui.label('拖动分组即可调整显示顺序').classes(f'text-[11px] {theme["muted"]}')
             ui.button(icon='close', on_click=d.close).props('flat round dense color=grey').classes(theme['btn_close'])
 
         with ui.scroll_area().classes('w-full flex-grow p-3'):
-            list_container = ui.column().classes('w-full gap-2')
-
-        def render_list():
-            list_container.clear()
-            with list_container:
-                for i, name in enumerate(temp_list):
-                    with ui.row().classes('w-full p-3 items-center gap-3 border rounded-sm shadow-sm transition-all hover:border-cyan-500/45 ' + theme['row_idle']):
-                        ui.label(str(i + 1)).classes('text-xs text-slate-500 font-mono w-4 text-center font-bold')
-                        ui.label(name).classes(f'font-bold flex-grow text-sm truncate {theme["text"]}')
-
-                        with ui.row().classes('gap-1'):
-                            if i > 0:
-                                ui.button(icon='arrow_upward', on_click=lambda _, idx=i: move_item(idx, -1)) \
-                                    .props('flat dense round size=xs color=blue-4').classes('hover:bg-cyan-950/30 hover:text-cyan-300')
-                            else:
-                                ui.element('div').classes('w-6')
-
-                            if i < len(temp_list) - 1:
-                                ui.button(icon='arrow_downward', on_click=lambda _, idx=i: move_item(idx, 1)) \
-                                    .props('flat dense round size=xs color=blue-4').classes('hover:bg-cyan-950/30 hover:text-cyan-300')
-                            else:
-                                ui.element('div').classes('w-6')
-
-        def move_item(index, direction):
-            target = index + direction
-            if 0 <= target < len(temp_list):
-                temp_list[index], temp_list[target] = temp_list[target], temp_list[index]
-                render_list()
-
-        render_list()
+            with ui.column().props('id=probe-group-sort-list').classes('w-full gap-2'):
+                for i, name in enumerate(current_groups):
+                    with ui.element('div').props(f'data-group-name={json.dumps(name, ensure_ascii=False)}').classes('probe-group-sort-item w-full'):
+                        with ui.row().classes(
+                                'probe-group-sort-handle w-full p-3 items-center gap-3 border rounded-sm shadow-sm transition-all cursor-grab active:cursor-grabbing select-none ' + theme['row_idle'] + (' hover:border-cyan-500/45' if theme['is_dark'] else ' hover:border-sky-300')):
+                            ui.icon('drag_indicator').classes('text-slate-500')
+                            ui.label(str(i + 1)).classes('text-xs text-slate-500 font-mono w-4 text-center font-bold')
+                            ui.label(name).classes(f'font-bold flex-grow text-sm truncate {theme["text"]}')
 
         async def save():
-            ADMIN_CONFIG['probe_custom_groups'] = temp_list
+            sorted_names = await ui.run_javascript('''
+                return Array.from(document.querySelectorAll('#probe-group-sort-list .probe-group-sort-item'))
+                    .map(el => el.dataset.groupName)
+                    .filter(Boolean);
+            ''', timeout=3.0)
+
+            if not isinstance(sorted_names, list) or not sorted_names:
+                sorted_names = list(current_groups)
+
+            ADMIN_CONFIG['probe_custom_groups'] = sorted_names
             await save_admin_config()
             safe_notify("✅ 分组顺序已更新", "positive")
             d.close()
@@ -203,7 +200,90 @@ def open_group_sort_dialog():
         with ui.row().classes(f'w-full p-4 border-t flex-shrink-0 {theme["header"]}'):
             ui.button('保存顺序', icon='save', on_click=save).props('flat').classes('w-full ' + theme['btn_primary'].replace(' px-4', ''))
 
+    ui.run_javascript('''
+        (function() {
+            function ensureStyle() {
+                if (document.getElementById('xf-probe-sort-style')) return;
+                const style = document.createElement('style');
+                style.id = 'xf-probe-sort-style';
+                style.textContent = `
+                    .xf-probe-drag-ghost { opacity: 0.22 !important; }
+                    .xf-probe-drag-chosen { transform: scale(1.01); }
+                    .xf-probe-drag-active {
+                        opacity: 0.96 !important;
+                        transform: scale(1.015);
+                        filter: drop-shadow(0 14px 24px rgba(15, 23, 42, 0.28));
+                        z-index: 9999 !important;
+                    }
+                    .probe-group-sort-handle {
+                        touch-action: none;
+                        user-select: none;
+                        -webkit-user-select: none;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            function ensureSortableScript() {
+                if (window.Sortable) return Promise.resolve(window.Sortable);
+                if (!window.__xfProbeSortableLoading) {
+                    window.__xfProbeSortableLoading = new Promise((resolve, reject) => {
+                        const existing = document.getElementById('xf-probe-sortable-script');
+                        if (existing) {
+                            existing.addEventListener('load', () => resolve(window.Sortable));
+                            existing.addEventListener('error', reject);
+                            return;
+                        }
+                        const script = document.createElement('script');
+                        script.id = 'xf-probe-sortable-script';
+                        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
+                        script.onload = () => resolve(window.Sortable);
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+                return window.__xfProbeSortableLoading;
+            }
+
+            function bootSortable(retries) {
+                const container = document.getElementById('probe-group-sort-list');
+                const items = container ? container.querySelectorAll('.probe-group-sort-item') : [];
+                if (!container || !items.length) {
+                    if (retries > 0) setTimeout(() => bootSortable(retries - 1), 180);
+                    return;
+                }
+
+                ensureSortableScript().then(() => {
+                    if (!window.Sortable) return;
+                    if (window.__xfProbeGroupSortable) {
+                        window.__xfProbeGroupSortable.destroy();
+                    }
+                    window.__xfProbeGroupSortable = new window.Sortable(container, {
+                        animation: 220,
+                        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                        handle: '.probe-group-sort-handle',
+                        draggable: '.probe-group-sort-item',
+                        ghostClass: 'xf-probe-drag-ghost',
+                        chosenClass: 'xf-probe-drag-chosen',
+                        dragClass: 'xf-probe-drag-active',
+                        forceFallback: true,
+                        fallbackOnBody: true,
+                        swapThreshold: 0.65,
+                        fallbackTolerance: 3,
+                        scroll: true,
+                        bubbleScroll: true,
+                        scrollSensitivity: 70,
+                        scrollSpeed: 18,
+                    });
+                }).catch(err => console.error('[ProbeGroupSort] SortableJS 加载失败', err));
+            }
+
+            ensureStyle();
+            setTimeout(() => bootSortable(8), 120);
+        })();
+    ''')
     d.open()
+
 
 
 async def _open_server_dialog_by_server(server, client=None):
