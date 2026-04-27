@@ -108,7 +108,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
                         f'color: {accent};')
                     with ui.element('div').classes(
                             'w-1/2 max-w-[190px] ml-auto rounded-none h-[24px] relative overflow-hidden border shrink-0 z-10').style(
-                            'background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
+                        'background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
                         ui.element('div').classes('h-full transition-all duration-500').style(
                             f'width: {pct}%; background: {accent}; box-shadow: 0 0 10px color-mix(in srgb, {accent} 60%, transparent);')
                         ui.label(text).classes(progress_text_class(pct)).style(progress_text_style(pct))
@@ -396,7 +396,9 @@ PY'''
                         })
                         return
 
-                    target_host = server_conf.get('ssh_host') or server_conf.get('url', '').replace('http://', '').replace('https://', '').split(':')[0]
+                    target_host = server_conf.get('ssh_host') or \
+                                  server_conf.get('url', '').replace('http://', '').replace('https://', '').split(':')[
+                                      0]
                     resolved_ip = await run.io_bound(lambda: _sync_resolve_ip(target_host))
                     cloudflare_dns_state['ip'] = resolved_ip or '--'
 
@@ -440,7 +442,8 @@ PY'''
                 ok, result = await run.io_bound(cf_handler.list_zones)
                 zones = [item.get('name', '') for item in (result or []) if item.get('name')] if ok else []
                 if not zones:
-                    zones = cloudflare_dns_state.get('zones', []) or ([] if not cf_handler.root_domain else [cf_handler.root_domain])
+                    zones = cloudflare_dns_state.get('zones', []) or (
+                        [] if not cf_handler.root_domain else [cf_handler.root_domain])
                 if not zones:
                     safe_notify('未获取到 Cloudflare 域名列表，请检查 Token 权限', 'warning')
                     return
@@ -458,13 +461,16 @@ PY'''
                             ui.icon('cloud').classes('text-orange-400 drop-shadow-[0_0_6px_currentColor]')
                             ui.label(dialog_title).classes(
                                 'text-lg font-black text-slate-100 tracking-wide' if dialog_is_dark else 'text-lg font-black text-slate-800 tracking-wide')
-                    with ui.column().classes('w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
+                    with ui.column().classes(
+                            'w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
                         with ui.grid().classes('w-full grid-cols-1 md:grid-cols-2 gap-4'):
-                            name_input = ui.input('名称', value=default_name, placeholder='例如: api 或 @').classes('w-full').props(
+                            name_input = ui.input('名称', value=default_name, placeholder='例如: api 或 @').classes(
+                                'w-full').props(
                                 'outlined dense dark color=cyan standout bg-color="[#050b14]" input-class=text-slate-100' if dialog_is_dark else 'outlined dense color=blue')
                             zone_select = ui.select(zones, value=default_zone, label='域名').classes('w-full').props(
                                 'outlined dense dark color=cyan standout bg-color="[#050b14]" options-dark popup-content-class=bg-[#050b14] input-class=text-slate-100' if dialog_is_dark else 'outlined dense color=blue')
-                        ui.label(f"将解析到当前 VPS IP：{cloudflare_dns_state.get('ip', '--')}").classes('text-[11px]').style(
+                        ui.label(f"将解析到当前 VPS IP：{cloudflare_dns_state.get('ip', '--')}").classes(
+                            'text-[11px]').style(
                             'color: var(--xf-text-muted);')
 
                     async def save_record():
@@ -484,7 +490,7 @@ PY'''
                         cf_handler = CloudflareHandler()
                         if record:
                             ok, msg = await cf_handler.update_a_record(record.get('id', ''), name_val, zone_val, ip_val,
-                                                                      proxied=bool(record.get('proxied', False)))
+                                                                       proxied=bool(record.get('proxied', False)))
                         else:
                             ok, msg = await cf_handler.create_a_record(name_val, zone_val, ip_val, proxied=False)
 
@@ -513,7 +519,8 @@ PY'''
                             ui.icon('delete').classes('text-rose-400 drop-shadow-[0_0_6px_currentColor]')
                             ui.label('删除 A 记录').classes(
                                 'text-lg font-black text-slate-100 tracking-wide' if dialog_is_dark else 'text-lg font-black text-slate-800 tracking-wide')
-                    with ui.column().classes('w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
+                    with ui.column().classes(
+                            'w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
                         ui.label('确认删除下面这条 Cloudflare A 记录吗？').classes('text-sm font-bold').style(
                             'color: var(--xf-text-strong);')
                         with ui.row().classes('items-center gap-2 rounded-sm border px-4 py-3').style(
@@ -524,7 +531,8 @@ PY'''
 
                     async def do_delete():
                         cf_handler = CloudflareHandler()
-                        ok, msg = await cf_handler.delete_record_by_id(record.get('id', ''), record.get('zone_name', ''))
+                        ok, msg = await cf_handler.delete_record_by_id(record.get('id', ''),
+                                                                       record.get('zone_name', ''))
                         if ok:
                             safe_notify('Cloudflare A 记录已删除', 'positive')
                             d.close()
@@ -735,29 +743,32 @@ PY'''
                     await reload_and_refresh_ui()
 
             def open_edit_custom_node(node_data):
+                from nicegui import app
+                dialog_is_dark = bool(app.storage.user.get('is_dark', True))
+
                 with ui.dialog() as d, ui.card().classes(
-                        'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if is_dark else 'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_18px_42px_rgba(148,163,184,0.18)]'):
+                        'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if dialog_is_dark else 'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_18px_42px_rgba(148,163,184,0.18)]'):
                     with ui.column().classes(
-                            'w-full bg-gradient-to-r from-[#0a1526] to-[#050a14] p-5 gap-2 border-b border-[#1e3a5f]/60 relative overflow-hidden' if is_dark else 'w-full bg-gradient-to-r from-[#f8fbff] to-[#eef4ff] p-5 gap-2 border-b border-slate-300/90 relative overflow-hidden'):
+                            'w-full bg-gradient-to-r from-[#0a1526] to-[#050a14] p-5 gap-2 border-b border-[#1e3a5f]/60 relative overflow-hidden' if dialog_is_dark else 'w-full bg-gradient-to-r from-[#f8fbff] to-[#eef4ff] p-5 gap-2 border-b border-slate-300/90 relative overflow-hidden'):
                         ui.element('div').classes(
                             'absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgzNCwyMTEsMjM4LDAuMDcpIi8+PC9zdmc+")] opacity-100 pointer-events-none')
                         with ui.row().classes('items-center gap-3 z-10'):
                             with ui.element('div').classes(
-                                    'w-9 h-9 rounded-sm flex items-center justify-center bg-[#050b14] border border-[#1e3a5f] shadow-[0_0_8px_rgba(0,0,0,0.7)] text-cyan-400 relative overflow-hidden' if is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-sky-50 border border-slate-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] text-sky-600 relative overflow-hidden'):
-                                ui.element('div').classes('absolute inset-0 bg-cyan-400/10')
+                                    'w-9 h-9 rounded-sm flex items-center justify-center bg-[#050b14] border border-[#1e3a5f] shadow-[0_0_8px_rgba(0,0,0,0.7)] text-cyan-400 relative overflow-hidden' if dialog_is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-sky-50 border border-slate-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] text-sky-600 relative overflow-hidden'):
+                                ui.element('div').classes('absolute inset-0 bg-cyan-400/10' if dialog_is_dark else 'absolute inset-0 bg-sky-400/10')
                                 ui.icon('edit_square').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
                             with ui.column().classes('gap-0'):
                                 ui.label('编辑节点备注').classes(
-                                    'text-lg font-black text-slate-100 tracking-wide' if is_dark else 'text-lg font-black text-slate-800 tracking-wide')
+                                    'text-lg font-black text-slate-100 tracking-wide' if dialog_is_dark else 'text-lg font-black text-slate-800 tracking-wide')
                                 ui.label('修改自定义节点名称').classes('text-[10px] text-slate-500 tracking-wide')
                     with ui.column().classes(
-                            'w-full p-5 gap-4 bg-[#030712]' if is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
+                            'w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
                         ui.label('节点名称').classes(
-                            'text-[11px] font-bold text-cyan-500/80 tracking-wide mb-[-6px]' if is_dark else 'text-[11px] font-bold text-sky-700/80 tracking-wide mb-[-6px]')
+                            'text-[11px] font-bold text-cyan-500/80 tracking-wide mb-[-6px]' if dialog_is_dark else 'text-[11px] font-bold text-sky-700/80 tracking-wide mb-[-6px]')
                         with ui.element('div').classes(
-                                'w-full rounded-sm border border-[#1e3a5f]/45 bg-[#08101d]/80 px-3 py-2 shadow-[0_0_8px_rgba(0,0,0,0.35)] transition-all hover:border-cyan-500/35' if is_dark else 'w-full rounded-sm border border-slate-300/90 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(148,163,184,0.10)] transition-all hover:border-sky-400/60'):
+                                'w-full rounded-sm border border-[#1e3a5f]/45 bg-[#08101d]/80 px-3 py-2 shadow-[0_0_8px_rgba(0,0,0,0.35)] transition-all hover:border-cyan-500/35' if dialog_is_dark else 'w-full rounded-sm border border-slate-300/90 bg-white px-3 py-2 shadow-[0_4px_12px_rgba(148,163,184,0.10)] transition-all hover:border-sky-400/60'):
                             name_input = ui.input(value=node_data.get('remark', '')).classes('w-full').props(
-                                'dense outlined dark color=cyan standout' if is_dark else 'dense outlined color=blue')
+                                'dense outlined dark color=cyan standout' if dialog_is_dark else 'dense outlined color=blue')
 
                     async def save():
                         node_data['remark'] = name_input.value.strip()
@@ -767,35 +778,40 @@ PY'''
                         render_node_list.refresh()
 
                     with ui.row().classes(
-                            'w-full justify-end p-4 gap-3 border-t border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1526] to-[#050a14]' if is_dark else 'w-full justify-end p-4 gap-3 border-t border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-[#eef4ff]'):
+                            'w-full justify-end p-4 gap-3 border-t border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1526] to-[#050a14]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-[#eef4ff]'):
                         ui.button('取消', on_click=d.close).props('outline color=grey').classes(
-                            'text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-slate-100 text-xs font-bold tracking-wide rounded-sm')
+                            'text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if dialog_is_dark else 'text-slate-600 border-slate-300 hover:bg-slate-100 text-xs font-bold tracking-wide rounded-sm')
                         ui.button('保存', on_click=save).props('flat').classes(
-                            'bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 hover:shadow-[0_0_12px_rgba(34,211,238,0.32)] px-6 font-black text-xs tracking-wide rounded-sm' if is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 px-6 font-black text-xs tracking-wide rounded-sm')
+                            'bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 hover:shadow-[0_0_12px_rgba(34,211,238,0.32)] px-6 font-black text-xs tracking-wide rounded-sm' if dialog_is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 px-6 font-black text-xs tracking-wide rounded-sm')
                 d.open()
 
             async def uninstall_and_delete(node_data):
+                from nicegui import app
+                dialog_is_dark = bool(app.storage.user.get('is_dark', True))
+
                 with ui.dialog() as d, ui.card().classes(
-                        'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-rose-800/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if is_dark else 'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-rose-300 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
+                        'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-rose-800/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if dialog_is_dark else 'w-[460px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-rose-300 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
                     with ui.column().classes(
-                            'w-full p-5 gap-3 bg-gradient-to-r from-[#19070d] to-[#0b0911] border-b border-rose-900/60 relative overflow-hidden' if is_dark else 'w-full p-5 gap-3 bg-gradient-to-r from-rose-50 to-orange-50 border-b border-rose-200 relative overflow-hidden'):
+                            'w-full p-5 gap-3 bg-gradient-to-r from-[#19070d] to-[#0b0911] border-b border-rose-900/60 relative overflow-hidden' if dialog_is_dark else 'w-full p-5 gap-3 bg-gradient-to-r from-rose-50 to-orange-50 border-b border-rose-200 relative overflow-hidden'):
                         ui.element('div').classes(
                             'absolute inset-0 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0icmdiYSgyNDQsNjMsOTQsMC4wNykiLz48L3N2Zz4=")] opacity-100 pointer-events-none')
                         with ui.row().classes('items-center gap-3 text-rose-400 z-10'):
                             with ui.element('div').classes(
-                                    'w-9 h-9 rounded-sm flex items-center justify-center bg-[#14070b] border border-rose-900/60 shadow-[0_0_8px_rgba(0,0,0,0.7)] relative overflow-hidden'):
+                                    'w-9 h-9 rounded-sm flex items-center justify-center bg-[#14070b] border border-rose-900/60 shadow-[0_0_8px_rgba(0,0,0,0.7)] relative overflow-hidden' if dialog_is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-rose-50 border border-rose-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] relative overflow-hidden'):
                                 ui.element('div').classes('absolute inset-0 bg-rose-400/10')
                                 ui.icon('warning').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
                             with ui.column().classes('gap-0'):
-                                ui.label('卸载并清理环境').classes('font-black text-lg tracking-wide')
+                                ui.label('卸载并清理环境').classes('font-black text-lg tracking-wide').style(
+                                    'color: var(--xf-text-strong);')
                                 ui.label('此操作将删除节点并清理远程服务').classes(
-                                    'text-[10px] text-slate-400 tracking-wide')
+                                    'text-[10px] tracking-wide').style('color: var(--xf-text-muted);')
 
                     with ui.column().classes(
-                            'w-full p-5 gap-3 bg-[#030712]' if is_dark else 'w-full p-5 gap-3 bg-white'):
+                            'w-full p-5 gap-3 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-3 bg-white'):
                         ui.label(f"目标节点：{node_data.get('remark', '未命名节点')}").classes(
-                            'text-sm text-slate-200 font-bold')
-                        ui.label('确认后将执行卸载脚本，并从当前服务器节点列表中移除。').classes('text-xs text-slate-400')
+                            'text-sm font-bold').style('color: var(--xf-text-strong);')
+                        ui.label('确认后将执行卸载脚本，并从当前服务器节点列表中移除。').classes('text-xs').style(
+                            'color: var(--xf-text-muted);')
 
                     async def start_uninstall():
                         d.close()
@@ -810,11 +826,11 @@ PY'''
                         await reload_and_refresh_ui()
 
                     with ui.row().classes(
-                            'w-full justify-end p-4 gap-3 border-t border-rose-900/40 bg-[#0b0911]' if is_dark else 'w-full justify-end p-4 gap-3 border-t border-rose-200 bg-rose-50'):
+                            'w-full justify-end p-4 gap-3 border-t border-rose-900/40 bg-[#0b0911]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-rose-200 bg-rose-50'):
                         ui.button('取消', on_click=d.close).props('outline color=grey').classes(
-                            'text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-white text-xs font-bold tracking-wide rounded-sm')
+                            'text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if dialog_is_dark else 'text-slate-600 border-slate-300 hover:bg-white text-xs font-bold tracking-wide rounded-sm')
                         ui.button('确认执行', color='red', on_click=start_uninstall).props('flat').classes(
-                            'bg-rose-950/45 text-rose-300 border border-rose-500/45 hover:bg-rose-900/55 hover:shadow-[0_0_12px_rgba(244,63,94,0.28)] px-5 font-black text-xs tracking-wide rounded-sm' if is_dark else 'bg-rose-100 text-rose-700 border border-rose-300 hover:bg-rose-200 px-5 font-black text-xs tracking-wide rounded-sm')
+                            'bg-rose-950/45 text-rose-300 border border-rose-500/45 hover:bg-rose-900/55 hover:shadow-[0_0_12px_rgba(244,63,94,0.28)] px-5 font-black text-xs tracking-wide rounded-sm' if dialog_is_dark else 'bg-rose-100 text-rose-700 border border-rose-300 hover:bg-rose-200 px-5 font-black text-xs tracking-wide rounded-sm')
                 d.open()
 
             # 🛠️ 科技风：重构顶部核心资产卡片
@@ -891,7 +907,8 @@ PY'''
                     with ui.row().classes('items-center gap-2'):
                         ui.icon('query_stats').classes('drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]').style(
                             'color: var(--xf-accent);')
-                        ui.label('VPS 运行信息').classes('text-sm font-black tracking-wide').style('color: var(--xf-text-strong);')
+                        ui.label('VPS 运行信息').classes('text-sm font-black tracking-wide').style(
+                            'color: var(--xf-text-strong);')
 
                     @ui.refreshable
                     def render_sync_status():
@@ -1005,7 +1022,8 @@ PY'''
 
             ui.element('div').classes('h-4 flex-shrink-0')
 
-            with ui.element('div').classes(f'w-full flex-shrink-0 p-0 gap-0 flex flex-col relative z-10 {shell_card_cls}'):
+            with ui.element('div').classes(
+                    f'w-full flex-shrink-0 p-0 gap-0 flex flex-col relative z-10 {shell_card_cls}'):
                 @ui.refreshable
                 def render_cloudflare_dns_card():
                     async def open_new_cloudflare_record(_=None):
@@ -1014,42 +1032,57 @@ PY'''
                     async def open_edit_cloudflare_record(item):
                         await open_cloudflare_record_dialog(item)
 
-                    cf_config_ready = bool(ADMIN_CONFIG.get('cf_api_token', '').strip() and ADMIN_CONFIG.get('cf_root_domain', '').strip())
+                    cf_config_ready = bool(
+                        ADMIN_CONFIG.get('cf_api_token', '').strip() and ADMIN_CONFIG.get('cf_root_domain', '').strip())
 
                     def render_cf_header_actions():
                         add_btn = ui.button('添加记录', icon='add', on_click=open_new_cloudflare_record).props(
-                            'flat size=sm') 
-                        add_btn.classes('px-4 py-1.5 font-bold text-[11px] tracking-wider rounded-sm transition-all border') 
-                        add_btn.style('background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
-                        
+                            'flat size=sm')
+                        add_btn.classes(
+                            'px-4 py-1.5 font-bold text-[11px] tracking-wider rounded-sm transition-all border')
+                        add_btn.style(
+                            'background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
+
                         if not cf_config_ready:
                             add_btn.disable()
                             apply_tooltip(add_btn, '请先完成 Cloudflare API 配置')
 
-                    with ui.row().classes(f'w-full items-center justify-between px-4 py-2 min-h-[48px] {shell_header_cls}'):
+                    with ui.row().classes(
+                            f'w-full items-center justify-between px-4 py-2 min-h-[48px] {shell_header_cls}'):
                         with ui.row().classes('items-center gap-2'):
                             ui.icon('cloud').classes('text-orange-400 drop-shadow-[0_0_5px_rgba(251,146,60,0.8)]')
-                            ui.label('Cloudflare 解析记录').classes('text-sm font-black tracking-wide').style('color: var(--xf-text-strong);')
+                            ui.label('Cloudflare 解析记录').classes('text-sm font-black tracking-wide').style(
+                                'color: var(--xf-text-strong);')
                         with ui.row().classes('items-center justify-end'):
                             render_cf_header_actions()
 
                     # 👇 完美对齐密码 1：强制 33px 对齐上方内部的彩色指标条
                     with ui.column().classes(f'w-full py-4 px-[16px] gap-2 relative {shell_body_cls}'):
                         if not cf_config_ready:
-                            with ui.column().classes('w-full items-center justify-center gap-3 rounded-sm border px-6 py-8 text-center').style(
+                            with ui.column().classes(
+                                    'w-full items-center justify-center gap-3 rounded-sm border px-6 py-8 text-center').style(
                                     'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
-                                ui.icon('cloud_off').classes('text-[28px] text-orange-400 drop-shadow-[0_0_8px_rgba(251,146,60,0.45)]')
+                                ui.icon('cloud_off').classes(
+                                    'text-[28px] text-orange-400 drop-shadow-[0_0_8px_rgba(251,146,60,0.45)]')
                                 ui.label('尚未设置 Cloudflare API 配置').classes('text-sm font-black').style(
                                     'color: var(--xf-text-strong);')
                                 ui.label('请按以下方式创建并填写 API Token 后启用：').classes('text-xs').style(
                                     'color: var(--xf-text-muted);')
-                                with ui.column().classes('w-full max-w-[760px] gap-1 text-left rounded-sm border px-4 py-4').style(
+                                with ui.column().classes(
+                                        'w-full max-w-[760px] gap-1 text-left rounded-sm border px-4 py-4').style(
                                         'background: color-mix(in srgb, var(--xf-soft-bg) 82%, transparent); border-color: var(--xf-card-border);'):
-                                    ui.label('1. 登录 Cloudflare → 右上角头像 → My Profile / 个人资料 → API Tokens').classes('text-[12px]').style('color: var(--xf-text-strong);')
-                                    ui.label('2. 点击 Create Token → Create Custom Token').classes('text-[12px]').style('color: var(--xf-text-strong);')
-                                    ui.label('3. 权限添加：Zone: Read、DNS Settings: Edit、Zone Settings: Edit').classes('text-[12px]').style('color: var(--xf-text-strong);')
-                                    ui.label('4. Zone Resources 选择 Include → All zones').classes('text-[12px]').style('color: var(--xf-text-strong);')
-                                    ui.label('5. 创建后复制 Token，打开面板“系统设置 → Cloudflare API 配置”，填写 Token 并选择根域名后保存').classes('text-[12px]').style('color: var(--xf-text-strong);')
+                                    ui.label(
+                                        '1. 登录 Cloudflare → 右上角头像 → My Profile / 个人资料 → API Tokens').classes(
+                                        'text-[12px]').style('color: var(--xf-text-strong);')
+                                    ui.label('2. 点击 Create Token → Create Custom Token').classes('text-[12px]').style(
+                                        'color: var(--xf-text-strong);')
+                                    ui.label('3. 权限添加：Zone: Read、DNS Settings: Edit、Zone Settings: Edit').classes(
+                                        'text-[12px]').style('color: var(--xf-text-strong);')
+                                    ui.label('4. Zone Resources 选择 Include → All zones').classes('text-[12px]').style(
+                                        'color: var(--xf-text-strong);')
+                                    ui.label(
+                                        '5. 创建后复制 Token，打开面板“系统设置 → Cloudflare API 配置”，填写 Token 并选择根域名后保存').classes(
+                                        'text-[12px]').style('color: var(--xf-text-strong);')
                         elif cloudflare_dns_state.get('loading', False):
                             with ui.row().classes('items-center gap-2 rounded-sm border px-4 py-3').style(
                                     'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
@@ -1075,7 +1108,7 @@ PY'''
                                 row_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
                                 row_accent = '#f59e0b'
                                 row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
-                                
+
                                 # 👇 重新启用 scroll_area 保障宽度，并用 Python 动态计算高度确保单行时完美收缩！
                                 record_count = len(records)
                                 scroll_h = min(record_count * 68, 240)
@@ -1092,22 +1125,28 @@ PY'''
                                                 with ui.row().classes('items-center gap-1 shrink-0 relative z-10'):
                                                     ui.label('已代理' if rec.get('proxied') else '仅 DNS').classes(
                                                         'text-[10px] font-black px-2 py-1 rounded-sm border tracking-wider').style(
-                                                        ('color: #f59e0b; background: rgba(245, 158, 11, 0.10); border-color: rgba(245, 158, 11, 0.35);'
-                                                         if rec.get('proxied') else
-                                                         'color: #94a3b8; background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.35);'))
+                                                        (
+                                                            'color: #f59e0b; background: rgba(245, 158, 11, 0.10); border-color: rgba(245, 158, 11, 0.35);'
+                                                            if rec.get('proxied') else
+                                                            'color: #94a3b8; background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.35);'))
                                                     action_wrap = ui.row().classes(
                                                         'gap-1 justify-center no-wrap min-w-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10')
                                                     with action_wrap:
                                                         copy_btn = ui.button(icon='content_copy',
-                                                                             on_click=lambda domain=rec.get('name', ''): safe_copy_to_clipboard(domain)).props(
+                                                                             on_click=lambda domain=rec.get('name',
+                                                                                                            ''): safe_copy_to_clipboard(
+                                                                                 domain)).props(
                                                             'flat dense round size=sm')
                                                         copy_btn.style('color: var(--xf-text-muted);')
                                                         apply_tooltip(copy_btn, '复制域名')
-                                                        edit_btn = ui.button(icon='edit_square', on_click=lambda _, item=rec: open_edit_cloudflare_record(item)).props(
+                                                        edit_btn = ui.button(icon='edit_square', on_click=lambda _,
+                                                                                                                 item=rec: open_edit_cloudflare_record(
+                                                            item)).props(
                                                             'flat dense round size=sm')
                                                         edit_btn.style('color: #3b82f6;')
                                                         apply_tooltip(edit_btn, '编辑记录')
-                                                        del_btn = ui.button(icon='delete', on_click=lambda item=rec: open_delete_cloudflare_record(item)).props(
+                                                        del_btn = ui.button(icon='delete', on_click=lambda
+                                                            item=rec: open_delete_cloudflare_record(item)).props(
                                                             'flat dense round size=sm')
                                                         del_btn.style('color: #f43f5e;')
                                                         apply_tooltip(del_btn, '删除记录')
@@ -1119,7 +1158,7 @@ PY'''
             ui.element('div').classes('h-6 flex-shrink-0')
 
             with ui.element('div').classes(
-                    f'w-full flex-1 min-h-[300px] flex flex-col p-0 mb-13 relative {shell_card_cls}'):
+                    f'w-full flex-1 min-h-[300px] flex flex-col p-0 mb-10 relative {shell_card_cls}'):
                 with ui.row().classes(
                         f'w-full items-center justify-between px-4 py-3 gap-3 flex-wrap flex-shrink-0 relative z-10 {shell_header_cls}'):
                     with ui.row().classes('items-center gap-2'):
@@ -1139,11 +1178,16 @@ PY'''
                         btn_purple = btn_tech_base
 
                         async def open_xhttp_deploy():
-                            await open_deploy_xhttp_dialog(server_conf, lambda: refresh_after_inbound_change(delay_second_refresh=True))
+                            await open_deploy_xhttp_dialog(server_conf, lambda: refresh_after_inbound_change(
+                                delay_second_refresh=True))
+
                         async def open_hy2_deploy():
-                            await open_deploy_hysteria_dialog(server_conf, lambda: refresh_after_inbound_change(delay_second_refresh=True))
+                            await open_deploy_hysteria_dialog(server_conf, lambda: refresh_after_inbound_change(
+                                delay_second_refresh=True))
+
                         async def open_snell_deploy():
-                            await open_deploy_snell_dialog(server_conf, lambda: refresh_after_inbound_change(delay_second_refresh=True))
+                            await open_deploy_snell_dialog(server_conf, lambda: refresh_after_inbound_change(
+                                delay_second_refresh=True))
 
                         ui.button('一键部署 XHTTP', icon='rocket_launch', on_click=open_xhttp_deploy).props(
                             'flat size=sm').classes(btn_cyan).style(
@@ -1159,6 +1203,7 @@ PY'''
                             async def on_add_success():
                                 ui.notify('添加节点成功')
                                 await refresh_after_inbound_change(delay_second_refresh=True)
+
                             ui.button('新建 XUI 节点', icon='add',
                                       on_click=lambda: open_inbound_dialog(mgr, None, on_add_success,
                                                                            is_3x_ui=server_conf.get('is_3x_ui',
@@ -1187,7 +1232,6 @@ PY'''
                     # 👇 完美对齐密码 3：强锁左右内边距为 33px，不给任何原生滚动条留破坏布局的空间
                     with ui.element('div').classes(
                             'absolute inset-0 bg-[#030712] px-[16px] py-2' if is_dark else 'absolute inset-0 bg-[#f8fbff] px-[16px] py-2'):
-                        
                         # scroll_area 回归本源，不再挂载 padding
                         with ui.scroll_area().classes('w-full h-full'):
                             await render_node_list()
