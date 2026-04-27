@@ -48,13 +48,12 @@ async def render_single_server_view(server_conf, force_refresh=False):
 
     if content_container:
         content_container.clear()
-        content_container.classes(remove='overflow-y-auto block justify-start',
-                                  add='h-full flex-1 min-h-0 overflow-hidden flex flex-col p-4')
+        content_container.classes(replace='w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col p-4 justify-start items-stretch')
         content_container.style(f'background-color: {page_bg};')
 
     with content_container:
         with ui.element('div').classes(
-                'w-full max-w-[1440px] mx-auto h-full flex-1 min-h-[calc(100vh-130px)] flex flex-col gap-0 flex-nowrap'):
+                'w-full max-w-[1440px] mx-auto h-full flex-1 min-h-[calc(100vh-100px)] flex flex-col gap-0 flex-nowrap'):
             has_manager_access = (server_conf.get('url') and server_conf.get('user') and server_conf.get('pass')) or (
                     server_conf.get('probe_installed') and server_conf.get('ssh_host'))
             mgr = None
