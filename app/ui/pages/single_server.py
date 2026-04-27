@@ -729,7 +729,8 @@ PY'''
             REFRESH_CURRENT_NODES = reload_and_refresh_ui
             _server_dialog.REFRESH_CURRENT_NODES = reload_and_refresh_ui
 
-            async def refresh_after_inbound_change(delay_second_refresh=False, removed_inbound_id=None):
+            async def refresh_after_inbound_change(delay_second_refresh=False, removed_inbound_id=None,
+                                                   refresh_cloudflare=False):
                 server_url = server_conf.get('url')
                 if removed_inbound_id is not None and server_url in NODES_DATA:
                     old_cached_nodes = NODES_DATA.get(server_url, []) or []
@@ -741,6 +742,9 @@ PY'''
                     await reload_and_refresh_ui()
                     await asyncio.sleep(1.2)
                     await reload_and_refresh_ui()
+                if refresh_cloudflare:
+                    await load_cloudflare_records()
+
 
             def open_edit_custom_node(node_data):
                 from nicegui import app
@@ -813,17 +817,48 @@ PY'''
                         ui.label('确认后将执行卸载脚本，并从当前服务器节点列表中移除。').classes('text-xs').style(
                             'color: var(--xf-text-muted);')
 
+                    raw_link = node_data.get('_raw_link', '')
+                    domain_to_del = None
+                    if raw_link and '://' in raw_link:
+                        try:
+                            from urllib.parse import parse_qs, urlparse
+                            query = urlparse(raw_link).query
+                            params = parse_qs(query)
+                            if params.get('sni'):
+                                domain_to_del = str(params['sni'][0]).strip()
+                            elif params.get('host'):
+                                domain_to_del = str(params['host'][0]).strip()
+                        except:
+                            pass
+
                     async def start_uninstall():
                         d.close()
                         notification = ui.notification(message='正在执行卸载与清理...', timeout=0, spinner=True)
                         success, output = await run.io_bound(
                             lambda: _ssh_exec_wrapper(server_conf, XHTTP_UNINSTALL_SCRIPT))
                         notification.dismiss()
-                        if success: safe_notify('✅ 服务已卸载，进程已清理', 'positive')
+                        if success:
+                            safe_notify('✅ 服务已卸载，进程已清理', 'positive')
+                        else:
+                            safe_notify('⚠️ 远程卸载可能未完全成功，请检查日志或服务器状态', 'warning')
+
+                        if domain_to_del:
+                            try:
+                                cf = CloudflareHandler()
+                                if cf.token and cf.root_domain and (cf.root_domain in domain_to_del):
+                                    ok, msg = await cf.delete_record_by_domain(domain_to_del)
+                                    if ok:
+                                        safe_notify(f'☁️ {msg}', 'positive')
+                                    else:
+                                        safe_notify(f'⚠️ DNS 删除失败: {msg}', 'warning')
+                            except Exception as e:
+                                safe_notify(f'⚠️ DNS 删除异常: {e}', 'warning')
+
                         if 'custom_nodes' in server_conf and node_data in server_conf['custom_nodes']:
                             server_conf['custom_nodes'].remove(node_data)
                             await save_servers()
                         await reload_and_refresh_ui()
+                        await load_cloudflare_records()
 
                     with ui.row().classes(
                             'w-full justify-end p-4 gap-3 border-t border-rose-900/40 bg-[#0b0911]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-rose-200 bg-rose-50'):
@@ -1179,7 +1214,7 @@ PY'''
 
                         async def open_xhttp_deploy():
                             await open_deploy_xhttp_dialog(server_conf, lambda: refresh_after_inbound_change(
-                                delay_second_refresh=True))
+                                delay_second_refresh=True, refresh_cloudflare=True))
 
                         async def open_hy2_deploy():
                             await open_deploy_hysteria_dialog(server_conf, lambda: refresh_after_inbound_change(
