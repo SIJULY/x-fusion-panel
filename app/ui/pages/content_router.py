@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from nicegui import ui
+from nicegui import app, ui
 
 from app.core.logging import logger
 
