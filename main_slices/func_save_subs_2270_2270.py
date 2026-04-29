@@ -1,1 +1,0 @@
-async def save_subs(): await safe_save(SUBS_FILE, SUBS_CACHE)
