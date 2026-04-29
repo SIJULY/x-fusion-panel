@@ -130,9 +130,9 @@ async def open_data_mgmt_dialog():
                                 if restore_key_chk.value and data.get('global_ssh_key'):
                                     save_global_key(data['global_ssh_key'])
                                 if restore_sub_chk.value and isinstance(data, dict):
-                                    global SUBS_CACHE, ADMIN_CONFIG
-                                    if data.get('subscriptions'):
-                                        SUBS_CACHE = data['subscriptions']
+                                    if isinstance(data.get('subscriptions'), list):
+                                        SUBS_CACHE.clear()
+                                        SUBS_CACHE.extend(data['subscriptions'])
                                     if data.get('admin_config'):
                                         ADMIN_CONFIG.update(data['admin_config'])
 

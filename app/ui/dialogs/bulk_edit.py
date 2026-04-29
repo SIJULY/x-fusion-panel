@@ -189,8 +189,7 @@ class BulkEditor:
                             with ui.row().classes('w-full justify-end mt-4 p-4 bg-[#030712]' if is_dark else 'w-full justify-end mt-4 p-4 bg-white'):
                                 ui.button('取消', on_click=sub_d.close).props('outline color=grey').classes('text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-slate-100 text-xs font-bold tracking-wide rounded-sm')
                                 async def confirm_del():
-                                    from app.core import state as state_module
-                                    state_module.SERVERS_CACHE = [s for s in state_module.SERVERS_CACHE if s['url'] not in self.selected_urls]
+                                    SERVERS_CACHE[:] = [s for s in SERVERS_CACHE if s['url'] not in self.selected_urls]
                                     await save_servers()
                                     sub_d.close()
                                     d.close()
@@ -235,4 +234,3 @@ class BulkEditor:
 def open_bulk_edit_dialog(servers, title="管理"):
     editor = BulkEditor(servers, title)
     editor.open()
-
