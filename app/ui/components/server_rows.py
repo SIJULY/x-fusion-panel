@@ -1,7 +1,9 @@
+import asyncio
+
 from nicegui import app, ui
 
 from app.core.state import DNS_CACHE, DNS_WAITING_LABELS
-from app.ui.common.notifications import safe_copy_to_clipboard
+from app.ui.common.notifications import safe_copy_to_clipboard, safe_notify
 from app.utils.encoding import generate_detail_config, generate_node_link
 from app.utils.formatters import format_bytes
 from app.utils.geo import detect_country_group
@@ -83,7 +85,10 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
             if not use_special_mode:
                 ui.element('div')
             with ui.row().classes('gap-1 justify-center w-full no-wrap'):
-                ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: __import__('asyncio').create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
+                ssh_btn = ui.button(icon='terminal', on_click=lambda _, s=srv, c=parent_client: asyncio.create_task(_open_single_ssh(s, c))).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
+                _apply_tooltip(ssh_btn, '进入 SSH 终端', is_dark)
+                settings_btn = ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: asyncio.create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
+                _apply_tooltip(settings_btn, '管理服务器', is_dark)
             return
 
         remark = node.get('ps') or node.get('remark') or '未命名节点'
@@ -161,8 +166,29 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
 
             detail_btn = ui.button(icon='description', on_click=copy_detail).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
             _apply_tooltip(detail_btn, '复制明文配置', is_dark)
-            settings_btn = ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: __import__('asyncio').create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
+            ssh_btn = ui.button(icon='terminal', on_click=lambda _, s=srv, c=parent_client: asyncio.create_task(_open_single_ssh(s, c))).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
+            _apply_tooltip(ssh_btn, '进入 SSH 终端', is_dark)
+            settings_btn = ui.button(icon='settings', on_click=lambda _, s=srv, c=parent_client: asyncio.create_task(_refresh_single_server(s, c))).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
             _apply_tooltip(settings_btn, '管理服务器', is_dark)
+
+
+async def _open_single_ssh(server, client=None):
+    from app.core.state import SERVERS_CACHE
+    from app.ui.pages.content_router import refresh_content
+
+    target = server
+    try:
+        server_url = server.get('url') if isinstance(server, dict) else None
+        if server_url:
+            target = next((s for s in SERVERS_CACHE if s.get('url') == server_url), server)
+    except:
+        pass
+
+    if not isinstance(target, dict) or not target.get('ssh_host'):
+        safe_notify('当前服务器未配置 SSH 主机，无法打开终端', 'warning')
+        return
+
+    await refresh_content('SSH_SINGLE', target, manual_client=client)
 
 
 async def _refresh_single_server(server, client=None):
