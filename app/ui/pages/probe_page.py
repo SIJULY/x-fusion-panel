@@ -135,7 +135,7 @@ async def render_probe_page():
                                 cu = ADMIN_CONFIG.get('ping_target_cu', '112.122.10.26')
                                 cm = ADMIN_CONFIG.get('ping_target_cm', '211.138.180.2')
 
-                                cmd = f'curl -sL https://raw.githubusercontent.com/SIJULY/x-fusion-panel/main/static/x-install.sh | bash -s -- "{token}" "{reg_url}" "{ct}" "{cu}" "{cm}"'
+                                cmd = f'(curl -fsSL https://raw.githubusercontent.com/SIJULY/x-fusion-panel/main/static/x-install.sh || curl -fsSL https://raw.githubusercontent.com/SIJULY/x-fusion-panel-master/main/static/x-install.sh) | bash -s -- "{token}" "{reg_url}" "{ct}" "{cu}" "{cm}"'
                                 await safe_copy_to_clipboard(cmd)
                                 safe_notify("已复制安装命令", "positive")
 

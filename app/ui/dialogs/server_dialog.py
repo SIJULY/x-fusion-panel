@@ -191,12 +191,6 @@ async def save_server_config(server_data, is_add=True, idx=None):
 
     asyncio.create_task(fast_resolve_single_server(server_data))
 
-    if ADMIN_CONFIG.get('probe_enabled', False) and server_data.get('probe_installed', False):
-        async def delayed_install():
-            await asyncio.sleep(1)
-            await install_probe_on_server(server_data)
-        asyncio.create_task(delayed_install())
-
     return True
 
 
@@ -397,7 +391,21 @@ async def open_server_dialog(idx=None):
 
                 if new_server_data.get('probe_installed'):
                     safe_notify("🚀 配置已保存，正在自动推送探针...", "ongoing")
-                    asyncio.create_task(install_probe_on_server(new_server_data))
+                    target_for_install = new_server_data
+                    if is_edit and idx is not None and 0 <= idx < len(SERVERS_CACHE):
+                        target_for_install = SERVERS_CACHE[idx]
+                    elif not is_edit:
+                        target_for_install = next((s for s in SERVERS_CACHE if s.get('url') == new_server_data.get('url')), new_server_data)
+
+                    async def _install_and_report(target_server):
+                        ok = await install_probe_on_server(target_server)
+                        if ok:
+                            safe_notify("✅ 探针安装成功，等待首次上报", "positive")
+                        else:
+                            target_server['probe_installed'] = False
+                            await save_servers()
+                            safe_notify("⚠️ 探针安装失败，请检查 SSH 凭据、sudo/root 权限以及主控端地址", "warning")
+                    asyncio.create_task(_install_and_report(target_for_install))
                 else:
                     safe_notify(f"✅ {panel_type.upper()} 已保存", "positive")
 

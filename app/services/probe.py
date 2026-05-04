@@ -124,6 +124,8 @@ async def install_probe_on_server(server_conf):
         await save_servers()
         logger.info(f"✅ [Push Agent] {name} 部署成功")
     else:
+        server_conf['probe_installed'] = False
+        await save_servers()
         logger.warning(f"⚠️ [Push Agent] {name} 部署失败: {msg}")
     return success
 
