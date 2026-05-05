@@ -115,6 +115,26 @@ async def install_probe_on_server(server_conf):
 
     install_command = _sudo_wrap_command(real_script)
 
+    def _exec_with_timeout(client, command: str, timeout_seconds: int, get_pty: bool = False):
+        """执行 SSH 命令并强制限制总耗时，避免 sudo/apt/systemctl 卡住导致页面一直 loading。"""
+        stdin, stdout, stderr = client.exec_command(command, timeout=10, get_pty=get_pty)
+        channel = stdout.channel
+        deadline = time.time() + timeout_seconds
+
+        while not channel.exit_status_ready():
+            if time.time() > deadline:
+                try:
+                    channel.close()
+                except Exception:
+                    pass
+                return 124, '', f'命令执行超时 ({timeout_seconds}s)，可能卡在 sudo 密码、软件源安装或 systemd 启动'
+            time.sleep(0.2)
+
+        exit_status = channel.recv_exit_status()
+        stdout_text = stdout.read().decode(errors='ignore').strip()
+        stderr_text = stderr.read().decode(errors='ignore').strip()
+        return exit_status, stdout_text, stderr_text
+
     def _do_install():
         client = None
         try:
@@ -122,17 +142,18 @@ async def install_probe_on_server(server_conf):
             if not client:
                 return False, f"SSH连接失败: {msg}"
             needs_pty = (server_conf.get('ssh_user') or 'root').strip() != 'root'
-            stdin, stdout, stderr = client.exec_command(install_command, timeout=60, get_pty=needs_pty)
-            exit_status = stdout.channel.recv_exit_status()
+            exit_status, install_out, install_err = _exec_with_timeout(client, install_command, 120, get_pty=needs_pty)
             if exit_status == 0:
                 verify_cmd = _sudo_wrap_command("test -f /root/x_fusion_agent.py && test -f /etc/systemd/system/x-fusion-agent.service && systemctl is-active --quiet x-fusion-agent")
-                _, verify_stdout, verify_stderr = client.exec_command(verify_cmd, timeout=20, get_pty=needs_pty)
-                verify_status = verify_stdout.channel.recv_exit_status()
+                verify_status, verify_out, verify_err = _exec_with_timeout(client, verify_cmd, 30, get_pty=needs_pty)
                 if verify_status == 0:
                     return True, "Agent 安装成功并启动"
-                verify_error = verify_stderr.read().decode().strip()
+                verify_error = verify_err or verify_out
                 return False, f"安装后校验失败 (Exit {verify_status}){': ' + verify_error if verify_error else ''}"
-            return False, f"安装脚本错误 (Exit {exit_status})"
+            error_detail = install_err or install_out
+            if exit_status == 124:
+                return False, error_detail
+            return False, f"安装脚本错误 (Exit {exit_status}){': ' + error_detail if error_detail else ''}"
         except Exception as e:
             return False, f"异常: {str(e)}"
         finally:
@@ -160,22 +181,31 @@ async def batch_install_all_probes():
 
     from app.ui.common.notifications import safe_notify
 
-    safe_notify(f"正在后台为 {len(SERVERS_CACHE)} 台服务器安装/更新探针...", "ongoing")
+    safe_notify(f"已开始后台安装/更新 {len(SERVERS_CACHE)} 台探针，页面无需等待", "ongoing")
 
-    sema = asyncio.Semaphore(10)
+    async def _run_batch_install():
+        sema = asyncio.Semaphore(10)
 
-    async def _worker(server_conf):
-        name = server_conf.get('name', 'Unknown')
-        async with sema:
-            logger.info(f"🚀 [AutoInstall] {name} 开始安装...")
-            success = await install_probe_on_server(server_conf)
+        async def _worker(server_conf):
+            name = server_conf.get('name', 'Unknown')
+            async with sema:
+                logger.info(f"🚀 [AutoInstall] {name} 开始安装...")
+                success = await install_probe_on_server(server_conf)
+                return success
 
-    tasks = [_worker(s) for s in SERVERS_CACHE]
+        tasks = [_worker(s) for s in SERVERS_CACHE]
 
-    if tasks:
-        await asyncio.gather(*tasks)
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            ok_count = sum(1 for r in results if r is True)
+            fail_count = len(results) - ok_count
+        else:
+            ok_count = 0
+            fail_count = 0
 
-    safe_notify("✅ 所有探针安装/更新任务已完成", "positive")
+        safe_notify(f"✅ 探针安装/更新完成：成功 {ok_count}，失败 {fail_count}。失败原因请查看后端日志。", "positive" if fail_count == 0 else "warning", timeout=5000)
+
+    asyncio.create_task(_run_batch_install())
 
 
 async def get_server_status(server_conf):
