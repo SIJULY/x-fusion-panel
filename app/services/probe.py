@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+import shlex
 import socket
 import time
 
@@ -95,17 +96,37 @@ async def install_probe_on_server(server_conf):
         .replace("__PING_CU__", ping_cu) \
         .replace("__PING_CM__", ping_cm)
 
+    def _sudo_wrap_command(command: str) -> str:
+        """后台 SSH 推送安装时使用的非交互式提权包装。
+
+        探针需要写入 /root 和 /etc/systemd/system，并启动 systemd 服务，
+        因此非 root SSH 用户必须通过 sudo 提权。这里不使用 `sudo -i`，
+        因为 `sudo -i` 会进入交互式登录 shell，后台 exec_command 容易卡住。
+        """
+        ssh_user = (server_conf.get('ssh_user') or 'root').strip()
+        if ssh_user == 'root':
+            return command
+
+        if auth_type == '独立密码' and server_conf.get('ssh_password'):
+            sudo_password = shlex.quote(server_conf.get('ssh_password', ''))
+            return f"printf '%s\\n' {sudo_password} | sudo -S -p '' {command}"
+
+        return f"sudo -n {command}"
+
+    install_command = _sudo_wrap_command(real_script)
+
     def _do_install():
         client = None
         try:
             client, msg = get_ssh_client_sync(server_conf)
             if not client:
                 return False, f"SSH连接失败: {msg}"
-            stdin, stdout, stderr = client.exec_command(real_script, timeout=60)
+            needs_pty = (server_conf.get('ssh_user') or 'root').strip() != 'root'
+            stdin, stdout, stderr = client.exec_command(install_command, timeout=60, get_pty=needs_pty)
             exit_status = stdout.channel.recv_exit_status()
             if exit_status == 0:
-                verify_cmd = "test -f /root/x_fusion_agent.py && test -f /etc/systemd/system/x-fusion-agent.service && systemctl is-active --quiet x-fusion-agent"
-                _, verify_stdout, verify_stderr = client.exec_command(verify_cmd, timeout=20)
+                verify_cmd = _sudo_wrap_command("test -f /root/x_fusion_agent.py && test -f /etc/systemd/system/x-fusion-agent.service && systemctl is-active --quiet x-fusion-agent")
+                _, verify_stdout, verify_stderr = client.exec_command(verify_cmd, timeout=20, get_pty=needs_pty)
                 verify_status = verify_stdout.channel.recv_exit_status()
                 if verify_status == 0:
                     return True, "Agent 安装成功并启动"
