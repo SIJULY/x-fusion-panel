@@ -52,10 +52,25 @@ async def render_single_server_view(server_conf, force_refresh=False):
         # 仅修改背景色，将高度和溢出控制交还给原系统，防止污染 content_router
         content_container.style(f'background-color: {page_bg};')
 
+    ui.add_head_html('''
+    <style>
+      .xf-single-server-shell { height: calc(100vh - 80px); }
+      .xf-single-server-inner { min-height: 100%; padding-bottom: 1rem; }
+      .xf-single-server-cf-card { min-height: 96px; max-height: 240px; }
+      .xf-single-server-node-card { min-height: 260px; }
+      .xf-single-server-spacer { height: 16px; }
+      @media (min-height: 900px) {
+        .xf-single-server-cf-card { min-height: 140px; max-height: 320px; }
+        .xf-single-server-node-card { min-height: 210px; }
+        .xf-single-server-spacer { height: 40px; }
+      }
+    </style>
+    ''')
+
     with content_container:
         # 📌 布局隔离舱：创建一个专属的 wrapper 来接管高度和滚动，防止样式泄露到其他页面
-        with ui.element('div').classes('w-full flex flex-col justify-start items-stretch overflow-y-auto').style('height: calc(100vh - 80px);'):
-            with ui.element('div').classes('w-full max-w-[1440px] mx-auto min-h-full flex flex-col gap-4 flex-nowrap pb-4'):
+        with ui.element('div').classes('xf-single-server-shell w-full flex flex-col justify-start items-stretch overflow-y-auto'):
+            with ui.element('div').classes('xf-single-server-inner w-full max-w-[1440px] mx-auto flex flex-col gap-4 flex-nowrap'):
                 has_manager_access = (server_conf.get('url') and server_conf.get('user') and server_conf.get('pass')) or (
                         server_conf.get('probe_installed') and server_conf.get('ssh_host'))
                 mgr = None
@@ -1052,10 +1067,9 @@ PY'''
                     ui.timer(2.0, safe_refresh)
 
 
-                # --------------------- 3. Cloudflare 记录区 (动态伸缩：小屏不抢占节点列表空间) ---------------------
-                # 小屏高度有限时不要强制保底 140px，否则会把节点列表挤出视口；内容自身滚动即可。
+                # --------------------- 3. Cloudflare 记录区 (动态伸缩：小屏压缩，大屏恢复原设定) ---------------------
                 with ui.element('div').classes(
-                        f'w-full flex-shrink flex flex-col min-h-[96px] max-h-[240px] p-0 gap-0 relative z-10 {shell_card_cls}'):
+                        f'xf-single-server-cf-card w-full flex-shrink flex flex-col p-0 gap-0 relative z-10 {shell_card_cls}'):
                     @ui.refreshable
                     def render_cloudflare_dns_card():
                         async def open_new_cloudflare_record(_=None):
@@ -1168,10 +1182,10 @@ PY'''
                         ui.timer(0.2, load_cloudflare_records, once=True)
 
 
-                # --------------------- 4. 节点列表区 (小屏可见保底 + 页面可滚动兜底) ---------------------
-                # 13 寸等低高度屏幕下，外层允许纵向滚动；节点列表自身保底展示，避免被上方卡片挤没。
+                # --------------------- 4. 节点列表区 (小屏可见保底 + 大屏恢复原布局比例) ---------------------
+                # 13 寸等低高度屏幕下，外层允许纵向滚动；大屏高度足够时恢复原来的节点列表最小高度。
                 with ui.element('div').classes(
-                        f'w-full flex-1 min-h-[260px] flex flex-col p-0 relative z-10 {shell_card_cls}'):
+                        f'xf-single-server-node-card w-full flex-1 flex flex-col p-0 relative z-10 {shell_card_cls}'):
                     
                     # Header
                     with ui.row().classes(
@@ -1251,5 +1265,5 @@ PY'''
                 if has_manager_access and not NODES_DATA.get(server_conf['url']):
                     ui.timer(0.2, lambda: asyncio.create_task(reload_and_refresh_ui()), once=True)
 
-                # --------------------- 5. 底部空白垫高 (小屏压缩，避免额外挤占节点列表) ---------------------
-                ui.element('div').classes('w-full h-[16px] flex-shrink-0')
+                # --------------------- 5. 底部空白垫高 (小屏压缩，大屏恢复原设定) ---------------------
+                ui.element('div').classes('xf-single-server-spacer w-full flex-shrink-0')
