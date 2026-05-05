@@ -76,8 +76,10 @@ async def install_probe_on_server(server_conf):
     name = server_conf.get('name', 'Unknown')
     auth_type = server_conf.get('ssh_auth_type', '全局密钥')
     if auth_type == '独立密码' and not server_conf.get('ssh_password'):
+        logger.warning(f"⚠️ [Push Agent] {name} 跳过安装：认证方式为独立密码，但未保存 SSH 密码")
         return False
     if auth_type == '独立密钥' and not server_conf.get('ssh_key'):
+        logger.warning(f"⚠️ [Push Agent] {name} 跳过安装：认证方式为独立密钥，但未保存 SSH 私钥")
         return False
 
     my_token = ADMIN_CONFIG.get('probe_token', 'default_token')
@@ -177,13 +179,16 @@ async def batch_install_all_probes():
         from app.ui.common.notifications import safe_notify
 
         safe_notify("没有服务器可安装", "warning")
+        logger.warning("⚠️ [AutoInstall] 批量更新探针被触发，但服务器列表为空")
         return
 
     from app.ui.common.notifications import safe_notify
 
+    logger.info(f"🚀 [AutoInstall] 批量更新探针已触发，服务器数量={len(SERVERS_CACHE)}")
     safe_notify(f"已开始后台安装/更新 {len(SERVERS_CACHE)} 台探针，页面无需等待", "ongoing")
 
     async def _run_batch_install():
+        logger.info("🚀 [AutoInstall] 后台批量任务已启动")
         sema = asyncio.Semaphore(10)
 
         async def _worker(server_conf):
@@ -191,6 +196,7 @@ async def batch_install_all_probes():
             async with sema:
                 logger.info(f"🚀 [AutoInstall] {name} 开始安装...")
                 success = await install_probe_on_server(server_conf)
+                logger.info(f"{'✅' if success else '❌'} [AutoInstall] {name} 安装结果={'成功' if success else '失败'}")
                 return success
 
         tasks = [_worker(s) for s in SERVERS_CACHE]
@@ -203,6 +209,7 @@ async def batch_install_all_probes():
             ok_count = 0
             fail_count = 0
 
+        logger.info(f"✅ [AutoInstall] 批量更新探针完成：成功={ok_count} 失败={fail_count}")
         safe_notify(f"✅ 探针安装/更新完成：成功 {ok_count}，失败 {fail_count}。失败原因请查看后端日志。", "positive" if fail_count == 0 else "warning", timeout=5000)
 
     asyncio.create_task(_run_batch_install())
