@@ -115,7 +115,41 @@ async def install_probe_on_server(server_conf):
 
         return f"sudo -n {command}"
 
-    install_command = _sudo_wrap_command(real_script)
+    def _extract_install_script_body(script: str) -> str:
+        """把配置中的 `bash -c '...'` 模板提取成可通过 stdin 传给 bash 的纯脚本。
+
+        之前直接把整段 `bash -c '...'` 拼到 sudo 后面执行时，模板内部的
+        `exec sudo bash "$0" "$@"` 在 `bash -c` 场景下会把 `$0` 解析成 bash
+        二进制路径，最终导致远端报：`/usr/bin/bash: cannot execute binary file`。
+        后台 SSH 推送本身已经负责 sudo 提权，因此这里移除模板内自提权行，
+        并统一用 `sudo bash -s` 执行 stdin 脚本。
+        """
+        body = script.strip()
+        if body.startswith("bash -c '") and body.endswith("'"):
+            body = body[len("bash -c '"):-1]
+        body = body.lstrip('\n')
+        body = re.sub(
+            r'(?m)^# 1\. 提升权限\n\[ "\$\(id -u\)" -eq 0 \].*?exit 1; \}\n\n?',
+            '',
+            body,
+            count=1,
+        )
+        return body.strip() + '\n'
+
+    def _build_install_command(script: str) -> str:
+        body = _extract_install_script_body(script)
+        eof = 'XFUSION_PROBE_INSTALL_EOF'
+        ssh_user = (server_conf.get('ssh_user') or 'root').strip()
+        if ssh_user == 'root':
+            return f"bash -s <<'{eof}'\n{body}{eof}"
+
+        if auth_type == '独立密码' and server_conf.get('ssh_password'):
+            sudo_password = shlex.quote(server_conf.get('ssh_password', ''))
+            return f"printf '%s\\n' {sudo_password} | sudo -S -p '' bash -s <<'{eof}'\n{body}{eof}"
+
+        return f"sudo -n bash -s <<'{eof}'\n{body}{eof}"
+
+    install_command = _build_install_command(real_script)
 
     def _exec_with_timeout(client, command: str, timeout_seconds: int, get_pty: bool = False):
         """执行 SSH 命令并强制限制总耗时，避免 sudo/apt/systemctl 卡住导致页面一直 loading。"""
