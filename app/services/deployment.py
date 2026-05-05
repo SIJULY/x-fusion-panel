@@ -1,4 +1,5 @@
 import asyncio
+import shlex
 
 from nicegui import app, run, ui
 
@@ -79,6 +80,34 @@ def _push_deploy_output(log_area, output, empty_hint='(无输出，请检查 SSH
             log_area.push(line)
 
 
+def _build_privileged_script_command(server_conf, script_content: str, *args) -> str:
+    """构造可兼容 root/非 root SSH 用户的一键部署命令。
+
+    XHTTP/Hysteria/Snell 部署脚本都会安装依赖、写入 /etc、创建 systemd 服务，
+    因此非 root SSH 用户必须 sudo 提权。这里不再先写 /tmp 脚本后普通 bash 执行，
+    而是统一把脚本通过 stdin 传给 root bash，避免权限不足和 sudo 交互卡住。
+    """
+    eof = 'XFUSION_DEPLOY_SCRIPT_EOF'
+    quoted_args = ' '.join(shlex.quote(str(arg)) for arg in args)
+    arg_suffix = f' -- {quoted_args}' if quoted_args else ''
+    body = script_content.strip() + '\n'
+    ssh_user = (server_conf.get('ssh_user') or 'root').strip()
+
+    if ssh_user == 'root':
+        return f"bash -s{arg_suffix} <<'{eof}'\n{body}{eof}"
+
+    auth_type = server_conf.get('ssh_auth_type', '全局密钥').strip()
+    if auth_type == '独立密码' and server_conf.get('ssh_password'):
+        sudo_password = shlex.quote(server_conf.get('ssh_password', ''))
+        return (
+            f"{{ printf '%s\\n' {sudo_password}; cat <<'{eof}'\n"
+            f"{body}{eof}\n"
+            f"}} | sudo -S -p '' bash -s{arg_suffix}"
+        )
+
+    return f"sudo -n bash -s{arg_suffix} <<'{eof}'\n{body}{eof}"
+
+
 async def open_deploy_xhttp_dialog(server_conf, callback):
     # 1. 准备 IP
     target_host = server_conf.get('ssh_host') or server_conf.get('url', '').replace('http://', '').replace('https://', '').split(':')[0]
@@ -128,12 +157,7 @@ async def open_deploy_xhttp_dialog(server_conf, callback):
 
                     log_area.push(f"🚀 [SSH] 开始执行安装脚本...")
 
-                    deploy_cmd = f"""
-cat > /tmp/install_xhttp.sh << 'EOF_SCRIPT'
-{XHTTP_INSTALL_SCRIPT_TEMPLATE}
-EOF_SCRIPT
-bash /tmp/install_xhttp.sh "{target_domain}"
-"""
+                    deploy_cmd = _build_privileged_script_command(server_conf, XHTTP_INSTALL_SCRIPT_TEMPLATE, target_domain)
                     success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, deploy_cmd))
                     _push_deploy_output(log_area, output)
 
@@ -276,7 +300,7 @@ async def open_deploy_hysteria_dialog(server_conf, callback):
                     }
 
                     script_content = HYSTERIA_INSTALL_SCRIPT_TEMPLATE.format(**params)
-                    deploy_cmd = f"cat > /tmp/install_hy2.sh << 'EOF_SCRIPT'\n{script_content}\nEOF_SCRIPT\nbash /tmp/install_hy2.sh"
+                    deploy_cmd = _build_privileged_script_command(server_conf, script_content)
 
                     log_area.push(f"🚀 [SSH] 连接到 {real_ip} 开始安装...")
                     success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, deploy_cmd))
@@ -378,7 +402,7 @@ async def open_deploy_snell_dialog(server_conf, callback):
                         "target_ip": target_host,
                     }
                     script_content = SNELL_INSTALL_SCRIPT_TEMPLATE.format(**params)
-                    deploy_cmd = f"cat > /tmp/install_snell.sh << 'EOF_SCRIPT'\n{script_content}\nEOF_SCRIPT\nbash /tmp/install_snell.sh"
+                    deploy_cmd = _build_privileged_script_command(server_conf, script_content)
 
                     log_area.push(f"🚀 [SSH] 开始在 {target_host} 安装 Snell v5 ...")
                     success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, deploy_cmd))
