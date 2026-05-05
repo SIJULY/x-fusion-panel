@@ -56,11 +56,10 @@ async def render_single_server_view(server_conf, force_refresh=False):
     <style>
       .xf-single-server-shell { height: calc(100vh - 80px); }
       .xf-single-server-inner { min-height: 100%; padding-bottom: 1rem; }
-      .xf-single-server-cf-card { min-height: 96px; max-height: 240px; }
+      .xf-single-server-cf-card { min-height: 140px; max-height: 320px; }
       .xf-single-server-node-card { min-height: 260px; }
       .xf-single-server-spacer { height: 16px; }
       @media (min-height: 900px) {
-        .xf-single-server-cf-card { min-height: 140px; max-height: 320px; }
         .xf-single-server-node-card { min-height: 210px; }
         .xf-single-server-spacer { height: 40px; }
       }
