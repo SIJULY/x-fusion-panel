@@ -418,7 +418,10 @@ def login_page(request: Request):
         except:
             pass
 
-        ui.navigate.to('/')
+        next_path = str(request.query_params.get('next') or '/').strip()
+        if not next_path.startswith('/') or next_path.startswith('//') or next_path.startswith('/login'):
+            next_path = '/'
+        ui.navigate.to(next_path)
 
     render_step1()
 
