@@ -56,7 +56,9 @@ async def render_single_server_view(server_conf, force_refresh=False):
     <style>
       .xf-single-server-shell { height: calc(100vh - 80px); }
       .xf-single-server-inner { min-height: 100%; padding-bottom: 1rem; }
-      .xf-single-server-cf-card { min-height: 140px; max-height: 320px; }
+      .xf-single-server-cf-card { min-height: 0; }
+      .xf-cf-record-list { max-height: 208px; overflow-y: auto; }
+      .xf-cf-record-row { height: 44px; margin-bottom: 8px; flex-shrink: 0; }
       .xf-single-server-node-card { min-height: 260px; }
       .xf-single-server-spacer { height: 16px; }
       @media (min-height: 900px) {
@@ -1294,7 +1296,7 @@ PY'''
 
                 # --------------------- 3. Cloudflare 记录区 (动态伸缩：小屏压缩，大屏恢复原设定) ---------------------
                 with ui.element('div').classes(
-                        f'xf-single-server-cf-card w-full flex-shrink flex flex-col p-0 gap-0 relative z-10 {shell_card_cls}'):
+                        f'xf-single-server-cf-card w-full flex-shrink-0 flex flex-col p-0 gap-0 relative z-10 {shell_card_cls}'):
                     @ui.refreshable
                     def render_cloudflare_dns_card():
                         async def open_new_cloudflare_record(_=None):
@@ -1328,8 +1330,8 @@ PY'''
                             with ui.row().classes('items-center justify-end'):
                                 render_cf_header_actions()
 
-                        # 内容区：原生弹性滚动接管
-                        with ui.element('div').classes(f'w-full flex-1 overflow-y-auto py-3 px-[16px] relative {shell_body_cls}'):
+                        # 内容区：卡片随内容自适应；记录列表单独限制最多 4 行完整高度，避免出现半行截断
+                        with ui.element('div').classes(f'w-full flex-shrink-0 py-3 px-[16px] relative {shell_body_cls}'):
                             with ui.column().classes('w-full gap-2'):
                                 if not cf_config_ready:
                                     with ui.column().classes(
@@ -1360,47 +1362,48 @@ PY'''
                                             ui.label('当前没有解析到该 VPS IP 的 Cloudflare A 记录').classes('text-sm').style(
                                                 'color: var(--xf-text-muted);')
                                     else:
-                                        for rec in records:
-                                            row_tech_cls = 'w-full items-center justify-between gap-3 py-2.5 px-3 mb-2 group border border-l-[3px] transition-all duration-300 cursor-default rounded-sm relative overflow-hidden'
-                                            row_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
-                                            row_accent = '#f59e0b'
-                                            row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
+                                        with ui.element('div').classes('xf-cf-record-list w-full'):
+                                            for rec in records:
+                                                row_tech_cls = 'xf-cf-record-row w-full items-center justify-between gap-3 py-0 px-3 group border border-l-[3px] transition-all duration-300 cursor-default rounded-sm relative overflow-hidden'
+                                                row_overlay_cls = 'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
+                                                row_accent = '#f59e0b'
+                                                row_shadow = f'0 0 0 1px color-mix(in srgb, {row_accent} 18%, transparent), 0 0 16px color-mix(in srgb, {row_accent} {38 if is_dark else 16}%, transparent), 0 6px 18px rgba(15,23,42,0.10)'
 
-                                            with ui.row().classes(row_tech_cls).style(
-                                                    f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
-                                                ui.element('div').classes(row_overlay_cls).style(
-                                                    f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
-                                                ui.label(rec.get('name', '--')).classes(
-                                                    'font-bold truncate flex-1 min-w-0 text-left pl-2 text-[13px] transition-colors relative z-10').style(
-                                                    'color: var(--xf-text-strong);')
-                                                with ui.row().classes('items-center gap-1 shrink-0 relative z-10'):
-                                                    ui.label('已代理' if rec.get('proxied') else '仅 DNS').classes(
-                                                        'text-[10px] font-black px-2 py-1 rounded-sm border tracking-wider').style(
-                                                        (
-                                                            'color: #f59e0b; background: rgba(245, 158, 11, 0.10); border-color: rgba(245, 158, 11, 0.35);'
-                                                            if rec.get('proxied') else
-                                                            'color: #94a3b8; background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.35);'))
-                                                    action_wrap = ui.row().classes(
-                                                        'gap-1 justify-center no-wrap min-w-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10')
-                                                    with action_wrap:
-                                                        copy_btn = ui.button(icon='content_copy',
-                                                                             on_click=lambda domain=rec.get('name',
-                                                                                                            ''): safe_copy_to_clipboard(
-                                                                                 domain)).props(
-                                                            'flat dense round size=sm')
-                                                        copy_btn.style('color: var(--xf-text-muted);')
-                                                        apply_tooltip(copy_btn, '复制域名')
-                                                        edit_btn = ui.button(icon='edit_square', on_click=lambda _,
-                                                                                                                 item=rec: open_edit_cloudflare_record(
-                                                            item)).props(
-                                                            'flat dense round size=sm')
-                                                        edit_btn.style('color: #3b82f6;')
-                                                        apply_tooltip(edit_btn, '编辑记录')
-                                                        del_btn = ui.button(icon='delete', on_click=lambda
-                                                            item=rec: open_delete_cloudflare_record(item)).props(
-                                                            'flat dense round size=sm')
-                                                        del_btn.style('color: #f43f5e;')
-                                                        apply_tooltip(del_btn, '删除记录')
+                                                with ui.row().classes(row_tech_cls).style(
+                                                        f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
+                                                    ui.element('div').classes(row_overlay_cls).style(
+                                                        f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
+                                                    ui.label(rec.get('name', '--')).classes(
+                                                        'font-bold truncate flex-1 min-w-0 text-left pl-2 text-[13px] transition-colors relative z-10').style(
+                                                        'color: var(--xf-text-strong);')
+                                                    with ui.row().classes('items-center gap-1 shrink-0 relative z-10'):
+                                                        ui.label('已代理' if rec.get('proxied') else '仅 DNS').classes(
+                                                            'text-[10px] font-black px-2 py-1 rounded-sm border tracking-wider').style(
+                                                            (
+                                                                'color: #f59e0b; background: rgba(245, 158, 11, 0.10); border-color: rgba(245, 158, 11, 0.35);'
+                                                                if rec.get('proxied') else
+                                                                'color: #94a3b8; background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.35);'))
+                                                        action_wrap = ui.row().classes(
+                                                            'gap-1 justify-center no-wrap min-w-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10')
+                                                        with action_wrap:
+                                                            copy_btn = ui.button(icon='content_copy',
+                                                                                 on_click=lambda domain=rec.get('name',
+                                                                                                                ''): safe_copy_to_clipboard(
+                                                                                     domain)).props(
+                                                                'flat dense round size=sm')
+                                                            copy_btn.style('color: var(--xf-text-muted);')
+                                                            apply_tooltip(copy_btn, '复制域名')
+                                                            edit_btn = ui.button(icon='edit_square', on_click=lambda _,
+                                                                                                                     item=rec: open_edit_cloudflare_record(
+                                                                item)).props(
+                                                                'flat dense round size=sm')
+                                                            edit_btn.style('color: #3b82f6;')
+                                                            apply_tooltip(edit_btn, '编辑记录')
+                                                            del_btn = ui.button(icon='delete', on_click=lambda
+                                                                item=rec: open_delete_cloudflare_record(item)).props(
+                                                                'flat dense round size=sm')
+                                                            del_btn.style('color: #f43f5e;')
+                                                            apply_tooltip(del_btn, '删除记录')
 
                     render_cloudflare_dns_card()
                     if ADMIN_CONFIG.get('cf_api_token', '').strip() and ADMIN_CONFIG.get('cf_root_domain', '').strip():
