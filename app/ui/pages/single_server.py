@@ -56,7 +56,7 @@ async def render_single_server_view(server_conf, force_refresh=False):
     <style>
       .xf-single-server-shell { height: calc(100vh - 80px); }
       .xf-single-server-inner { min-height: 100%; padding-bottom: 1rem; }
-      .xf-single-server-cf-card { height: 348px; min-height: 348px; max-height: 348px; }
+      .xf-single-server-cf-card { min-height: 140px; max-height: 320px; }
       .xf-single-server-node-card { min-height: 260px; }
       .xf-single-server-spacer { height: 16px; }
       @media (min-height: 900px) {
@@ -1294,7 +1294,7 @@ PY'''
 
                 # --------------------- 3. Cloudflare 记录区 (动态伸缩：小屏压缩，大屏恢复原设定) ---------------------
                 with ui.element('div').classes(
-                        f'xf-single-server-cf-card w-full flex-shrink-0 flex flex-col p-0 gap-0 relative z-10 {shell_card_cls}'):
+                        f'xf-single-server-cf-card w-full flex-shrink flex flex-col p-0 gap-0 relative z-10 {shell_card_cls}'):
                     @ui.refreshable
                     def render_cloudflare_dns_card():
                         async def open_new_cloudflare_record(_=None):
