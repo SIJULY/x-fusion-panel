@@ -21,6 +21,7 @@ from app.core.state import (
     SERVERS_CACHE,
 )
 from app.services.ssh import get_ssh_client_sync
+from app.services.xui_fetch import merge_local_node_fields
 from app.storage.repositories import save_servers
 from app.utils.geo import get_flag_for_country
 from app.utils.network import sync_ping_worker
@@ -336,6 +337,7 @@ async def probe_push_data(request: Request):
                     except:
                         parsed_nodes.append(n)
 
+                parsed_nodes = merge_local_node_fields(target_server['url'], parsed_nodes)
                 NODES_DATA[target_server['url']] = parsed_nodes
                 target_server['_status'] = 'online'
 

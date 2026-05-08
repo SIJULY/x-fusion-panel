@@ -11,6 +11,25 @@ from app.core.state import ADMIN_CONFIG, NODES_DATA, SERVERS_CACHE, SUBS_CACHE
 from app.utils.encoding import decode_base64_safe, generate_detail_config, generate_node_link, safe_base64
 
 
+def _node_key(server_url, node):
+    return f"{server_url}|{node.get('id')}"
+
+
+def _prepare_node_for_detail(node, server_url, node_lookup):
+    proxy_key = node.get('underlying_proxy')
+    if not proxy_key:
+        return node
+
+    proxy_item = node_lookup.get(proxy_key)
+    if not proxy_item:
+        return node
+
+    proxy_node, _ = proxy_item
+    node_with_proxy = dict(node)
+    node_with_proxy['_underlying_proxy_name'] = str(proxy_node.get('remark', '')).replace(',', '_').replace('=', '_').strip()
+    return node_with_proxy
+
+
 async def sub_handler(token: str):
     sub = next((s for s in SUBS_CACHE if s['token'] == token), None)
     if not sub:
@@ -32,12 +51,12 @@ async def sub_handler(token: str):
 
         panel_nodes = NODES_DATA.get(srv['url'], []) or []
         for n in panel_nodes:
-            key = f"{srv['url']}|{n['id']}"
+            key = _node_key(srv['url'], n)
             node_lookup[key] = (n, host)
 
         custom_nodes = srv.get('custom_nodes', []) or []
         for n in custom_nodes:
-            key = f"{srv['url']}|{n['id']}"
+            key = _node_key(srv['url'], n)
             node_lookup[key] = (n, host)
 
     ordered_ids = sub.get('nodes', [])
@@ -119,6 +138,7 @@ async def short_group_handler(target: str, group_b64: str, request: Request):
             for srv in target_servers:
                 panel_nodes = NODES_DATA.get(srv['url'], []) or []
                 custom_nodes = srv.get('custom_nodes', []) or []
+                all_nodes = panel_nodes + custom_nodes
 
                 raw_url = srv['url']
                 try:
@@ -129,9 +149,10 @@ async def short_group_handler(target: str, group_b64: str, request: Request):
                 except:
                     host = raw_url
 
-                for n in (panel_nodes + custom_nodes):
+                node_lookup = {_node_key(srv['url'], item): (item, host) for item in all_nodes}
+                for n in all_nodes:
                     if n.get('enable'):
-                        line = generate_detail_config(n, host)
+                        line = generate_detail_config(_prepare_node_for_detail(n, srv['url'], node_lookup), host)
                         if line and not line.startswith('//') and not line.startswith('None'):
                             links.append(line)
 
@@ -201,7 +222,7 @@ async def short_sub_handler(target: str, token: str, request: Request):
 
                 all_nodes = (NODES_DATA.get(srv['url'], []) or []) + srv.get('custom_nodes', [])
                 for n in all_nodes:
-                    key = f"{srv['url']}|{n['id']}"
+                    key = _node_key(srv['url'], n)
                     node_lookup[key] = (n, host)
 
             ordered_ids = sub_obj.get('nodes', [])
@@ -209,7 +230,7 @@ async def short_sub_handler(target: str, token: str, request: Request):
             for key in ordered_ids:
                 if key in node_lookup:
                     node, host = node_lookup[key]
-                    line = generate_detail_config(node, host)
+                    line = generate_detail_config(_prepare_node_for_detail(node, key.split('|', 1)[0], node_lookup), host)
                     if line and not line.startswith('//') and not line.startswith('None'):
                         links.append(line)
 

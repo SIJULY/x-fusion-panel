@@ -41,6 +41,14 @@ def _stringify_vmess_port(port):
         return str(port)
 
 
+def _append_underlying_proxy(line, node):
+    proxy_name = str(node.get('_underlying_proxy_name') or node.get('underlying_proxy') or '').strip()
+    if proxy_name:
+        safe_proxy_name = proxy_name.replace(',', '_').replace('=', '_').strip()
+        return f"{line}, underlying-proxy={safe_proxy_name}"
+    return line
+
+
 def _build_vmess_link(node, address):
     settings = _get_settings(node)
     stream = _get_stream_settings(node)
@@ -330,7 +338,8 @@ def generate_detail_config(node, server_host):
                 params = parse_qs(parsed.query)
                 version = params.get('version', ['4'])[0]
 
-                return f"{remark} = snell, {s_host}, {s_port}, psk={psk}, version={version}, tfo=true, reuse=true"
+                line = f"{remark} = snell, {s_host}, {s_port}, psk={psk}, version={version}, tfo=true, reuse=true"
+                return _append_underlying_proxy(line, node)
 
             elif raw_link.startswith('hy2://'):
                 from urllib.parse import parse_qs, urlparse
@@ -351,7 +360,7 @@ def generate_detail_config(node, server_host):
                 if sni:
                     line += f", sni={sni}"
                 line += ", skip-cert-verify=true, download-bandwidth=500, udp-relay=true"
-                return line
+                return _append_underlying_proxy(line, node)
 
             elif raw_link.startswith('vless://'):
                 return f"// Surge 暂未原生支持 XHTTP: {remark}"
@@ -390,7 +399,7 @@ def generate_detail_config(node, server_host):
                     line += f", sni={sni}"
                 line += ", skip-cert-verify=true"
             line += ", tfo=true, udp-relay=true"
-            return line
+            return _append_underlying_proxy(line, node)
 
         elif protocol == 'trojan':
             clients = settings.get('clients') or [{}]
@@ -403,7 +412,7 @@ def generate_detail_config(node, server_host):
                     line += f", sni={sni}"
                 line += ", skip-cert-verify=true"
             line += ", tfo=true, udp-relay=true"
-            return line
+            return _append_underlying_proxy(line, node)
 
     except Exception as e:
         return f"// Config Error: {str(e)}"

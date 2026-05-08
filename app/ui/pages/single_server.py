@@ -4,7 +4,7 @@ import json
 from nicegui import run, ui
 
 from app.core.logging import logger
-from app.core.state import ADMIN_CONFIG, NODES_DATA, PROBE_DATA_CACHE
+from app.core.state import ADMIN_CONFIG, NODES_DATA, PROBE_DATA_CACHE, SERVERS_CACHE
 from app.services.cloudflare import CloudflareHandler
 from app.services.manager_factory import get_manager
 from app.services.ssh import _ssh_exec_wrapper, get_ssh_client_sync
@@ -62,6 +62,19 @@ async def render_single_server_view(server_conf, force_refresh=False):
       @media (min-height: 900px) {
         .xf-single-server-node-card { min-height: 210px; }
         .xf-single-server-spacer { height: 40px; }
+      }
+      .xf-proxy-active {
+        background: #10b981 !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(16, 185, 129, 0.95) !important;
+        box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35), 0 0 14px rgba(16, 185, 129, 0.65) !important;
+        opacity: 1 !important;
+      }
+      .xf-proxy-active .q-icon,
+      .xf-proxy-active .q-btn__content,
+      .xf-proxy-active i {
+        color: #ffffff !important;
+        opacity: 1 !important;
       }
     </style>
     ''')
@@ -581,6 +594,170 @@ PY'''
                     custom_nodes = server_conf.get('custom_nodes', [])
                     all_nodes = xui_nodes + custom_nodes
 
+                    def node_key(node_item, server_url=None):
+                        return f"{server_url or server_conf['url']}|{node_item.get('id')}"
+
+                    def build_global_node_lookup():
+                        lookup = {}
+                        for srv in SERVERS_CACHE:
+                            srv_url = srv.get('url')
+                            if not srv_url:
+                                continue
+                            server_name = srv.get('name') or srv_url
+                            server_nodes = (NODES_DATA.get(srv_url, []) or []) + (srv.get('custom_nodes', []) or [])
+                            for item in server_nodes:
+                                key = node_key(item, srv_url)
+                                lookup[key] = {
+                                    'node': item,
+                                    'server_url': srv_url,
+                                    'server_name': server_name,
+                                }
+                        return lookup
+
+                    def resolve_underlying_proxy_name(node_item):
+                        proxy_key = node_item.get('underlying_proxy')
+                        if not proxy_key:
+                            return ''
+                        proxy_item = build_global_node_lookup().get(proxy_key)
+                        if not proxy_item:
+                            return ''
+                        proxy_node = proxy_item.get('node') or {}
+                        return str(proxy_node.get('remark', '')).replace(',', '_').replace('=', '_').strip()
+
+                    def node_for_detail(node_item):
+                        proxy_name = resolve_underlying_proxy_name(node_item)
+                        if not proxy_name:
+                            return node_item
+                        copied_node = dict(node_item)
+                        copied_node['_underlying_proxy_name'] = proxy_name
+                        return copied_node
+
+                    def underlying_proxy_support_status(node_item):
+                        """判断当前节点是否适合作为“被前置代理”的目标节点。
+
+                        前置代理最终只会体现在 Surge 明文配置的 underlying-proxy 参数里，
+                        因此只对当前明文生成器明确支持、且客户端链式转发较可靠的协议开放。
+                        Hy2/Hysteria2 基于 UDP/QUIC，即使拼出参数也常因客户端或前置节点
+                        不支持 UDP relay 而不可用，所以这里直接禁用避免误设。
+                        """
+                        raw_link = str(node_item.get('_raw_link') or '').strip().lower()
+                        protocol = str(node_item.get('protocol') or '').strip().lower()
+
+                        if raw_link.startswith('hy2://') or protocol in ('hysteria2', 'hy2', 'hysteria'):
+                            return False, 'Hy2/Hysteria2 基于 UDP/QUIC，前置代理兼容性差，已禁用'
+
+                        if node_item.get('_is_custom'):
+                            if raw_link.startswith('snell://'):
+                                return True, ''
+                            return False, '该自定义节点暂不支持生成带前置代理的 Surge 明文配置'
+
+                        if protocol in ('vmess', 'trojan'):
+                            return True, ''
+
+                        return False, f'{protocol.upper() or "当前协议"} 暂不支持设置前置代理'
+
+                    def sync_underlying_proxy_to_cached_node(node_data, proxy_key):
+                        target_id = node_data.get('id')
+                        if target_id is None:
+                            return node_data in custom_nodes
+
+                        for cached_node in NODES_DATA.get(server_conf['url'], []) or []:
+                            if cached_node.get('id') == target_id:
+                                if proxy_key:
+                                    cached_node['underlying_proxy'] = proxy_key
+                                else:
+                                    cached_node.pop('underlying_proxy', None)
+                                if cached_node is not node_data:
+                                    if proxy_key:
+                                        node_data['underlying_proxy'] = proxy_key
+                                    else:
+                                        node_data.pop('underlying_proxy', None)
+                                return False
+
+                        for custom_node in custom_nodes:
+                            if custom_node.get('id') == target_id:
+                                if proxy_key:
+                                    custom_node['underlying_proxy'] = proxy_key
+                                else:
+                                    custom_node.pop('underlying_proxy', None)
+                                if custom_node is not node_data:
+                                    if proxy_key:
+                                        node_data['underlying_proxy'] = proxy_key
+                                    else:
+                                        node_data.pop('underlying_proxy', None)
+                                return True
+
+                        if proxy_key:
+                            node_data['underlying_proxy'] = proxy_key
+                        else:
+                            node_data.pop('underlying_proxy', None)
+                        return node_data in custom_nodes
+
+                    def open_underlying_proxy_dialog(node_data):
+                        from nicegui import app
+                        dialog_is_dark = bool(app.storage.user.get('is_dark', True))
+                        current_key = node_key(node_data)
+                        no_proxy_label = '不使用前置代理'
+                        options = [no_proxy_label]
+                        option_key_map = {no_proxy_label: ''}
+                        current_value = no_proxy_label
+                        global_node_lookup = build_global_node_lookup()
+                        for key, proxy_item in global_node_lookup.items():
+                            if key == current_key:
+                                continue
+                            item = proxy_item.get('node') or {}
+                            server_name = proxy_item.get('server_name') or proxy_item.get('server_url') or '未知服务器'
+                            label = f"{item.get('remark', '未命名')} · {str(item.get('protocol', 'unk')).upper()}:{item.get('port', '')}"
+                            label = f"{server_name} / {label}"
+                            # NiceGUI 旧版本对 select 的 dict options + 空字符串 value 兼容性较差；
+                            # 这里使用纯文本 options，并通过映射表保存真实节点 key。
+                            while label in option_key_map:
+                                label = f"{label} "
+                            options.append(label)
+                            option_key_map[label] = key
+                            if key == node_data.get('underlying_proxy'):
+                                current_value = label
+
+                        with ui.dialog() as d, ui.card().classes(
+                                'w-[480px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if dialog_is_dark else 'w-[480px] max-w-[92vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_18px_42px_rgba(148,163,184,0.18)]'):
+                            with ui.column().classes(
+                                    'w-full bg-gradient-to-r from-[#0a1526] to-[#050a14] p-5 gap-2 border-b border-[#1e3a5f]/60 relative overflow-hidden' if dialog_is_dark else 'w-full bg-gradient-to-r from-[#f8fbff] to-[#eef4ff] p-5 gap-2 border-b border-slate-300/90 relative overflow-hidden'):
+                                with ui.row().classes('items-center gap-3 z-10'):
+                                    with ui.element('div').classes(
+                                            'w-9 h-9 rounded-sm flex items-center justify-center bg-[#050b14] border border-[#1e3a5f] shadow-[0_0_8px_rgba(0,0,0,0.7)] text-cyan-400 relative overflow-hidden' if dialog_is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-sky-50 border border-slate-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] text-sky-600 relative overflow-hidden'):
+                                        ui.icon('account_tree').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
+                                    with ui.column().classes('gap-0'):
+                                        ui.label('设置前置代理').classes(
+                                            'text-lg font-black text-slate-100 tracking-wide' if dialog_is_dark else 'text-lg font-black text-slate-800 tracking-wide')
+                                        ui.label(f"目标节点：{node_data.get('remark', '未命名')}").classes('text-[10px] text-slate-500 tracking-wide')
+                            with ui.column().classes(
+                                    'w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
+                                if len(options) <= 1:
+                                    ui.label('项目中没有其它节点可作为前置代理。').classes('text-sm font-bold').style(
+                                        'color: var(--xf-text-muted);')
+                                proxy_select = ui.select(options, value=current_value, label='前置代理节点').classes('w-full').props(
+                                    'dense outlined dark color=cyan' if dialog_is_dark else 'dense outlined color=blue')
+                                ui.label('可选择项目中任意服务器的节点。保存后，Surge 明文配置会为该节点追加 underlying-proxy 参数。').classes(
+                                    'text-[11px] leading-relaxed').style('color: var(--xf-text-muted);')
+
+                            async def save_proxy():
+                                selected = option_key_map.get(proxy_select.value, '')
+                                should_save_servers = sync_underlying_proxy_to_cached_node(node_data, selected)
+                                if should_save_servers:
+                                    await save_servers()
+                                else:
+                                    await save_nodes_cache()
+                                safe_notify('前置代理设置已保存', 'positive')
+                                d.close()
+                                render_node_list.refresh()
+
+                            with ui.row().classes(
+                                    'w-full justify-end p-4 gap-3 border-t border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1526] to-[#050a14]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-[#eef4ff]'):
+                                ui.button('取消', on_click=d.close).props('outline color=grey')
+                                ui.button('保存', on_click=save_proxy).props('flat').classes(
+                                    'bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 px-6 font-black text-xs tracking-wide rounded-sm' if dialog_is_dark else 'bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 px-6 font-black text-xs tracking-wide rounded-sm')
+                        d.open()
+
                     if not all_nodes:
                         with ui.column().classes('w-full py-12 items-center justify-center opacity-50'):
                             ui.icon('radar', size='4rem').classes('mb-2 drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]').style(
@@ -648,7 +825,7 @@ PY'''
                                         host = \
                                             server_conf.get('url', '').replace('http://', '').replace('https://', '').split(
                                                 ':')[0]
-                                        text = generate_detail_config(node_item, host)
+                                        text = generate_detail_config(node_for_detail(node_item), host)
                                         if text and not str(text).startswith('//'):
                                             await safe_copy_to_clipboard(text)
                                         else:
@@ -658,6 +835,42 @@ PY'''
                                         btn_props).classes(
                                         'text-slate-400 transition-all').style('color: var(--xf-text-muted);')
                                     apply_tooltip(detail_btn, '复制明文配置')
+
+                                    proxy_supported, proxy_disabled_reason = underlying_proxy_support_status(n)
+                                    proxy_has_value = bool(n.get('underlying_proxy')) and proxy_supported
+                                    proxy_btn_props = (
+                                        'unelevated dense size=sm round color=positive text-color=white'
+                                        if proxy_has_value else
+                                        btn_props
+                                        if proxy_supported else
+                                        f'{btn_props} disable'
+                                    )
+                                    proxy_btn_classes = (
+                                        'xf-proxy-active transition-all'
+                                        if proxy_has_value else
+                                        'text-cyan-500 hover:bg-cyan-900/30 hover:text-cyan-300 transition-all'
+                                        if proxy_supported else
+                                        'text-slate-500 opacity-40 cursor-not-allowed transition-all'
+                                    )
+                                    proxy_btn_style = (
+                                        'background-color: #10b981 !important; color: #ffffff !important; border-color: #10b981 !important; opacity: 1 !important;'
+                                        if proxy_has_value else
+                                        'color: #06b6d4;'
+                                        if proxy_supported else
+                                        'color: #64748b; opacity: 0.45;'
+                                    )
+                                    proxy_btn = ui.button(
+                                        icon='account_tree',
+                                        on_click=lambda node=n: open_underlying_proxy_dialog(node) if underlying_proxy_support_status(node)[0] else None,
+                                    ).props(proxy_btn_props).classes(proxy_btn_classes).style(proxy_btn_style)
+                                    proxy_tip = (
+                                        f"前置代理：{resolve_underlying_proxy_name(n)}"
+                                        if proxy_has_value else
+                                        '设置前置代理'
+                                        if proxy_supported else
+                                        proxy_disabled_reason
+                                    )
+                                    apply_tooltip(proxy_btn, proxy_tip)
 
                                     if is_custom:
                                         edit_btn = ui.button(icon='edit_square',
@@ -708,6 +921,18 @@ PY'''
                     new_nodes = None
                     fetch_success = False
 
+                    def preserve_node_proxy_settings(nodes):
+                        old_proxy_by_id = {
+                            item.get('id'): item.get('underlying_proxy')
+                            for item in old_nodes
+                            if item.get('id') is not None and item.get('underlying_proxy')
+                        }
+                        for item in nodes or []:
+                            proxy_value = old_proxy_by_id.get(item.get('id'))
+                            if proxy_value:
+                                item['underlying_proxy'] = proxy_value
+                        return nodes
+
                     try:
                         fetched_nodes = await fetch_inbounds_safe(server_conf, force_refresh=True)
                         if fetched_nodes is not None:
@@ -730,6 +955,7 @@ PY'''
                             logger.warning(f"SSH 获取节点失败: {e}")
 
                     if fetch_success:
+                        new_nodes = preserve_node_proxy_settings(new_nodes)
                         NODES_DATA[server_conf['url']] = new_nodes
                         server_conf['_status'] = 'online'
                         asyncio.create_task(save_nodes_cache())
