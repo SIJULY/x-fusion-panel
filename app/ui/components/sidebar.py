@@ -180,7 +180,9 @@ def render_sidebar_content():
             ui.button('仪表盘', icon='dashboard', on_click=lambda: asyncio.create_task(_load_dashboard())).props(
                 'flat align=left').classes(theme['top_btn']).style(
                 'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); color: var(--xf-text-strong);')
-            ui.button('探针设置', icon='tune', on_click=lambda: asyncio.create_task(_render_probe())).props(
+            probe_label = '探针设置' if ADMIN_CONFIG.get('probe_enabled', True) else '探针已关闭'
+            probe_icon = 'tune' if ADMIN_CONFIG.get('probe_enabled', True) else 'sensors_off'
+            ui.button(probe_label, icon=probe_icon, on_click=lambda: asyncio.create_task(_render_probe())).props(
                 'flat align=left').classes(theme['top_btn']).style(
                 'background: var(--xf-elevated-bg); border-color: var(--xf-card-border); color: var(--xf-text-strong);')
             ui.button('订阅管理', icon='rss_feed', on_click=lambda: asyncio.create_task(_load_subs())).props(

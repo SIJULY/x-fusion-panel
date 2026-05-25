@@ -219,6 +219,12 @@ def login_page(request: Request):
     secret_text_cls = 'text-xs font-mono text-sky-700'
     icon_hint_cls = 'text-slate-500 text-xs'
 
+    def get_admin_username():
+        return str(ADMIN_CONFIG.get('admin_username') or ADMIN_USER)
+
+    def get_admin_password():
+        return str(ADMIN_CONFIG.get('admin_password') or ADMIN_PASS)
+
     continent_pools = {
         'asia': [
             {'name': 'Tokyo', 'lon': 139.7, 'lat': 35.6},
@@ -306,6 +312,47 @@ def login_page(request: Request):
 
     container = ui.card().classes(container_cls)
 
+    async def complete_first_run():
+        new_user = setup_username.value.strip()
+        new_pass = setup_password.value.strip()
+        confirm_pass = setup_password_confirm.value.strip()
+
+        if not new_user:
+            ui.notify('请填写管理员账号', color='warning', position='top')
+            return
+        if len(new_pass) < 6:
+            ui.notify('登录密码至少需要 6 位', color='warning', position='top')
+            return
+        if new_pass != confirm_pass:
+            ui.notify('两次输入的密码不一致', color='negative', position='top')
+            return
+
+        ADMIN_CONFIG['admin_username'] = new_user
+        ADMIN_CONFIG['admin_password'] = new_pass
+        ADMIN_CONFIG['probe_enabled'] = bool(setup_probe_enabled.value)
+        ADMIN_CONFIG['setup_completed'] = True
+        ADMIN_CONFIG['session_version'] = str(uuid.uuid4())[:8]
+        await save_admin_config()
+        ui.notify('初始化设置已保存，请使用新账号登录', type='positive', position='top')
+        render_step1()
+
+    def render_first_run_setup():
+        container.clear()
+        with container:
+            with ui.column().classes(header_cls):
+                ui.label('首次运行设置').classes('text-xl font-black w-full text-center text-slate-800 tracking-wide')
+                ui.label('请先修改默认账号密码，并选择是否启用探针').classes(subtitle_cls)
+
+            with ui.column().classes(body_cls):
+                global setup_username, setup_password, setup_password_confirm, setup_probe_enabled
+                setup_username = ui.input('管理员账号', value=get_admin_username()).props(input_props).classes('w-full')
+                setup_password = ui.input('登录密码', password=True, value='' if get_admin_password() == 'admin' else get_admin_password()).props(input_props).classes('w-full')
+                setup_password_confirm = ui.input('确认密码', password=True).props(input_props).classes('w-full')
+                setup_probe_enabled = ui.switch('启用探针功能（可采集 VPS 负载、流量、延迟，并尝试读取本机 x-ui 入站数据）', value=bool(ADMIN_CONFIG.get('probe_enabled', True))).classes('w-full text-slate-700 font-bold')
+                ui.label('关闭后不会自动安装/启用探针；仍可通过 X-UI API/SSH 同步节点与订阅信息。之后可在配置文件中重新开启。').classes('text-xs text-slate-500 leading-relaxed')
+                setup_password_confirm.on('keydown.enter', lambda: complete_first_run())
+                ui.button('保存初始化设置', icon='save', on_click=complete_first_run).props('flat').classes(success_btn_cls)
+
     def render_step1():
         container.clear()
         with container:
@@ -318,7 +365,7 @@ def login_page(request: Request):
                 password = ui.input('密码', password=True).props(input_props).classes('w-full')
 
                 def check_cred():
-                    if username.value == ADMIN_USER and password.value == ADMIN_PASS:
+                    if username.value == get_admin_username() and password.value == get_admin_password():
                         check_mfa()
                     else:
                         ui.notify('账号或密码错误', color='negative', position='top')
@@ -338,7 +385,7 @@ def login_page(request: Request):
     def render_setup(secret):
         container.clear()
 
-        totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(name=ADMIN_USER, issuer_name="X-Fusion-Pro")
+        totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(name=get_admin_username(), issuer_name="X-Fusion-Pro")
         qr = qrcode.make(totp_uri)
         img_buffer = io.BytesIO()
         qr.save(img_buffer, format='PNG')
@@ -423,7 +470,10 @@ def login_page(request: Request):
             next_path = '/'
         ui.navigate.to(next_path)
 
-    render_step1()
+    if not ADMIN_CONFIG.get('setup_completed'):
+        render_first_run_setup()
+    else:
+        render_step1()
 
 
 def check_auth(request: Request):

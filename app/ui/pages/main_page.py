@@ -706,10 +706,6 @@ def main_page(request: Request):
                 ADMIN_CONFIG['manager_base_url'] = real_origin
                 need_save = True
 
-            if not ADMIN_CONFIG.get('probe_enabled'):
-                ADMIN_CONFIG['probe_enabled'] = True
-                need_save = True
-
             if need_save:
                 await save_admin_config()
         except:
@@ -742,7 +738,7 @@ def main_page(request: Request):
         if last_scope == 'DASHBOARD':
             logger.info("[MainPage] restore_last_view branch=DASHBOARD")
             await load_dashboard_stats()
-        elif last_scope == 'PROBE':
+        elif last_scope == 'PROBE' and ADMIN_CONFIG.get('probe_enabled', True):
             logger.info("[MainPage] restore_last_view branch=PROBE")
             await render_probe_page()
         elif last_scope == 'SUBS':

@@ -23,11 +23,22 @@ async def render_probe_page():
     content_container.classes(replace='w-full h-full overflow-y-auto p-6 relative flex flex-col justify-center items-center')
     content_container.style('background-color: var(--xf-bg-main);')
 
-    if not ADMIN_CONFIG.get('probe_enabled'):
-        ADMIN_CONFIG['probe_enabled'] = True
-        await save_admin_config()
-
     with content_container:
+        if not ADMIN_CONFIG.get('probe_enabled', True):
+            with ui.card().classes('w-full max-w-2xl p-6 rounded-sm border').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border);'):
+                ui.icon('sensors_off', size='3rem').style('color: var(--xf-text-muted);')
+                ui.label('探针功能已关闭').classes('text-2xl font-black').style('color: var(--xf-text-strong);')
+                ui.label('当前不会自动安装探针，也不会接收 VPS Agent 推送数据。服务器节点信息仍可通过面板 API、订阅缓存或 SSH 部署结果获取。').classes('text-sm leading-relaxed').style('color: var(--xf-text-muted);')
+
+                async def enable_probe():
+                    ADMIN_CONFIG['probe_enabled'] = True
+                    await save_admin_config()
+                    safe_notify('探针功能已启用', 'positive')
+                    await render_probe_page()
+
+                ui.button('启用探针功能', icon='sensors', on_click=enable_probe).props('flat').classes('mt-3 border border-slate-300/90 text-slate-700 bg-white hover:bg-sky-50 hover:text-sky-700 rounded-sm font-black')
+            return
+
         with ui.column().classes('w-full max-w-7xl gap-6'):
             card_style = 'w-full p-6 border rounded-sm'
             card_style_inline = 'background: var(--xf-panel-bg); border-color: var(--xf-card-border); box-shadow: 0 8px 24px rgba(15,23,42,0.10);'
