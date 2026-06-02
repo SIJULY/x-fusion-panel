@@ -351,16 +351,6 @@ async def open_server_dialog(idx=None):
                     final_prefix = inputs['xui_prefix'].value.strip()
 
                 probe_val = inputs['probe_chk'].value
-                traffic_limit_enabled = bool(inputs.get('traffic_limit_enabled').value) if inputs.get('traffic_limit_enabled') else False
-                traffic_limit_raw = inputs.get('traffic_limit_gb').value.strip() if inputs.get('traffic_limit_gb') else '0'
-                try:
-                    traffic_limit_gb = max(0.0, float(traffic_limit_raw or 0))
-                except:
-                    safe_notify("流量阈值格式错误，请填写数字", "negative")
-                    return
-
-                old_limit_enabled = bool(data.get('traffic_limit_enabled'))
-                old_limit_gb = str(data.get('traffic_limit_gb', '0')).strip()
 
                 new_server_data.update({
                     'url': final_base_url,
@@ -368,16 +358,7 @@ async def open_server_dialog(idx=None):
                     'pass': x_pass,
                     'prefix': final_prefix,
                     'probe_installed': probe_val,
-                    'traffic_limit_enabled': traffic_limit_enabled,
-                    'traffic_limit_gb': traffic_limit_gb,
                 })
-
-                if (not traffic_limit_enabled) or old_limit_enabled != traffic_limit_enabled or old_limit_gb != str(traffic_limit_gb):
-                    new_server_data['traffic_limit_triggered'] = False
-                    new_server_data['traffic_limit_triggered_at'] = None
-                    new_server_data['traffic_limit_last_total_bytes'] = 0
-                    new_server_data['traffic_limit_blocked_ports'] = []
-                    new_server_data['traffic_limit_last_result'] = ''
 
                 if probe_val:
                     if not new_server_data.get('ssh_host'):
@@ -544,15 +525,6 @@ PY'''
                         ui.button('保存 X-UI', icon='save', on_click=lambda: save_panel_data('xui')).props('flat').classes(btn_keycap_blue)
                     ui.label('提示: 启用探针需先配置 SSH 登录信息').classes('text-[10px] text-rose-400 ml-8 -mt-2')
 
-                    with ui.row().classes('w-full gap-3 items-center'):
-                        inputs['traffic_limit_enabled'] = ui.checkbox('启用流量超限保护', value=data.get('traffic_limit_enabled', False))
-                        inputs['traffic_limit_enabled'].classes('text-sm font-bold text-amber-300')
-                        inputs['traffic_limit_gb'] = ui.input(
-                            value=str(data.get('traffic_limit_gb', '500')),
-                            label='流量阈值 (GB)'
-                        ).classes('w-40').props(theme['input'])
-                    ui.label('达到阈值后，将通过 SSH 自动封禁当前 VPS 业务端口，并发送 Telegram 告警。').classes('text-[10px] text-amber-400 ml-8 -mt-1')
-                    inputs['traffic_limit_gb'].bind_visibility_from(inputs['traffic_limit_enabled'], 'value')
                 def auto_fill_ssh():
                     if inputs['probe_chk'].value and state['ssh_active'] and inputs.get('ssh_host') and not inputs['ssh_host'].value:
                         p_url = inputs['xui_url'].value

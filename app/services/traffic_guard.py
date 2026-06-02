@@ -1,5 +1,6 @@
 import asyncio
 import time
+from datetime import datetime
 
 from app.api.notifications import send_telegram_message
 from app.core.logging import logger
@@ -25,16 +26,78 @@ def get_traffic_total_bytes(probe_data: dict) -> int:
     return max(0, total_in + total_out)
 
 
+def get_current_cycle_key(ts: float | None = None) -> str:
+    dt = datetime.fromtimestamp(ts or time.time())
+    return f'{dt.year:04d}-{dt.month:02d}'
+
+
+def get_current_cycle_label(ts: float | None = None) -> str:
+    dt = datetime.fromtimestamp(ts or time.time())
+    return f'{dt.year}年{dt.month}月'
+
+
 def get_traffic_limit_bytes(server_conf: dict) -> int:
     limit_gb = _to_float(server_conf.get('traffic_limit_gb', 0), 0)
     return int(limit_gb * 1024 * 1024 * 1024)
+
+
+def get_traffic_cycle_key(server_conf: dict, ts: float | None = None) -> str:
+    return str(server_conf.get('traffic_limit_cycle_month') or get_current_cycle_key(ts))
+
+
+def get_traffic_cycle_label(server_conf: dict, ts: float | None = None) -> str:
+    raw_key = get_traffic_cycle_key(server_conf, ts)
+    try:
+        year, month = raw_key.split('-', 1)
+        return f'{int(year)}年{int(month)}月'
+    except Exception:
+        return get_current_cycle_label(ts)
+
+
+def get_traffic_cycle_start_bytes(server_conf: dict) -> int:
+    return int(_to_float(server_conf.get('traffic_limit_cycle_start_bytes', 0), 0))
+
+
+def get_traffic_cycle_used_bytes(server_conf: dict, probe_data: dict) -> int:
+    total_bytes = get_traffic_total_bytes(probe_data)
+    baseline = get_traffic_cycle_start_bytes(server_conf)
+    if total_bytes < baseline:
+        return total_bytes
+    return max(0, total_bytes - baseline)
+
+
+def ensure_traffic_limit_cycle(server_conf: dict, probe_data: dict | None = None, ts: float | None = None) -> bool:
+    current_key = get_current_cycle_key(ts)
+    changed = False
+
+    if str(server_conf.get('traffic_limit_cycle_month') or '') != current_key:
+        baseline = get_traffic_total_bytes(probe_data or {}) if probe_data else 0
+        server_conf['traffic_limit_cycle_month'] = current_key
+        server_conf['traffic_limit_cycle_start_bytes'] = baseline
+        server_conf['traffic_limit_triggered'] = False
+        server_conf['traffic_limit_triggered_at'] = None
+        server_conf['traffic_limit_last_total_bytes'] = 0
+        server_conf['traffic_limit_blocked_ports'] = []
+        server_conf['traffic_limit_last_result'] = ''
+        server_conf['traffic_limit_notified'] = False
+        changed = True
+
+    if probe_data:
+        total_bytes = get_traffic_total_bytes(probe_data)
+        baseline = get_traffic_cycle_start_bytes(server_conf)
+        if total_bytes < baseline:
+            server_conf['traffic_limit_cycle_start_bytes'] = total_bytes
+            changed = True
+
+    return changed
 
 
 def get_traffic_usage_percent(server_conf: dict, probe_data: dict) -> float:
     limit_bytes = get_traffic_limit_bytes(server_conf)
     if limit_bytes <= 0:
         return 0.0
-    return min(9999.0, get_traffic_total_bytes(probe_data) * 100.0 / limit_bytes)
+    used_bytes = get_traffic_cycle_used_bytes(server_conf, probe_data)
+    return min(9999.0, used_bytes * 100.0 / limit_bytes)
 
 
 def _normalize_port(value):
@@ -153,8 +216,11 @@ async def check_and_handle_traffic_limit(server_conf: dict, probe_data: dict) ->
         if live_server.get('traffic_limit_triggered'):
             return
 
-        total_bytes = get_traffic_total_bytes(probe_data)
+        cycle_changed = ensure_traffic_limit_cycle(live_server, probe_data)
+        total_bytes = get_traffic_cycle_used_bytes(live_server, probe_data)
         limit_bytes = get_traffic_limit_bytes(live_server)
+        if cycle_changed:
+            await save_servers()
         if limit_bytes <= 0 or total_bytes < limit_bytes:
             return
 

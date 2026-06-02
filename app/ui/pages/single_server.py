@@ -9,6 +9,10 @@ from app.services.cloudflare import CloudflareHandler
 from app.services.manager_factory import get_manager
 from app.services.ssh import _ssh_exec_wrapper, get_ssh_client_sync
 from app.services.traffic_guard import (
+    ensure_traffic_limit_cycle,
+    get_current_cycle_key,
+    get_traffic_cycle_label,
+    get_traffic_cycle_used_bytes,
     get_traffic_limit_bytes,
     get_traffic_limit_enabled,
     get_traffic_total_bytes,
@@ -351,11 +355,17 @@ PY'''
                     if is_stale:
                         uptime_val = '⚠️ 已离线'
 
+                    cycle_changed = ensure_traffic_limit_cycle(server_conf, probe_cache if probe_cache else None)
+                    if cycle_changed:
+                        asyncio.create_task(save_servers())
+
                     traffic_total_bytes = get_traffic_total_bytes(probe_cache)
+                    traffic_cycle_used_bytes = get_traffic_cycle_used_bytes(server_conf, probe_cache) if probe_cache else 0
                     traffic_limit_enabled = get_traffic_limit_enabled(server_conf)
                     traffic_limit_bytes = get_traffic_limit_bytes(server_conf)
-                    traffic_usage_pct = get_traffic_usage_percent(server_conf, probe_cache) if not is_stale else 0.0
+                    traffic_usage_pct = get_traffic_usage_percent(server_conf, probe_cache) if probe_cache and not is_stale else 0.0
                     traffic_total_gb = traffic_total_bytes / 1024 / 1024 / 1024
+                    traffic_cycle_used_gb = traffic_cycle_used_bytes / 1024 / 1024 / 1024
                     traffic_limit_gb = traffic_limit_bytes / 1024 / 1024 / 1024 if traffic_limit_bytes > 0 else 0.0
                     traffic_blocked_ports = server_conf.get('traffic_limit_blocked_ports') or []
 
@@ -386,6 +396,9 @@ PY'''
                         'traffic_limit_gb': traffic_limit_gb,
                         'traffic_total_bytes': traffic_total_bytes,
                         'traffic_total_gb': traffic_total_gb,
+                        'traffic_cycle_used_bytes': traffic_cycle_used_bytes,
+                        'traffic_cycle_used_gb': traffic_cycle_used_gb,
+                        'traffic_cycle_label': get_traffic_cycle_label(server_conf),
                         'traffic_usage_pct': traffic_usage_pct,
                         'traffic_limit_triggered': bool(server_conf.get('traffic_limit_triggered')),
                         'traffic_limit_triggered_at': server_conf.get('traffic_limit_triggered_at'),
@@ -1249,34 +1262,6 @@ PY'''
                                         render_metric_row('在线运行时间', snap['uptime'], value_color='#10b981',
                                                           accent='#10b981')
 
-                                        if snap.get('traffic_limit_enabled'):
-                                            traffic_pct = clamp_percent(snap.get('traffic_usage_pct', 0.0))
-                                            traffic_color = '#10b981' if traffic_pct < 80 else ('#facc15' if traffic_pct < 100 else '#f43f5e')
-                                            render_progress_row(
-                                                '流量保护进度',
-                                                traffic_pct,
-                                                f"{snap.get('traffic_total_gb', 0.0):.2f} / {snap.get('traffic_limit_gb', 0.0):.2f} GB ({traffic_pct:.0f}%)",
-                                                traffic_color,
-                                            )
-                                            render_metric_row(
-                                                '保护状态',
-                                                '已触发断流' if snap.get('traffic_limit_triggered') else '监控中',
-                                                sub_text=f"封禁端口: {snap.get('traffic_blocked_ports_text', '—')}",
-                                                value_color='#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b',
-                                                accent='#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b',
-                                            )
-                                            if snap.get('traffic_limit_last_result'):
-                                                render_metric_row(
-                                                    '最近执行结果',
-                                                    '已记录',
-                                                    sub_text=str(snap.get('traffic_limit_last_result', '')),
-                                                    value_color='#a78bfa',
-                                                    accent='#a78bfa',
-                                                )
-                                        else:
-                                            render_metric_row('流量保护', '未启用',
-                                                              sub_text='可在编辑服务器 → X-UI 面板 中开启',
-                                                              value_color='#64748b', accent='#64748b')
 
                                     render_sys_dyn()
 
@@ -1308,7 +1293,7 @@ PY'''
 
                                 render_mem_card()
 
-                        # ===== 下方：磁盘信息卡片 =====
+                        # ===== 下方：磁盘信息 + 流量控制卡片 =====
                         with ui.card().classes(f'w-full relative z-10 {section_card_cls}'):
                             @ui.refreshable
                             def render_disk_card():
@@ -1319,18 +1304,126 @@ PY'''
                                                           f"{fmt_gb(snap['disk_total_gb'])}").classes(
                                                           'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest').style(
                                                           'color: #f59e0b; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'))
-                                with ui.grid().classes('w-full grid-cols-1 lg:grid-cols-3 gap-5 p-4'):
-                                    render_metric_row('磁盘设备', snap.get('disk_device', '/'),
-                                                      value_color='#8b5cf6', accent='#8b5cf6')
+                                with ui.column().classes('w-full p-4 gap-5'):
+                                    with ui.grid().classes('w-full grid-cols-1 lg:grid-cols-3 gap-5'):
+                                        render_metric_row('磁盘设备', snap.get('disk_device', '/'),
+                                                          value_color='#8b5cf6', accent='#8b5cf6')
 
-                                    pct = snap.get('disk_usage_pct', 0.0)
-                                    val = fmt_gb(snap['disk_used_gb'])
-                                    render_progress_row('已用容量', pct, f'{val} ({pct:.0f}%)',
-                                                        '#f59e0b' if pct <= 85 else '#f97316')
+                                        pct = snap.get('disk_usage_pct', 0.0)
+                                        val = fmt_gb(snap['disk_used_gb'])
+                                        render_progress_row('已用容量', pct, f'{val} ({pct:.0f}%)',
+                                                            '#f59e0b' if pct <= 85 else '#f97316')
 
-                                    free_pct = 100.0 - pct if pct > 0 else 100.0
-                                    val = fmt_gb(snap['disk_free_gb'])
-                                    render_progress_row('空闲剩余', free_pct, f'{val} ({free_pct:.0f}%)', '#10b981')
+                                        free_pct = 100.0 - pct if pct > 0 else 100.0
+                                        val = fmt_gb(snap['disk_free_gb'])
+                                        render_progress_row('空闲剩余', free_pct, f'{val} ({free_pct:.0f}%)', '#10b981')
+
+                                    ui.separator().classes('my-1')
+                                    render_section_header(
+                                        '流量控制',
+                                        'shield',
+                                        'text-rose-400',
+                                        '按自然月循环统计；每月 1 日自动进入新周期，并从当月第一笔累计值重新计量',
+                                        right_renderer=lambda: ui.label(
+                                            snap.get('traffic_cycle_label', '--')
+                                        ).classes(
+                                            'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest'
+                                        ).style(
+                                            'color: #fb7185; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'
+                                        ),
+                                    )
+
+                                    enabled_input = ui.checkbox('启用流量阈值控制', value=bool(server_conf.get('traffic_limit_enabled', False)))
+                                    enabled_input.classes('text-sm font-bold text-amber-300')
+
+                                    limit_input = ui.input(
+                                        value=str(server_conf.get('traffic_limit_gb', '500')),
+                                        label='本自然月阈值 (GB)',
+                                    ).classes('w-full sm:w-52').props('outlined dense dark color=amber standout' if is_dark else 'outlined dense color=orange')
+                                    limit_input.bind_visibility_from(enabled_input, 'value')
+
+                                    async def save_traffic_limit_settings():
+                                        raw_value = str(limit_input.value or '').strip()
+                                        try:
+                                            limit_gb = max(0.0, float(raw_value or 0))
+                                        except Exception:
+                                            safe_notify('流量阈值格式错误，请填写数字', 'negative')
+                                            return
+
+                                        limit_enabled = bool(enabled_input.value)
+                                        if limit_enabled and limit_gb <= 0:
+                                            safe_notify('启用流量控制时，阈值必须大于 0', 'negative')
+                                            return
+
+                                        old_enabled = bool(server_conf.get('traffic_limit_enabled'))
+                                        old_limit = float(server_conf.get('traffic_limit_gb', 0) or 0)
+
+                                        server_conf['traffic_limit_enabled'] = limit_enabled
+                                        server_conf['traffic_limit_gb'] = limit_gb
+
+                                        if (not limit_enabled) or old_enabled != limit_enabled or old_limit != limit_gb:
+                                            server_conf['traffic_limit_cycle_month'] = get_current_cycle_key()
+                                            server_conf['traffic_limit_cycle_start_bytes'] = snap.get('traffic_total_bytes', 0)
+                                            server_conf['traffic_limit_triggered'] = False
+                                            server_conf['traffic_limit_triggered_at'] = None
+                                            server_conf['traffic_limit_last_total_bytes'] = 0
+                                            server_conf['traffic_limit_blocked_ports'] = []
+                                            server_conf['traffic_limit_last_result'] = ''
+                                            server_conf['traffic_limit_notified'] = False
+
+                                        await save_servers()
+                                        render_disk_card.refresh()
+                                        safe_notify('✅ 流量控制已保存（按自然月周期生效）', 'positive')
+
+                                    with ui.row().classes('w-full items-center gap-3 flex-wrap'):
+                                        ui.button('保存流量控制', icon='save', on_click=save_traffic_limit_settings).props('flat').classes(
+                                            'bg-amber-950/45 text-amber-300 border border-amber-500/45 hover:bg-amber-900/55 hover:shadow-[0_0_12px_rgba(245,158,11,0.28)] px-4 py-1 rounded-sm font-black tracking-wide transition-all'
+                                            if is_dark else
+                                            'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 px-4 py-1 rounded-sm font-black tracking-wide transition-all'
+                                        )
+                                        ui.label('说明：统计口径为本自然月累计流量，月初自动重置为新周期。').classes(
+                                            'text-[10px] text-amber-400' if is_dark else 'text-[10px] text-amber-700'
+                                        )
+
+                                    if snap.get('traffic_limit_enabled'):
+                                        traffic_pct = clamp_percent(snap.get('traffic_usage_pct', 0.0))
+                                        traffic_color = '#10b981' if traffic_pct < 80 else ('#facc15' if traffic_pct < 100 else '#f43f5e')
+                                        render_progress_row(
+                                            '本周期流量进度',
+                                            traffic_pct,
+                                            f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} / {snap.get('traffic_limit_gb', 0.0):.2f} GB ({traffic_pct:.0f}%)",
+                                            traffic_color,
+                                        )
+                                        render_metric_row(
+                                            '周期累计',
+                                            f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} GB",
+                                            sub_text=f"统计周期：{snap.get('traffic_cycle_label', '--')}（自然月）",
+                                            value_color='#38bdf8',
+                                            accent='#38bdf8',
+                                        )
+                                        render_metric_row(
+                                            '控制状态',
+                                            '已触发断流' if snap.get('traffic_limit_triggered') else '监控中',
+                                            sub_text=f"封禁端口: {snap.get('traffic_blocked_ports_text', '—')}",
+                                            value_color='#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b',
+                                            accent='#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b',
+                                        )
+                                        if snap.get('traffic_limit_last_result'):
+                                            render_metric_row(
+                                                '最近执行结果',
+                                                '已记录',
+                                                sub_text=str(snap.get('traffic_limit_last_result', '')),
+                                                value_color='#a78bfa',
+                                                accent='#a78bfa',
+                                            )
+                                    else:
+                                        render_metric_row(
+                                            '流量控制',
+                                            '未启用',
+                                            sub_text='可在当前单服务器详情页直接开启，并按自然月统计',
+                                            value_color='#64748b',
+                                            accent='#64748b'
+                                        )
 
                             render_disk_card()
 
