@@ -624,6 +624,130 @@ PY'''
                         client = None
                     asyncio.create_task(refresh_content('SSH_SINGLE', server_conf, manual_client=client))
 
+                traffic_refreshers = {'disk': lambda: None, 'header': lambda: None, 'top_actions': lambda: None}
+
+                def refresh_traffic_related_views():
+                    for key in ('disk', 'header', 'top_actions'):
+                        try:
+                            refresher = traffic_refreshers.get(key)
+                            if callable(refresher):
+                                refresher()
+                        except:
+                            pass
+
+                def open_traffic_limit_dialog():
+                    from nicegui import app
+                    dialog_is_dark = bool(app.storage.user.get('is_dark', True))
+                    snap = get_cached_snapshot()
+                    current_enabled = bool(server_conf.get('traffic_limit_enabled', False))
+                    current_limit = float(server_conf.get('traffic_limit_gb', 0) or 0)
+
+                    with ui.dialog() as d, ui.card().classes(
+                            'w-[560px] max-w-[94vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-amber-700/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if dialog_is_dark else 'w-[560px] max-w-[94vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-amber-300 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
+                        with ui.column().classes(
+                                'w-full bg-gradient-to-r from-[#1a1206] to-[#0c0a08] p-5 gap-2 border-b border-amber-700/45 relative overflow-hidden' if dialog_is_dark else 'w-full bg-gradient-to-r from-amber-50 to-orange-50 p-5 gap-2 border-b border-amber-200 relative overflow-hidden'):
+                            with ui.row().classes('items-center gap-3 z-10'):
+                                with ui.element('div').classes(
+                                        'w-9 h-9 rounded-sm flex items-center justify-center bg-[#120d07] border border-amber-700/45 shadow-[0_0_8px_rgba(0,0,0,0.7)] text-amber-300 relative overflow-hidden' if dialog_is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-amber-100 border border-amber-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] text-amber-700 relative overflow-hidden'):
+                                    ui.icon('shield').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
+                                with ui.column().classes('gap-0'):
+                                    ui.label('流量控制').classes(
+                                        'text-lg font-black text-slate-100 tracking-wide' if dialog_is_dark else 'text-lg font-black text-slate-800 tracking-wide')
+                                    ui.label('自然月周期阈值设置 / 手动开启或关闭').classes(
+                                        'text-[10px] tracking-wide text-slate-400' if dialog_is_dark else 'text-[10px] tracking-wide text-slate-500')
+
+                        with ui.column().classes(
+                                'w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
+                            with ui.row().classes('w-full items-center justify-between gap-3 rounded-sm border px-4 py-3').style(
+                                    'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                                with ui.column().classes('gap-1'):
+                                    ui.label('当前周期').classes('text-[11px] font-bold tracking-wide').style(
+                                        'color: var(--xf-text-muted);')
+                                    ui.label(str(snap.get('traffic_cycle_label', '--'))).classes(
+                                        'text-sm font-black tracking-wide').style('color: var(--xf-text-strong);')
+                                with ui.column().classes('gap-1 items-end'):
+                                    ui.label('本周期已用').classes('text-[11px] font-bold tracking-wide').style(
+                                        'color: var(--xf-text-muted);')
+                                    ui.label(f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} GB").classes(
+                                        'text-sm font-black font-mono tracking-wide').style('color: #38bdf8;')
+
+                            enabled_input = ui.switch('启用流量阈值控制', value=current_enabled)
+                            enabled_input.classes('font-bold')
+                            enabled_input.props('color=amber')
+
+                            limit_input = ui.input(
+                                label='本自然月阈值 (GB)',
+                                value=str(current_limit if current_limit > 0 else 500),
+                            ).classes('w-full').props(
+                                'outlined dense dark color=amber standout bg-color="[#050b14]" input-class=text-slate-100' if dialog_is_dark else 'outlined dense color=orange')
+                            limit_input.bind_visibility_from(enabled_input, 'value')
+
+                            ui.label('关闭后仅保留统计，不执行断流；开启后按当前设置的自然月阈值进行监控。').classes(
+                                'text-[11px] leading-relaxed').style('color: var(--xf-text-muted);')
+
+                            if snap.get('traffic_limit_enabled'):
+                                traffic_pct = clamp_percent(snap.get('traffic_usage_pct', 0.0))
+                                status_text = '已触发断流' if snap.get('traffic_limit_triggered') else '监控中'
+                                status_color = '#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b'
+                                with ui.row().classes('w-full items-center justify-between gap-3 rounded-sm border px-4 py-3').style(
+                                        'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                                    with ui.column().classes('gap-1'):
+                                        ui.label('当前状态').classes('text-[11px] font-bold tracking-wide').style(
+                                            'color: var(--xf-text-muted);')
+                                        ui.label(status_text).classes('text-sm font-black tracking-wide').style(
+                                            f'color: {status_color};')
+                                    with ui.column().classes('gap-1 items-end'):
+                                        ui.label('当前进度').classes('text-[11px] font-bold tracking-wide').style(
+                                            'color: var(--xf-text-muted);')
+                                        ui.label(
+                                            f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} / {snap.get('traffic_limit_gb', 0.0):.2f} GB ({traffic_pct:.0f}%)"
+                                        ).classes('text-sm font-black font-mono tracking-wide').style('color: var(--xf-text-strong);')
+
+                        async def save_traffic_limit_settings():
+                            raw_value = str(limit_input.value or '').strip()
+                            try:
+                                limit_gb = max(0.0, float(raw_value or 0))
+                            except Exception:
+                                safe_notify('流量阈值格式错误，请填写数字', 'negative')
+                                return
+
+                            limit_enabled = bool(enabled_input.value)
+                            if limit_enabled and limit_gb <= 0:
+                                safe_notify('启用流量控制时，阈值必须大于 0', 'negative')
+                                return
+
+                            old_enabled = bool(server_conf.get('traffic_limit_enabled'))
+                            old_limit = float(server_conf.get('traffic_limit_gb', 0) or 0)
+
+                            server_conf['traffic_limit_enabled'] = limit_enabled
+                            server_conf['traffic_limit_gb'] = limit_gb
+
+                            if (not limit_enabled) or old_enabled != limit_enabled or old_limit != limit_gb:
+                                latest_snap = get_cached_snapshot()
+                                server_conf['traffic_limit_cycle_month'] = get_current_cycle_key()
+                                server_conf['traffic_limit_cycle_start_bytes'] = latest_snap.get('traffic_total_bytes', 0)
+                                server_conf['traffic_limit_triggered'] = False
+                                server_conf['traffic_limit_triggered_at'] = None
+                                server_conf['traffic_limit_last_total_bytes'] = 0
+                                server_conf['traffic_limit_blocked_ports'] = []
+                                server_conf['traffic_limit_last_result'] = ''
+                                server_conf['traffic_limit_notified'] = False
+
+                            await save_servers()
+                            refresh_traffic_related_views()
+                            d.close()
+                            safe_notify('✅ 流量控制已保存（按自然月周期生效）', 'positive')
+
+                        with ui.row().classes(
+                                'w-full justify-end p-4 gap-3 border-t border-amber-700/45 bg-gradient-to-r from-[#1a1206] to-[#0c0a08]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50'):
+                            ui.button('取消', on_click=d.close).props('outline color=grey')
+                            ui.button('保存流量控制', icon='save', on_click=save_traffic_limit_settings).props('flat').classes(
+                                'bg-amber-950/45 text-amber-300 border border-amber-500/45 hover:bg-amber-900/55 hover:shadow-[0_0_12px_rgba(245,158,11,0.28)] px-5 py-1 rounded-sm font-black tracking-wide transition-all'
+                                if dialog_is_dark else
+                                'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 px-5 py-1 rounded-sm font-black tracking-wide transition-all'
+                            )
+                    d.open()
+
                 @ui.refreshable
                 async def render_node_list():
                     xui_nodes = NODES_DATA.get(server_conf['url'], []) or []
@@ -1201,12 +1325,32 @@ PY'''
 
                                 live_status_badge()
                                 ui.timer(3.0, live_status_badge.refresh)
-                    with ui.row().classes('items-center justify-end z-10'):
-                        if server_conf.get('ssh_host'):
-                            ui.button('进入 SSH 终端', icon='terminal', on_click=open_ssh_page).props(
-                                'flat size=sm').classes(
-                                'px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style(
-                                'background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
+                    @ui.refreshable
+                    def render_top_actions():
+                        with ui.row().classes('items-center justify-end gap-2 z-10 flex-wrap'):
+                            import time as _time
+                            probe_cache = PROBE_DATA_CACHE.get(server_conf['url'])
+                            is_probe_online = bool(probe_cache and (_time.time() - probe_cache.get('last_updated', 0)) <= 20)
+                            with ui.row().classes('items-center gap-1.5 px-2 py-1 rounded-sm border').style(
+                                    'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                                ui.element('div').classes(
+                                    'w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,1)] animate-pulse'
+                                    if is_probe_online else
+                                    'w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,1)]'
+                                )
+                                ui.label('探针实时同步中' if is_probe_online else '探针已断联').classes(
+                                    'text-[11px] font-bold tracking-normal text-emerald-400/90'
+                                    if is_probe_online else
+                                    'text-[11px] font-bold tracking-normal text-rose-500/90'
+                                )
+                            if server_conf.get('ssh_host'):
+                                ui.button('进入 SSH 终端', icon='terminal', on_click=open_ssh_page).props(
+                                    'flat size=sm').classes(
+                                    'px-4 py-1.5 font-bold text-[11px] rounded-sm transition-all border').style(
+                                    'background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);')
+
+                    render_top_actions()
+                    traffic_refreshers['top_actions'] = render_top_actions.refresh
 
                 # --------------------- 2. VPS 运行信息区 (强锁定高度 flex-shrink-0) ---------------------
                 vps_container = ui.element('div').classes(
@@ -1221,23 +1365,34 @@ PY'''
                                 'color: var(--xf-text-strong);')
 
                         @ui.refreshable
-                        def render_sync_status():
-                            import time as _time
-                            probe_cache = PROBE_DATA_CACHE.get(server_conf['url'])
-                            if probe_cache and (_time.time() - probe_cache.get('last_updated', 0)) <= 20:
-                                with ui.row().classes('items-center gap-1.5'):
-                                    ui.element('div').classes(
-                                        'w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,1)] animate-pulse')
-                                    ui.label('探针实时同步中').classes(
-                                        'text-[11px] text-emerald-400/90 font-bold tracking-normal')
-                            else:
-                                with ui.row().classes('items-center gap-1.5'):
-                                    ui.element('div').classes(
-                                        'w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,1)]')
-                                    ui.label('探针已断联 (离线)').classes(
-                                        'text-[11px] text-rose-500/90 font-bold tracking-normal')
+                        def render_traffic_header_action():
+                            snap = get_cached_snapshot()
+                            is_enabled = bool(snap.get('traffic_limit_enabled'))
+                            button_text = (
+                                f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} / {snap.get('traffic_limit_gb', 0.0):.2f} GB"
+                                if is_enabled else
+                                '流量控制'
+                            )
+                            button_icon = 'bar_chart' if is_enabled else 'tune'
+                            button = ui.button(button_text, icon=button_icon, on_click=open_traffic_limit_dialog).props(
+                                'flat size=sm no-caps'
+                            ).classes(
+                                'px-3 py-1.5 font-bold text-[11px] rounded-sm transition-all border'
+                            )
+                            button.style(
+                                'background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: #f59e0b;'
+                                if is_enabled else
+                                'background: var(--xf-soft-bg); border-color: var(--xf-card-border); color: var(--xf-accent);'
+                            )
+                            apply_tooltip(
+                                button,
+                                f"周期：{snap.get('traffic_cycle_label', '--')} / 已用 {snap.get('traffic_cycle_used_gb', 0.0):.2f} GB"
+                                if is_enabled else
+                                '点击设置流量阈值与开启/关闭流量控制'
+                            )
 
-                        render_sync_status()
+                        render_traffic_header_action()
+                        traffic_refreshers['header'] = render_traffic_header_action.refresh
 
                     with ui.column().classes(f'w-full gap-4 p-4 relative {shell_body_cls}'):
                         with ui.grid().classes('w-full grid-cols-1 lg:grid-cols-2 gap-4 items-stretch relative z-10'):
@@ -1318,119 +1473,15 @@ PY'''
                                         val = fmt_gb(snap['disk_free_gb'])
                                         render_progress_row('空闲剩余', free_pct, f'{val} ({free_pct:.0f}%)', '#10b981')
 
-                                    ui.separator().classes('my-1')
-                                    render_section_header(
-                                        '流量控制',
-                                        'shield',
-                                        'text-rose-400',
-                                        '按自然月循环统计；每月 1 日自动进入新周期，并从当月第一笔累计值重新计量',
-                                        right_renderer=lambda: ui.label(
-                                            snap.get('traffic_cycle_label', '--')
-                                        ).classes(
-                                            'text-[10px] font-black px-2 py-1 rounded-sm border tracking-widest'
-                                        ).style(
-                                            'color: #fb7185; background: var(--xf-soft-bg); border-color: var(--xf-card-border); box-shadow: 0 4px 10px rgba(15,23,42,0.10);'
-                                        ),
-                                    )
-
-                                    enabled_input = ui.checkbox('启用流量阈值控制', value=bool(server_conf.get('traffic_limit_enabled', False)))
-                                    enabled_input.classes('text-sm font-bold text-amber-300')
-
-                                    limit_input = ui.input(
-                                        value=str(server_conf.get('traffic_limit_gb', '500')),
-                                        label='本自然月阈值 (GB)',
-                                    ).classes('w-full sm:w-52').props('outlined dense dark color=amber standout' if is_dark else 'outlined dense color=orange')
-                                    limit_input.bind_visibility_from(enabled_input, 'value')
-
-                                    async def save_traffic_limit_settings():
-                                        raw_value = str(limit_input.value or '').strip()
-                                        try:
-                                            limit_gb = max(0.0, float(raw_value or 0))
-                                        except Exception:
-                                            safe_notify('流量阈值格式错误，请填写数字', 'negative')
-                                            return
-
-                                        limit_enabled = bool(enabled_input.value)
-                                        if limit_enabled and limit_gb <= 0:
-                                            safe_notify('启用流量控制时，阈值必须大于 0', 'negative')
-                                            return
-
-                                        old_enabled = bool(server_conf.get('traffic_limit_enabled'))
-                                        old_limit = float(server_conf.get('traffic_limit_gb', 0) or 0)
-
-                                        server_conf['traffic_limit_enabled'] = limit_enabled
-                                        server_conf['traffic_limit_gb'] = limit_gb
-
-                                        if (not limit_enabled) or old_enabled != limit_enabled or old_limit != limit_gb:
-                                            server_conf['traffic_limit_cycle_month'] = get_current_cycle_key()
-                                            server_conf['traffic_limit_cycle_start_bytes'] = snap.get('traffic_total_bytes', 0)
-                                            server_conf['traffic_limit_triggered'] = False
-                                            server_conf['traffic_limit_triggered_at'] = None
-                                            server_conf['traffic_limit_last_total_bytes'] = 0
-                                            server_conf['traffic_limit_blocked_ports'] = []
-                                            server_conf['traffic_limit_last_result'] = ''
-                                            server_conf['traffic_limit_notified'] = False
-
-                                        await save_servers()
-                                        render_disk_card.refresh()
-                                        safe_notify('✅ 流量控制已保存（按自然月周期生效）', 'positive')
-
-                                    with ui.row().classes('w-full items-center gap-3 flex-wrap'):
-                                        ui.button('保存流量控制', icon='save', on_click=save_traffic_limit_settings).props('flat').classes(
-                                            'bg-amber-950/45 text-amber-300 border border-amber-500/45 hover:bg-amber-900/55 hover:shadow-[0_0_12px_rgba(245,158,11,0.28)] px-4 py-1 rounded-sm font-black tracking-wide transition-all'
-                                            if is_dark else
-                                            'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 px-4 py-1 rounded-sm font-black tracking-wide transition-all'
-                                        )
-                                        ui.label('说明：统计口径为本自然月累计流量，月初自动重置为新周期。').classes(
-                                            'text-[10px] text-amber-400' if is_dark else 'text-[10px] text-amber-700'
-                                        )
-
-                                    if snap.get('traffic_limit_enabled'):
-                                        traffic_pct = clamp_percent(snap.get('traffic_usage_pct', 0.0))
-                                        traffic_color = '#10b981' if traffic_pct < 80 else ('#facc15' if traffic_pct < 100 else '#f43f5e')
-                                        render_progress_row(
-                                            '本周期流量进度',
-                                            traffic_pct,
-                                            f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} / {snap.get('traffic_limit_gb', 0.0):.2f} GB ({traffic_pct:.0f}%)",
-                                            traffic_color,
-                                        )
-                                        render_metric_row(
-                                            '周期累计',
-                                            f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} GB",
-                                            sub_text=f"统计周期：{snap.get('traffic_cycle_label', '--')}（自然月）",
-                                            value_color='#38bdf8',
-                                            accent='#38bdf8',
-                                        )
-                                        render_metric_row(
-                                            '控制状态',
-                                            '已触发断流' if snap.get('traffic_limit_triggered') else '监控中',
-                                            sub_text=f"封禁端口: {snap.get('traffic_blocked_ports_text', '—')}",
-                                            value_color='#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b',
-                                            accent='#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b',
-                                        )
-                                        if snap.get('traffic_limit_last_result'):
-                                            render_metric_row(
-                                                '最近执行结果',
-                                                '已记录',
-                                                sub_text=str(snap.get('traffic_limit_last_result', '')),
-                                                value_color='#a78bfa',
-                                                accent='#a78bfa',
-                                            )
-                                    else:
-                                        render_metric_row(
-                                            '流量控制',
-                                            '未启用',
-                                            sub_text='可在当前单服务器详情页直接开启，并按自然月统计',
-                                            value_color='#64748b',
-                                            accent='#64748b'
-                                        )
 
                             render_disk_card()
+
+                    traffic_refreshers['disk'] = render_disk_card.refresh
 
                     def safe_refresh():
                         try:
                             if not vps_container.is_deleted:
-                                render_sync_status.refresh()
+                                refresh_traffic_related_views()
                                 render_sys_dyn.refresh()
                                 render_mem_card.refresh()
                                 render_disk_card.refresh()
