@@ -636,117 +636,121 @@ PY'''
                             pass
 
                 def open_traffic_limit_dialog():
-                    from nicegui import app
-                    dialog_is_dark = bool(app.storage.user.get('is_dark', True))
-                    snap = get_cached_snapshot()
-                    current_enabled = bool(server_conf.get('traffic_limit_enabled', False))
-                    current_limit = float(server_conf.get('traffic_limit_gb', 0) or 0)
+                    try:
+                        from nicegui import app
+                        dialog_is_dark = bool(app.storage.user.get('is_dark', True))
+                        snap = get_cached_snapshot()
+                        current_enabled = bool(server_conf.get('traffic_limit_enabled', False))
+                        current_limit = to_float(server_conf.get('traffic_limit_gb', 0), 0.0)
 
-                    with ui.dialog() as d, ui.card().classes(
-                            'w-[560px] max-w-[94vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-amber-700/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if dialog_is_dark else 'w-[560px] max-w-[94vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-amber-300 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
-                        with ui.column().classes(
-                                'w-full bg-gradient-to-r from-[#1a1206] to-[#0c0a08] p-5 gap-2 border-b border-amber-700/45 relative overflow-hidden' if dialog_is_dark else 'w-full bg-gradient-to-r from-amber-50 to-orange-50 p-5 gap-2 border-b border-amber-200 relative overflow-hidden'):
-                            with ui.row().classes('items-center gap-3 z-10'):
-                                with ui.element('div').classes(
-                                        'w-9 h-9 rounded-sm flex items-center justify-center bg-[#120d07] border border-amber-700/45 shadow-[0_0_8px_rgba(0,0,0,0.7)] text-amber-300 relative overflow-hidden' if dialog_is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-amber-100 border border-amber-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] text-amber-700 relative overflow-hidden'):
-                                    ui.icon('shield').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
-                                with ui.column().classes('gap-0'):
-                                    ui.label('流量控制').classes(
-                                        'text-lg font-black text-slate-100 tracking-wide' if dialog_is_dark else 'text-lg font-black text-slate-800 tracking-wide')
-                                    ui.label('自然月周期阈值设置 / 手动开启或关闭').classes(
-                                        'text-[10px] tracking-wide text-slate-400' if dialog_is_dark else 'text-[10px] tracking-wide text-slate-500')
+                        with ui.dialog() as d, ui.card().classes(
+                                'w-[560px] max-w-[94vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-amber-700/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if dialog_is_dark else 'w-[560px] max-w-[94vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-amber-300 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
+                            with ui.column().classes(
+                                    'w-full bg-gradient-to-r from-[#1a1206] to-[#0c0a08] p-5 gap-2 border-b border-amber-700/45 relative overflow-hidden' if dialog_is_dark else 'w-full bg-gradient-to-r from-amber-50 to-orange-50 p-5 gap-2 border-b border-amber-200 relative overflow-hidden'):
+                                with ui.row().classes('items-center gap-3 z-10'):
+                                    with ui.element('div').classes(
+                                            'w-9 h-9 rounded-sm flex items-center justify-center bg-[#120d07] border border-amber-700/45 shadow-[0_0_8px_rgba(0,0,0,0.7)] text-amber-300 relative overflow-hidden' if dialog_is_dark else 'w-9 h-9 rounded-sm flex items-center justify-center bg-amber-100 border border-amber-300 shadow-[0_4px_12px_rgba(148,163,184,0.14)] text-amber-700 relative overflow-hidden'):
+                                        ui.icon('shield').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
+                                    with ui.column().classes('gap-0'):
+                                        ui.label('流量控制').classes(
+                                            'text-lg font-black text-slate-100 tracking-wide' if dialog_is_dark else 'text-lg font-black text-slate-800 tracking-wide')
+                                        ui.label('自然月周期阈值设置 / 手动开启或关闭').classes(
+                                            'text-[10px] tracking-wide text-slate-400' if dialog_is_dark else 'text-[10px] tracking-wide text-slate-500')
 
-                        with ui.column().classes(
-                                'w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
-                            with ui.row().classes('w-full items-center justify-between gap-3 rounded-sm border px-4 py-3').style(
-                                    'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
-                                with ui.column().classes('gap-1'):
-                                    ui.label('当前周期').classes('text-[11px] font-bold tracking-wide').style(
-                                        'color: var(--xf-text-muted);')
-                                    ui.label(str(snap.get('traffic_cycle_label', '--'))).classes(
-                                        'text-sm font-black tracking-wide').style('color: var(--xf-text-strong);')
-                                with ui.column().classes('gap-1 items-end'):
-                                    ui.label('本周期已用').classes('text-[11px] font-bold tracking-wide').style(
-                                        'color: var(--xf-text-muted);')
-                                    ui.label(f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} GB").classes(
-                                        'text-sm font-black font-mono tracking-wide').style('color: #38bdf8;')
-
-                            enabled_input = ui.switch('启用流量阈值控制', value=current_enabled)
-                            enabled_input.classes('font-bold')
-                            enabled_input.props('color=amber')
-
-                            limit_input = ui.input(
-                                label='本自然月阈值 (GB)',
-                                value=str(current_limit if current_limit > 0 else 500),
-                            ).classes('w-full').props(
-                                'outlined dense dark color=amber standout bg-color="[#050b14]" input-class=text-slate-100' if dialog_is_dark else 'outlined dense color=orange')
-                            limit_input.bind_visibility_from(enabled_input, 'value')
-
-                            ui.label('关闭后仅保留统计，不执行断流；开启后按当前设置的自然月阈值进行监控。').classes(
-                                'text-[11px] leading-relaxed').style('color: var(--xf-text-muted);')
-
-                            if snap.get('traffic_limit_enabled'):
-                                traffic_pct = clamp_percent(snap.get('traffic_usage_pct', 0.0))
-                                status_text = '已触发断流' if snap.get('traffic_limit_triggered') else '监控中'
-                                status_color = '#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b'
+                            with ui.column().classes(
+                                    'w-full p-5 gap-4 bg-[#030712]' if dialog_is_dark else 'w-full p-5 gap-4 bg-[#f8fbff]'):
                                 with ui.row().classes('w-full items-center justify-between gap-3 rounded-sm border px-4 py-3').style(
                                         'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
                                     with ui.column().classes('gap-1'):
-                                        ui.label('当前状态').classes('text-[11px] font-bold tracking-wide').style(
+                                        ui.label('当前周期').classes('text-[11px] font-bold tracking-wide').style(
                                             'color: var(--xf-text-muted);')
-                                        ui.label(status_text).classes('text-sm font-black tracking-wide').style(
-                                            f'color: {status_color};')
+                                        ui.label(str(snap.get('traffic_cycle_label', '--'))).classes(
+                                            'text-sm font-black tracking-wide').style('color: var(--xf-text-strong);')
                                     with ui.column().classes('gap-1 items-end'):
-                                        ui.label('当前进度').classes('text-[11px] font-bold tracking-wide').style(
+                                        ui.label('本周期已用').classes('text-[11px] font-bold tracking-wide').style(
                                             'color: var(--xf-text-muted);')
-                                        ui.label(
-                                            f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} / {snap.get('traffic_limit_gb', 0.0):.2f} GB ({traffic_pct:.0f}%)"
-                                        ).classes('text-sm font-black font-mono tracking-wide').style('color: var(--xf-text-strong);')
+                                        ui.label(f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} GB").classes(
+                                            'text-sm font-black font-mono tracking-wide').style('color: #38bdf8;')
 
-                        async def save_traffic_limit_settings():
-                            raw_value = str(limit_input.value or '').strip()
-                            try:
-                                limit_gb = max(0.0, float(raw_value or 0))
-                            except Exception:
-                                safe_notify('流量阈值格式错误，请填写数字', 'negative')
-                                return
+                                enabled_input = ui.switch('启用流量阈值控制', value=current_enabled)
+                                enabled_input.classes('font-bold')
+                                enabled_input.props('color=amber')
 
-                            limit_enabled = bool(enabled_input.value)
-                            if limit_enabled and limit_gb <= 0:
-                                safe_notify('启用流量控制时，阈值必须大于 0', 'negative')
-                                return
+                                limit_input = ui.input(
+                                    label='本自然月阈值 (GB)',
+                                    value=str(current_limit if current_limit > 0 else 500),
+                                ).classes('w-full').props(
+                                    'outlined dense dark color=amber standout bg-color="[#050b14]" input-class=text-slate-100' if dialog_is_dark else 'outlined dense color=orange')
+                                limit_input.bind_visibility_from(enabled_input, 'value')
 
-                            old_enabled = bool(server_conf.get('traffic_limit_enabled'))
-                            old_limit = float(server_conf.get('traffic_limit_gb', 0) or 0)
+                                ui.label('关闭后仅保留统计，不执行断流；开启后按当前设置的自然月阈值进行监控。').classes(
+                                    'text-[11px] leading-relaxed').style('color: var(--xf-text-muted);')
 
-                            server_conf['traffic_limit_enabled'] = limit_enabled
-                            server_conf['traffic_limit_gb'] = limit_gb
+                                if snap.get('traffic_limit_enabled'):
+                                    traffic_pct = clamp_percent(snap.get('traffic_usage_pct', 0.0))
+                                    status_text = '已触发断流' if snap.get('traffic_limit_triggered') else '监控中'
+                                    status_color = '#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b'
+                                    with ui.row().classes('w-full items-center justify-between gap-3 rounded-sm border px-4 py-3').style(
+                                            'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                                        with ui.column().classes('gap-1'):
+                                            ui.label('当前状态').classes('text-[11px] font-bold tracking-wide').style(
+                                                'color: var(--xf-text-muted);')
+                                            ui.label(status_text).classes('text-sm font-black tracking-wide').style(
+                                                f'color: {status_color};')
+                                        with ui.column().classes('gap-1 items-end'):
+                                            ui.label('当前进度').classes('text-[11px] font-bold tracking-wide').style(
+                                                'color: var(--xf-text-muted);')
+                                            ui.label(
+                                                f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} / {snap.get('traffic_limit_gb', 0.0):.2f} GB ({traffic_pct:.0f}%)"
+                                            ).classes('text-sm font-black font-mono tracking-wide').style('color: var(--xf-text-strong);')
 
-                            if (not limit_enabled) or old_enabled != limit_enabled or old_limit != limit_gb:
-                                latest_snap = get_cached_snapshot()
-                                server_conf['traffic_limit_cycle_month'] = get_current_cycle_key()
-                                server_conf['traffic_limit_cycle_start_bytes'] = latest_snap.get('traffic_total_bytes', 0)
-                                server_conf['traffic_limit_triggered'] = False
-                                server_conf['traffic_limit_triggered_at'] = None
-                                server_conf['traffic_limit_last_total_bytes'] = 0
-                                server_conf['traffic_limit_blocked_ports'] = []
-                                server_conf['traffic_limit_last_result'] = ''
-                                server_conf['traffic_limit_notified'] = False
+                            async def save_traffic_limit_settings():
+                                raw_value = str(limit_input.value or '').strip()
+                                try:
+                                    limit_gb = max(0.0, float(raw_value or 0))
+                                except Exception:
+                                    safe_notify('流量阈值格式错误，请填写数字', 'negative')
+                                    return
 
-                            await save_servers()
-                            refresh_traffic_related_views()
-                            d.close()
-                            safe_notify('✅ 流量控制已保存（按自然月周期生效）', 'positive')
+                                limit_enabled = bool(enabled_input.value)
+                                if limit_enabled and limit_gb <= 0:
+                                    safe_notify('启用流量控制时，阈值必须大于 0', 'negative')
+                                    return
 
-                        with ui.row().classes(
-                                'w-full justify-end p-4 gap-3 border-t border-amber-700/45 bg-gradient-to-r from-[#1a1206] to-[#0c0a08]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50'):
-                            ui.button('取消', on_click=d.close).props('outline color=grey')
-                            ui.button('保存流量控制', icon='save', on_click=save_traffic_limit_settings).props('flat').classes(
-                                'bg-amber-950/45 text-amber-300 border border-amber-500/45 hover:bg-amber-900/55 hover:shadow-[0_0_12px_rgba(245,158,11,0.28)] px-5 py-1 rounded-sm font-black tracking-wide transition-all'
-                                if dialog_is_dark else
-                                'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 px-5 py-1 rounded-sm font-black tracking-wide transition-all'
-                            )
-                    d.open()
+                                old_enabled = bool(server_conf.get('traffic_limit_enabled'))
+                                old_limit = to_float(server_conf.get('traffic_limit_gb', 0), 0.0)
+
+                                server_conf['traffic_limit_enabled'] = limit_enabled
+                                server_conf['traffic_limit_gb'] = limit_gb
+
+                                if (not limit_enabled) or old_enabled != limit_enabled or old_limit != limit_gb:
+                                    latest_snap = get_cached_snapshot()
+                                    server_conf['traffic_limit_cycle_month'] = get_current_cycle_key()
+                                    server_conf['traffic_limit_cycle_start_bytes'] = latest_snap.get('traffic_total_bytes', 0)
+                                    server_conf['traffic_limit_triggered'] = False
+                                    server_conf['traffic_limit_triggered_at'] = None
+                                    server_conf['traffic_limit_last_total_bytes'] = 0
+                                    server_conf['traffic_limit_blocked_ports'] = []
+                                    server_conf['traffic_limit_last_result'] = ''
+                                    server_conf['traffic_limit_notified'] = False
+
+                                await save_servers()
+                                refresh_traffic_related_views()
+                                d.close()
+                                safe_notify('✅ 流量控制已保存（按自然月周期生效）', 'positive')
+
+                            with ui.row().classes(
+                                    'w-full justify-end p-4 gap-3 border-t border-amber-700/45 bg-gradient-to-r from-[#1a1206] to-[#0c0a08]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50'):
+                                ui.button('取消', on_click=d.close).props('outline color=grey')
+                                ui.button('保存流量控制', icon='save', on_click=save_traffic_limit_settings).props('flat').classes(
+                                    'bg-amber-950/45 text-amber-300 border border-amber-500/45 hover:bg-amber-900/55 hover:shadow-[0_0_12px_rgba(245,158,11,0.28)] px-5 py-1 rounded-sm font-black tracking-wide transition-all'
+                                    if dialog_is_dark else
+                                    'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 px-5 py-1 rounded-sm font-black tracking-wide transition-all'
+                                )
+                        d.open()
+                    except Exception as e:
+                        logger.exception(f'打开流量控制弹窗失败: {e}')
+                        safe_notify(f'打开流量控制失败: {e}', 'negative')
 
                 @ui.refreshable
                 async def render_node_list():
