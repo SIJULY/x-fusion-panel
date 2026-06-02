@@ -330,81 +330,129 @@ PY'''
                 ui.timer(0.1, run_ssh_fallback, once=True)
 
                 def get_cached_snapshot():
-                    import time as _time
-                    probe_cache = PROBE_DATA_CACHE.get(server_conf['url'], {}) or {}
-                    static = probe_cache.get('static', {}) or {}
+                    try:
+                        import time as _time
+                        probe_cache = PROBE_DATA_CACHE.get(server_conf['url'], {}) or {}
+                        if not isinstance(probe_cache, dict):
+                            probe_cache = {}
+                        static = probe_cache.get('static', {}) or {}
+                        if not isinstance(static, dict):
+                            static = {}
 
-                    now_ts = _time.time()
-                    is_stale = bool(probe_cache and (now_ts - probe_cache.get('last_updated', 0) > 20))
+                        now_ts = _time.time()
+                        is_stale = bool(probe_cache and (now_ts - to_float(probe_cache.get('last_updated', 0), 0) > 20))
 
-                    mem_total = to_float(probe_cache.get('mem_total', 0.0))
-                    mem_usage_pct = clamp_percent(probe_cache.get('mem_usage', 0.0))
-                    mem_used = round(mem_total * mem_usage_pct / 100.0, 2)
-                    swap_total = to_float(probe_cache.get('swap_total', 0.0))
-                    swap_free = to_float(probe_cache.get('swap_free', 0.0))
+                        mem_total = to_float(probe_cache.get('mem_total', 0.0))
+                        mem_usage_pct = clamp_percent(probe_cache.get('mem_usage', 0.0))
+                        mem_used = round(mem_total * mem_usage_pct / 100.0, 2)
+                        swap_total = to_float(probe_cache.get('swap_total', 0.0))
+                        swap_free = to_float(probe_cache.get('swap_free', 0.0))
 
-                    disk_total = to_float(probe_cache.get('disk_total', 0.0))
-                    disk_usage_pct = clamp_percent(probe_cache.get('disk_usage', 0.0))
-                    disk_used = round(disk_total * disk_usage_pct / 100.0, 2)
+                        disk_total = to_float(probe_cache.get('disk_total', 0.0))
+                        disk_usage_pct = clamp_percent(probe_cache.get('disk_usage', 0.0))
+                        disk_used = round(disk_total * disk_usage_pct / 100.0, 2)
 
-                    cpu_usage_pct = 0.0 if is_stale else clamp_percent(probe_cache.get('cpu_usage', 0.0))
-                    cpu_cores = probe_cache.get('cpu_cores') or static.get('cpu_cores') or ssh_fallback_data.get(
-                        'cpu_cores') or 0
+                        cpu_usage_pct = 0.0 if is_stale else clamp_percent(probe_cache.get('cpu_usage', 0.0))
+                        cpu_cores = int(to_float(
+                            probe_cache.get('cpu_cores') or static.get('cpu_cores') or ssh_fallback_data.get('cpu_cores') or 0,
+                            0,
+                        ))
 
-                    uptime_val = probe_cache.get('uptime') or ssh_fallback_data.get('uptime') or '--'
-                    if is_stale:
-                        uptime_val = '⚠️ 已离线'
+                        uptime_val = probe_cache.get('uptime') or ssh_fallback_data.get('uptime') or '--'
+                        if is_stale:
+                            uptime_val = '⚠️ 已离线'
 
-                    cycle_changed = ensure_traffic_limit_cycle(server_conf, probe_cache if probe_cache else None)
-                    if cycle_changed:
-                        asyncio.create_task(save_servers())
+                        cycle_changed = ensure_traffic_limit_cycle(server_conf, probe_cache if probe_cache else None)
+                        if cycle_changed:
+                            asyncio.create_task(save_servers())
 
-                    traffic_total_bytes = get_traffic_total_bytes(probe_cache)
-                    traffic_cycle_used_bytes = get_traffic_cycle_used_bytes(server_conf, probe_cache) if probe_cache else 0
-                    traffic_limit_enabled = get_traffic_limit_enabled(server_conf)
-                    traffic_limit_bytes = get_traffic_limit_bytes(server_conf)
-                    traffic_usage_pct = get_traffic_usage_percent(server_conf, probe_cache) if probe_cache and not is_stale else 0.0
-                    traffic_total_gb = traffic_total_bytes / 1024 / 1024 / 1024
-                    traffic_cycle_used_gb = traffic_cycle_used_bytes / 1024 / 1024 / 1024
-                    traffic_limit_gb = traffic_limit_bytes / 1024 / 1024 / 1024 if traffic_limit_bytes > 0 else 0.0
-                    traffic_blocked_ports = server_conf.get('traffic_limit_blocked_ports') or []
+                        traffic_total_bytes = get_traffic_total_bytes(probe_cache)
+                        traffic_cycle_used_bytes = get_traffic_cycle_used_bytes(server_conf, probe_cache) if probe_cache else 0
+                        traffic_limit_enabled = get_traffic_limit_enabled(server_conf)
+                        traffic_limit_bytes = get_traffic_limit_bytes(server_conf)
+                        traffic_usage_pct = get_traffic_usage_percent(server_conf, probe_cache) if probe_cache and not is_stale else 0.0
+                        traffic_total_gb = traffic_total_bytes / 1024 / 1024 / 1024
+                        traffic_cycle_used_gb = traffic_cycle_used_bytes / 1024 / 1024 / 1024
+                        traffic_limit_gb = traffic_limit_bytes / 1024 / 1024 / 1024 if traffic_limit_bytes > 0 else 0.0
 
-                    return {
-                        'os': static.get('os') or ssh_fallback_data.get('os') or '--',
-                        'arch': static.get('arch') or ssh_fallback_data.get('arch') or '--',
-                        'uptime': uptime_val,
-                        'cpu_cores': cpu_cores,
-                        'cpu_usage_pct': cpu_usage_pct,
-                        'mem_total_gb': mem_total,
-                        'mem_free_gb': max(mem_total - mem_used, 0.0) if mem_total else 0.0,
-                        'mem_used_gb': mem_used,
-                        'mem_cache_gb': to_float(probe_cache.get('mem_cache_gb', 0.0)),
-                        'mem_usage_pct': 0.0 if is_stale else mem_usage_pct,
-                        'swap_total_gb': swap_total,
-                        'swap_free_gb': swap_free,
-                        'swap_used_gb': max(swap_total - swap_free, 0.0),
-                        'swap_usage_pct': 0.0 if is_stale else clamp_percent(
-                            (max(swap_total - swap_free, 0.0) / swap_total * 100.0) if swap_total else 0.0),
-                        'disk_device': probe_cache.get('disk_device') or '/',
-                        'disk_total_gb': disk_total,
-                        'disk_free_gb': max(disk_total - disk_used, 0.0) if disk_total else 0.0,
-                        'disk_used_gb': disk_used,
-                        'disk_usage_pct': disk_usage_pct,
-                        'has_probe': bool(probe_cache),
-                        'traffic_limit_enabled': traffic_limit_enabled,
-                        'traffic_limit_bytes': traffic_limit_bytes,
-                        'traffic_limit_gb': traffic_limit_gb,
-                        'traffic_total_bytes': traffic_total_bytes,
-                        'traffic_total_gb': traffic_total_gb,
-                        'traffic_cycle_used_bytes': traffic_cycle_used_bytes,
-                        'traffic_cycle_used_gb': traffic_cycle_used_gb,
-                        'traffic_cycle_label': get_traffic_cycle_label(server_conf),
-                        'traffic_usage_pct': traffic_usage_pct,
-                        'traffic_limit_triggered': bool(server_conf.get('traffic_limit_triggered')),
-                        'traffic_limit_triggered_at': server_conf.get('traffic_limit_triggered_at'),
-                        'traffic_limit_last_result': server_conf.get('traffic_limit_last_result', ''),
-                        'traffic_blocked_ports_text': ', '.join(str(p) for p in traffic_blocked_ports) if traffic_blocked_ports else '—',
-                    }
+                        raw_blocked_ports = server_conf.get('traffic_limit_blocked_ports') or []
+                        if not isinstance(raw_blocked_ports, (list, tuple, set)):
+                            raw_blocked_ports = [raw_blocked_ports] if raw_blocked_ports else []
+                        traffic_blocked_ports = [str(p).strip() for p in raw_blocked_ports if str(p).strip()]
+
+                        return {
+                            'os': static.get('os') or ssh_fallback_data.get('os') or '--',
+                            'arch': static.get('arch') or ssh_fallback_data.get('arch') or '--',
+                            'uptime': str(uptime_val or '--'),
+                            'cpu_cores': cpu_cores,
+                            'cpu_usage_pct': cpu_usage_pct,
+                            'mem_total_gb': mem_total,
+                            'mem_free_gb': max(mem_total - mem_used, 0.0) if mem_total else 0.0,
+                            'mem_used_gb': mem_used,
+                            'mem_cache_gb': to_float(probe_cache.get('mem_cache_gb', 0.0)),
+                            'mem_usage_pct': 0.0 if is_stale else mem_usage_pct,
+                            'swap_total_gb': swap_total,
+                            'swap_free_gb': swap_free,
+                            'swap_used_gb': max(swap_total - swap_free, 0.0),
+                            'swap_usage_pct': 0.0 if is_stale else clamp_percent(
+                                (max(swap_total - swap_free, 0.0) / swap_total * 100.0) if swap_total else 0.0),
+                            'disk_device': str(probe_cache.get('disk_device') or '/'),
+                            'disk_total_gb': disk_total,
+                            'disk_free_gb': max(disk_total - disk_used, 0.0) if disk_total else 0.0,
+                            'disk_used_gb': disk_used,
+                            'disk_usage_pct': disk_usage_pct,
+                            'has_probe': bool(probe_cache),
+                            'traffic_limit_enabled': bool(traffic_limit_enabled),
+                            'traffic_limit_bytes': max(0, int(traffic_limit_bytes)),
+                            'traffic_limit_gb': max(0.0, to_float(traffic_limit_gb, 0.0)),
+                            'traffic_total_bytes': max(0, int(traffic_total_bytes)),
+                            'traffic_total_gb': max(0.0, to_float(traffic_total_gb, 0.0)),
+                            'traffic_cycle_used_bytes': max(0, int(traffic_cycle_used_bytes)),
+                            'traffic_cycle_used_gb': max(0.0, to_float(traffic_cycle_used_gb, 0.0)),
+                            'traffic_cycle_label': str(get_traffic_cycle_label(server_conf) or '--'),
+                            'traffic_usage_pct': clamp_percent(traffic_usage_pct),
+                            'traffic_limit_triggered': bool(server_conf.get('traffic_limit_triggered')),
+                            'traffic_limit_triggered_at': server_conf.get('traffic_limit_triggered_at'),
+                            'traffic_limit_last_result': str(server_conf.get('traffic_limit_last_result', '') or ''),
+                            'traffic_blocked_ports_text': ', '.join(traffic_blocked_ports) if traffic_blocked_ports else '—',
+                        }
+                    except Exception as e:
+                        logger.exception(f'构建服务器快照失败: {e}')
+                        return {
+                            'os': '--',
+                            'arch': '--',
+                            'uptime': '--',
+                            'cpu_cores': 0,
+                            'cpu_usage_pct': 0.0,
+                            'mem_total_gb': 0.0,
+                            'mem_free_gb': 0.0,
+                            'mem_used_gb': 0.0,
+                            'mem_cache_gb': 0.0,
+                            'mem_usage_pct': 0.0,
+                            'swap_total_gb': 0.0,
+                            'swap_free_gb': 0.0,
+                            'swap_used_gb': 0.0,
+                            'swap_usage_pct': 0.0,
+                            'disk_device': '/',
+                            'disk_total_gb': 0.0,
+                            'disk_free_gb': 0.0,
+                            'disk_used_gb': 0.0,
+                            'disk_usage_pct': 0.0,
+                            'has_probe': False,
+                            'traffic_limit_enabled': False,
+                            'traffic_limit_bytes': 0,
+                            'traffic_limit_gb': 0.0,
+                            'traffic_total_bytes': 0,
+                            'traffic_total_gb': 0.0,
+                            'traffic_cycle_used_bytes': 0,
+                            'traffic_cycle_used_gb': 0.0,
+                            'traffic_cycle_label': '--',
+                            'traffic_usage_pct': 0.0,
+                            'traffic_limit_triggered': False,
+                            'traffic_limit_triggered_at': None,
+                            'traffic_limit_last_result': '',
+                            'traffic_blocked_ports_text': '—',
+                        }
 
                 cloudflare_dns_state = {
                     'loading': True,
