@@ -673,6 +673,7 @@ PY'''
                     asyncio.create_task(refresh_content('SSH_SINGLE', server_conf, manual_client=client))
 
                 traffic_refreshers = {'disk': lambda: None, 'header': lambda: None, 'top_actions': lambda: None}
+                traffic_dialog_state = {'open': False, 'opened_at': 0.0}
 
                 def refresh_traffic_related_views():
                     for key in ('disk', 'header', 'top_actions'):
@@ -685,11 +686,31 @@ PY'''
 
                 def open_traffic_limit_dialog():
                     try:
+                        import time as _time
                         from nicegui import app
                         dialog_is_dark = bool(app.storage.user.get('is_dark', True))
                         snap = get_cached_snapshot()
                         current_enabled = bool(server_conf.get('traffic_limit_enabled', False))
                         current_limit = to_float(server_conf.get('traffic_limit_gb', 0), 0.0)
+
+                        traffic_dialog_state['open'] = True
+                        traffic_dialog_state['opened_at'] = _time.time()
+                        logger.warning(
+                            f"[流量控制诊断] 打开弹窗 server={server_conf.get('name', '--')} url={server_conf.get('url', '--')} "
+                            f"enabled={current_enabled} limit_gb={current_limit} cycle={snap.get('traffic_cycle_label', '--')} "
+                            f"used_gb={snap.get('traffic_cycle_used_gb', 0.0):.2f}"
+                        )
+
+                        def _mark_dialog_closed(reason='unknown'):
+                            if traffic_dialog_state.get('open'):
+                                opened_at = to_float(traffic_dialog_state.get('opened_at', 0), 0)
+                                alive_for = max(0.0, _time.time() - opened_at) if opened_at else 0.0
+                                logger.warning(
+                                    f"[流量控制诊断] 弹窗关闭 reason={reason} server={server_conf.get('name', '--')} "
+                                    f"url={server_conf.get('url', '--')} alive_for={alive_for:.2f}s"
+                                )
+                            traffic_dialog_state['open'] = False
+                            traffic_dialog_state['opened_at'] = 0.0
 
                         with ui.dialog() as d, ui.card().classes(
                                 'w-[560px] max-w-[94vw] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-amber-700/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if dialog_is_dark else 'w-[560px] max-w-[94vw] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-amber-300 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
@@ -784,19 +805,23 @@ PY'''
 
                                 await save_servers()
                                 refresh_traffic_related_views()
+                                _mark_dialog_closed('save')
                                 d.close()
                                 safe_notify('✅ 流量控制已保存（按自然月周期生效）', 'positive')
 
                             with ui.row().classes(
                                     'w-full justify-end p-4 gap-3 border-t border-amber-700/45 bg-gradient-to-r from-[#1a1206] to-[#0c0a08]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50'):
-                                ui.button('取消', on_click=d.close).props('outline color=grey')
+                                ui.button('取消', on_click=lambda: (_mark_dialog_closed('cancel'), d.close())).props('outline color=grey')
                                 ui.button('保存流量控制', icon='save', on_click=save_traffic_limit_settings).props('flat').classes(
                                     'bg-amber-950/45 text-amber-300 border border-amber-500/45 hover:bg-amber-900/55 hover:shadow-[0_0_12px_rgba(245,158,11,0.28)] px-5 py-1 rounded-sm font-black tracking-wide transition-all'
                                     if dialog_is_dark else
                                     'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 px-5 py-1 rounded-sm font-black tracking-wide transition-all'
                                 )
+                        d.on('hide', lambda e: _mark_dialog_closed('hide'))
                         d.open()
                     except Exception as e:
+                        traffic_dialog_state['open'] = False
+                        traffic_dialog_state['opened_at'] = 0.0
                         logger.exception(f'打开流量控制弹窗失败: {e}')
                         safe_notify(f'打开流量控制失败: {e}', 'negative')
 
@@ -1532,13 +1557,23 @@ PY'''
 
                     def safe_refresh():
                         try:
-                            if not vps_container.is_deleted:
-                                refresh_traffic_related_views()
-                                render_sys_dyn.refresh()
-                                render_mem_card.refresh()
-                                render_disk_card.refresh()
-                        except:
-                            pass
+                            if vps_container.is_deleted:
+                                return
+                            if traffic_dialog_state.get('open'):
+                                import time as _time
+                                opened_at = to_float(traffic_dialog_state.get('opened_at', 0), 0)
+                                alive_for = max(0.0, _time.time() - opened_at) if opened_at else 0.0
+                                logger.warning(
+                                    f"[流量控制诊断] 检测到弹窗打开中，已暂停自动刷新 server={server_conf.get('name', '--')} "
+                                    f"url={server_conf.get('url', '--')} alive_for={alive_for:.2f}s"
+                                )
+                                return
+                            refresh_traffic_related_views()
+                            render_sys_dyn.refresh()
+                            render_mem_card.refresh()
+                            render_disk_card.refresh()
+                        except Exception as e:
+                            logger.exception(f'单服务器页自动刷新失败: {e}')
 
                     ui.timer(2.0, safe_refresh)
 
