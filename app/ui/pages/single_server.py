@@ -17,6 +17,7 @@ from app.services.traffic_guard import (
     get_traffic_limit_enabled,
     get_traffic_total_bytes,
     get_traffic_usage_percent,
+    reset_traffic_limit_block_state,
 )
 from app.services.xui_fetch import fetch_inbounds_safe
 from app.storage.repositories import save_nodes_cache, save_servers
@@ -801,17 +802,37 @@ PY'''
 
                                 old_enabled = bool(server_conf.get('traffic_limit_enabled'))
                                 old_limit = to_float(server_conf.get('traffic_limit_gb', 0), 0.0)
+                                was_triggered = bool(server_conf.get('traffic_limit_triggered'))
+                                current_cycle_used_bytes = int(snap.get('traffic_cycle_used_bytes', 0) or 0)
+                                new_limit_bytes = int(limit_gb * 1024 * 1024 * 1024) if limit_enabled else 0
+
+                                should_unblock = False
+                                unblock_reason = ''
+                                if was_triggered:
+                                    if not limit_enabled:
+                                        should_unblock = True
+                                        unblock_reason = '已关闭流量阈值，自动解除断流'
+                                    elif new_limit_bytes > current_cycle_used_bytes:
+                                        should_unblock = True
+                                        unblock_reason = '新阈值已高于当前本周期已计入流量，自动解除断流'
+
+                                if should_unblock:
+                                    ok, unblock_msg = await reset_traffic_limit_block_state(server_conf)
+                                    if not ok:
+                                        safe_notify(f'解除断流失败：{unblock_msg}', 'negative')
+                                        return
 
                                 server_conf['traffic_limit_enabled'] = limit_enabled
                                 server_conf['traffic_limit_gb'] = limit_gb
 
                                 if not limit_enabled:
-                                    server_conf['traffic_limit_triggered'] = False
-                                    server_conf['traffic_limit_triggered_at'] = None
-                                    server_conf['traffic_limit_last_total_bytes'] = 0
-                                    server_conf['traffic_limit_blocked_ports'] = []
-                                    server_conf['traffic_limit_last_result'] = ''
-                                    server_conf['traffic_limit_notified'] = False
+                                    if not should_unblock:
+                                        server_conf['traffic_limit_triggered'] = False
+                                        server_conf['traffic_limit_triggered_at'] = None
+                                        server_conf['traffic_limit_last_total_bytes'] = 0
+                                        server_conf['traffic_limit_blocked_ports'] = []
+                                        server_conf['traffic_limit_last_result'] = ''
+                                        server_conf['traffic_limit_notified'] = False
                                 elif not old_enabled:
                                     if not str(server_conf.get('traffic_limit_cycle_month') or '').strip():
                                         server_conf['traffic_limit_cycle_month'] = get_current_cycle_key()
@@ -823,12 +844,17 @@ PY'''
                                     server_conf['traffic_limit_blocked_ports'] = []
                                     server_conf['traffic_limit_last_result'] = ''
                                     server_conf['traffic_limit_notified'] = False
+                                elif was_triggered and should_unblock:
+                                    server_conf['traffic_limit_last_result'] = unblock_reason
 
                                 await save_servers()
                                 refresh_traffic_related_views()
                                 _mark_dialog_closed('save')
                                 d.close()
-                                safe_notify('✅ 流量控制已保存（按自然月周期生效）', 'positive')
+                                if should_unblock:
+                                    safe_notify(f'✅ 流量控制已保存，{unblock_reason}', 'positive')
+                                else:
+                                    safe_notify('✅ 流量控制已保存（按自然月周期生效）', 'positive')
 
                             with ui.row().classes(
                                     'w-full justify-end p-4 gap-3 border-t border-amber-700/45 bg-gradient-to-r from-[#1a1206] to-[#0c0a08]' if dialog_is_dark else 'w-full justify-end p-4 gap-3 border-t border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50'):

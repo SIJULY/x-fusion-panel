@@ -150,11 +150,15 @@ def extract_service_ports(server_conf: dict, probe_data: dict) -> list[int]:
     return sorted(ports)
 
 
+def _normalize_ports(ports: list[int]) -> list[int]:
+    return sorted({_normalize_port(port) for port in ports if _normalize_port(port) and _normalize_port(port) != 22})
+
+
 def build_block_traffic_command(ports: list[int]) -> str:
     if not ports:
         return ''
 
-    unique_ports = sorted({_normalize_port(port) for port in ports if _normalize_port(port) and _normalize_port(port) != 22})
+    unique_ports = _normalize_ports(ports)
     if not unique_ports:
         return ''
 
@@ -173,6 +177,32 @@ def build_block_traffic_command(ports: list[int]) -> str:
         ])
 
     lines.append(f"echo 'blocked ports: {', '.join(str(p) for p in unique_ports)}'")
+    return "\n".join(lines)
+
+
+def build_unblock_traffic_command(ports: list[int]) -> str:
+    if not ports:
+        return ''
+
+    unique_ports = _normalize_ports(ports)
+    if not unique_ports:
+        return ''
+
+    lines = [
+        "set -e",
+        "if ! command -v iptables >/dev/null 2>&1; then echo 'iptables not found'; exit 1; fi",
+        "if command -v ip6tables >/dev/null 2>&1; then HAS_IP6=1; else HAS_IP6=0; fi",
+    ]
+
+    for port in unique_ports:
+        lines.extend([
+            f"while iptables -C INPUT -p tcp --dport {port} -j REJECT >/dev/null 2>&1; do iptables -D INPUT -p tcp --dport {port} -j REJECT; done",
+            f"while iptables -C INPUT -p udp --dport {port} -j REJECT >/dev/null 2>&1; do iptables -D INPUT -p udp --dport {port} -j REJECT; done",
+            f"if [ \"$HAS_IP6\" = \"1\" ]; then while ip6tables -C INPUT -p tcp --dport {port} -j REJECT >/dev/null 2>&1; do ip6tables -D INPUT -p tcp --dport {port} -j REJECT; done; fi",
+            f"if [ \"$HAS_IP6\" = \"1\" ]; then while ip6tables -C INPUT -p udp --dport {port} -j REJECT >/dev/null 2>&1; do ip6tables -D INPUT -p udp --dport {port} -j REJECT; done; fi",
+        ])
+
+    lines.append(f"echo 'unblocked ports: {', '.join(str(p) for p in unique_ports)}'")
     return "\n".join(lines)
 
 
@@ -206,6 +236,34 @@ async def execute_traffic_block(server_conf: dict, ports: list[int]) -> tuple[bo
     if not command:
         return False, '未识别到可封禁的业务端口'
     return await asyncio.to_thread(_ssh_exec_wrapper, server_conf, command)
+
+
+async def execute_traffic_unblock(server_conf: dict, ports: list[int]) -> tuple[bool, str]:
+    command = build_unblock_traffic_command(ports)
+    if not command:
+        return False, '未识别到可解封的业务端口'
+    return await asyncio.to_thread(_ssh_exec_wrapper, server_conf, command)
+
+
+async def reset_traffic_limit_block_state(server_conf: dict, unblock_ports: list[int] | None = None) -> tuple[bool, str]:
+    ports = list(unblock_ports or server_conf.get('traffic_limit_blocked_ports') or [])
+    ok = True
+    result_parts = []
+
+    if ports:
+        ok, output = await execute_traffic_unblock(server_conf, ports)
+        result_parts.append((output or '').strip() or ('已解除业务端口封禁' if ok else '解除业务端口封禁失败'))
+    else:
+        result_parts.append('未记录已封禁端口，跳过远程解封')
+
+    server_conf['traffic_limit_triggered'] = False
+    server_conf['traffic_limit_triggered_at'] = None
+    server_conf['traffic_limit_last_total_bytes'] = 0
+    server_conf['traffic_limit_blocked_ports'] = []
+    server_conf['traffic_limit_last_result'] = result_parts[-1]
+    server_conf['traffic_limit_notified'] = False
+
+    return ok, ' | '.join(part for part in result_parts if part)
 
 
 async def check_and_handle_traffic_limit(server_conf: dict, probe_data: dict) -> None:
