@@ -8,6 +8,12 @@ from app.core.state import ADMIN_CONFIG, NODES_DATA, PROBE_DATA_CACHE, SERVERS_C
 from app.services.cloudflare import CloudflareHandler
 from app.services.manager_factory import get_manager
 from app.services.ssh import _ssh_exec_wrapper, get_ssh_client_sync
+from app.services.traffic_guard import (
+    get_traffic_limit_bytes,
+    get_traffic_limit_enabled,
+    get_traffic_total_bytes,
+    get_traffic_usage_percent,
+)
 from app.services.xui_fetch import fetch_inbounds_safe
 from app.storage.repositories import save_nodes_cache, save_servers
 from app.ui.common.notifications import safe_copy_to_clipboard, safe_notify
@@ -345,6 +351,14 @@ PY'''
                     if is_stale:
                         uptime_val = '⚠️ 已离线'
 
+                    traffic_total_bytes = get_traffic_total_bytes(probe_cache)
+                    traffic_limit_enabled = get_traffic_limit_enabled(server_conf)
+                    traffic_limit_bytes = get_traffic_limit_bytes(server_conf)
+                    traffic_usage_pct = get_traffic_usage_percent(server_conf, probe_cache) if not is_stale else 0.0
+                    traffic_total_gb = traffic_total_bytes / 1024 / 1024 / 1024
+                    traffic_limit_gb = traffic_limit_bytes / 1024 / 1024 / 1024 if traffic_limit_bytes > 0 else 0.0
+                    traffic_blocked_ports = server_conf.get('traffic_limit_blocked_ports') or []
+
                     return {
                         'os': static.get('os') or ssh_fallback_data.get('os') or '--',
                         'arch': static.get('arch') or ssh_fallback_data.get('arch') or '--',
@@ -366,7 +380,17 @@ PY'''
                         'disk_free_gb': max(disk_total - disk_used, 0.0) if disk_total else 0.0,
                         'disk_used_gb': disk_used,
                         'disk_usage_pct': disk_usage_pct,
-                        'has_probe': bool(probe_cache)
+                        'has_probe': bool(probe_cache),
+                        'traffic_limit_enabled': traffic_limit_enabled,
+                        'traffic_limit_bytes': traffic_limit_bytes,
+                        'traffic_limit_gb': traffic_limit_gb,
+                        'traffic_total_bytes': traffic_total_bytes,
+                        'traffic_total_gb': traffic_total_gb,
+                        'traffic_usage_pct': traffic_usage_pct,
+                        'traffic_limit_triggered': bool(server_conf.get('traffic_limit_triggered')),
+                        'traffic_limit_triggered_at': server_conf.get('traffic_limit_triggered_at'),
+                        'traffic_limit_last_result': server_conf.get('traffic_limit_last_result', ''),
+                        'traffic_blocked_ports_text': ', '.join(str(p) for p in traffic_blocked_ports) if traffic_blocked_ports else '—',
                     }
 
                 cloudflare_dns_state = {
@@ -1224,6 +1248,35 @@ PY'''
                                                           value_color='#3b82f6', accent='#3b82f6')
                                         render_metric_row('在线运行时间', snap['uptime'], value_color='#10b981',
                                                           accent='#10b981')
+
+                                        if snap.get('traffic_limit_enabled'):
+                                            traffic_pct = clamp_percent(snap.get('traffic_usage_pct', 0.0))
+                                            traffic_color = '#10b981' if traffic_pct < 80 else ('#facc15' if traffic_pct < 100 else '#f43f5e')
+                                            render_progress_row(
+                                                '流量保护进度',
+                                                traffic_pct,
+                                                f"{snap.get('traffic_total_gb', 0.0):.2f} / {snap.get('traffic_limit_gb', 0.0):.2f} GB ({traffic_pct:.0f}%)",
+                                                traffic_color,
+                                            )
+                                            render_metric_row(
+                                                '保护状态',
+                                                '已触发断流' if snap.get('traffic_limit_triggered') else '监控中',
+                                                sub_text=f"封禁端口: {snap.get('traffic_blocked_ports_text', '—')}",
+                                                value_color='#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b',
+                                                accent='#f43f5e' if snap.get('traffic_limit_triggered') else '#f59e0b',
+                                            )
+                                            if snap.get('traffic_limit_last_result'):
+                                                render_metric_row(
+                                                    '最近执行结果',
+                                                    '已记录',
+                                                    sub_text=str(snap.get('traffic_limit_last_result', '')),
+                                                    value_color='#a78bfa',
+                                                    accent='#a78bfa',
+                                                )
+                                        else:
+                                            render_metric_row('流量保护', '未启用',
+                                                              sub_text='可在编辑服务器 → X-UI 面板 中开启',
+                                                              value_color='#64748b', accent='#64748b')
 
                                     render_sys_dyn()
 

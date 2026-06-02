@@ -22,6 +22,7 @@ from app.core.state import (
 )
 from app.services.ssh import get_ssh_client_sync
 from app.services.xui_fetch import merge_local_node_fields
+from app.services.traffic_guard import check_and_handle_traffic_limit
 from app.storage.repositories import save_servers
 from app.utils.geo import get_flag_for_country
 from app.utils.network import sync_ping_worker
@@ -379,6 +380,7 @@ async def probe_push_data(request: Request):
                             asyncio.create_task(save_servers())
                             logger.info(f"🏷️ [探针同步] 根据节点备注自动改名: {new_name_candidate}")
 
+            asyncio.create_task(check_and_handle_traffic_limit(target_server, data))
             record_ping_history(target_server['url'], data.get('pings', {}))
 
         return Response("OK", 200)
