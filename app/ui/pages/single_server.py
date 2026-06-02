@@ -755,6 +755,19 @@ PY'''
                                 ui.label('关闭后仅保留统计，不执行断流；开启后按当前设置的自然月阈值进行监控。').classes(
                                     'text-[11px] leading-relaxed').style('color: var(--xf-text-muted);')
 
+                                with ui.row().classes('w-full items-center justify-between gap-3 rounded-sm border px-4 py-3').style(
+                                        'background: var(--xf-soft-bg); border-color: var(--xf-card-border);'):
+                                    with ui.column().classes('gap-1'):
+                                        ui.label('探针累计流量').classes('text-[11px] font-bold tracking-wide').style(
+                                            'color: var(--xf-text-muted);')
+                                        ui.label(f"{snap.get('traffic_total_gb', 0.0):.2f} GB").classes(
+                                            'text-sm font-black font-mono tracking-wide').style('color: #38bdf8;')
+                                    with ui.column().classes('gap-1 items-end'):
+                                        ui.label('本周期已计入').classes('text-[11px] font-bold tracking-wide').style(
+                                            'color: var(--xf-text-muted);')
+                                        ui.label(f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} GB").classes(
+                                            'text-sm font-black font-mono tracking-wide').style('color: var(--xf-text-strong);')
+
                                 if snap.get('traffic_limit_enabled'):
                                     traffic_pct = clamp_percent(snap.get('traffic_usage_pct', 0.0))
                                     status_text = '已触发断流' if snap.get('traffic_limit_triggered') else '监控中'
@@ -767,7 +780,7 @@ PY'''
                                             ui.label(status_text).classes('text-sm font-black tracking-wide').style(
                                                 f'color: {status_color};')
                                         with ui.column().classes('gap-1 items-end'):
-                                            ui.label('当前进度').classes('text-[11px] font-bold tracking-wide').style(
+                                            ui.label('阈值进度').classes('text-[11px] font-bold tracking-wide').style(
                                                 'color: var(--xf-text-muted);')
                                             ui.label(
                                                 f"{snap.get('traffic_cycle_used_gb', 0.0):.2f} / {snap.get('traffic_limit_gb', 0.0):.2f} GB ({traffic_pct:.0f}%)"
@@ -792,10 +805,18 @@ PY'''
                                 server_conf['traffic_limit_enabled'] = limit_enabled
                                 server_conf['traffic_limit_gb'] = limit_gb
 
-                                if (not limit_enabled) or old_enabled != limit_enabled or old_limit != limit_gb:
-                                    latest_snap = get_cached_snapshot()
-                                    server_conf['traffic_limit_cycle_month'] = get_current_cycle_key()
-                                    server_conf['traffic_limit_cycle_start_bytes'] = latest_snap.get('traffic_total_bytes', 0)
+                                if not limit_enabled:
+                                    server_conf['traffic_limit_triggered'] = False
+                                    server_conf['traffic_limit_triggered_at'] = None
+                                    server_conf['traffic_limit_last_total_bytes'] = 0
+                                    server_conf['traffic_limit_blocked_ports'] = []
+                                    server_conf['traffic_limit_last_result'] = ''
+                                    server_conf['traffic_limit_notified'] = False
+                                elif not old_enabled:
+                                    if not str(server_conf.get('traffic_limit_cycle_month') or '').strip():
+                                        server_conf['traffic_limit_cycle_month'] = get_current_cycle_key()
+                                    if server_conf.get('traffic_limit_cycle_start_bytes') is None:
+                                        server_conf['traffic_limit_cycle_start_bytes'] = 0
                                     server_conf['traffic_limit_triggered'] = False
                                     server_conf['traffic_limit_triggered_at'] = None
                                     server_conf['traffic_limit_last_total_bytes'] = 0
