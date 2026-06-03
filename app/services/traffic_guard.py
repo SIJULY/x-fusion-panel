@@ -72,6 +72,9 @@ def ensure_traffic_limit_cycle(server_conf: dict, probe_data: dict | None = None
 
     if str(server_conf.get('traffic_limit_cycle_month') or '') != current_key:
         baseline = get_traffic_total_bytes(probe_data or {}) if probe_data else 0
+        was_triggered = bool(server_conf.get('traffic_limit_triggered'))
+        previous_blocked_ports = list(server_conf.get('traffic_limit_blocked_ports') or [])
+
         server_conf['traffic_limit_cycle_month'] = current_key
         server_conf['traffic_limit_cycle_start_bytes'] = baseline
         server_conf['traffic_limit_triggered'] = False
@@ -80,6 +83,8 @@ def ensure_traffic_limit_cycle(server_conf: dict, probe_data: dict | None = None
         server_conf['traffic_limit_blocked_ports'] = []
         server_conf['traffic_limit_last_result'] = ''
         server_conf['traffic_limit_notified'] = False
+        server_conf['traffic_limit_pending_unblock'] = was_triggered
+        server_conf['traffic_limit_pending_unblock_ports'] = previous_blocked_ports if was_triggered else []
         changed = True
 
     if probe_data:
@@ -262,6 +267,8 @@ async def reset_traffic_limit_block_state(server_conf: dict, unblock_ports: list
     server_conf['traffic_limit_blocked_ports'] = []
     server_conf['traffic_limit_last_result'] = result_parts[-1]
     server_conf['traffic_limit_notified'] = False
+    server_conf['traffic_limit_pending_unblock'] = False
+    server_conf['traffic_limit_pending_unblock_ports'] = []
 
     return ok, ' | '.join(part for part in result_parts if part)
 
@@ -271,14 +278,26 @@ async def check_and_handle_traffic_limit(server_conf: dict, probe_data: dict) ->
         live_server = _find_live_server_ref(server_conf)
         if not get_traffic_limit_enabled(live_server):
             return
+
+        cycle_changed = ensure_traffic_limit_cycle(live_server, probe_data)
+        if cycle_changed:
+            await save_servers()
+
+        if live_server.get('traffic_limit_pending_unblock'):
+            pending_ports = list(live_server.get('traffic_limit_pending_unblock_ports') or [])
+            ok, output = await reset_traffic_limit_block_state(live_server, pending_ports)
+            live_server['traffic_limit_last_result'] = (output or '').strip() or ('新月份开始，已自动恢复业务端口' if ok else '新月份自动恢复业务端口失败')
+            await save_servers()
+            if ok:
+                logger.info(f"🔓 [流量保护] {live_server.get('name')} 已在新月份自动恢复业务端口 | ports={pending_ports}")
+            else:
+                logger.warning(f"⚠️ [流量保护] {live_server.get('name')} 新月份自动恢复业务端口失败 | ports={pending_ports} result={live_server.get('traffic_limit_last_result')}")
+
         if live_server.get('traffic_limit_triggered'):
             return
 
-        cycle_changed = ensure_traffic_limit_cycle(live_server, probe_data)
         total_bytes = get_traffic_cycle_used_bytes(live_server, probe_data)
         limit_bytes = get_traffic_limit_bytes(live_server)
-        if cycle_changed:
-            await save_servers()
         if limit_bytes <= 0 or total_bytes < limit_bytes:
             return
 
