@@ -359,7 +359,7 @@ def generate_detail_config(node, server_host):
                 line = f"{remark} = hysteria2, {h_host}, {h_port}, password={password}"
                 if sni:
                     line += f", sni={sni}"
-                line += ", skip-cert-verify=true, download-bandwidth=500, udp-relay=true"
+                line += ", skip-cert-verify=true, download-bandwidth=1000, udp-relay=true"
                 return _append_underlying_proxy(line, node)
 
             elif raw_link.startswith('vless://'):
