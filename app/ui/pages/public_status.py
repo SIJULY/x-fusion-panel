@@ -637,8 +637,7 @@ async def render_desktop_status_page():
                 list_header = ui.row().classes('w-full px-4 mb-2 text-xs font-bold text-slate-500 dark:text-slate-400 flex-nowrap items-center hidden gap-2')
                 with list_header:
                     ui.label('状态').classes('w-12 text-center shrink-0')
-                    ui.label('系统').classes('w-12 text-center shrink-0')
-                    ui.label('节点').classes('flex-[2] min-w-[150px] shrink-0 text-left')
+                    ui.label('名称').classes('flex-[2] min-w-[150px] shrink-0 text-left')
                     ui.label('标签').classes('flex-1 min-w-[70px] shrink-0 text-center')
                     ui.label('运行时间').classes('flex-[1.2] min-w-[90px] shrink-0 text-center')
                     ui.label('CPU').classes('flex-[1.2] min-w-[100px] shrink-0 text-center')
@@ -683,7 +682,8 @@ async def render_desktop_status_page():
                 refs['status_icon'].classes(replace='text-red-500', remove='text-green-500 text-gray-400 text-purple-400')
                 refs['online_dot'].classes(replace='bg-red-500', remove='bg-green-500 bg-orange-500 bg-purple-500')
 
-        refs['os_info'].set_text(re.sub(r' GNU/Linux', '', static.get('os', 'Linux'), flags=re.I))
+        if 'os_info' in refs:
+            refs['os_info'].set_text(re.sub(r' GNU/Linux', '', static.get('os', 'Linux'), flags=re.I))
         cores = status.get('cpu_cores')
         refs['summary_cores'].set_text(f'{cores} C' if cores else 'N/A')
         refs['summary_ram'].set_text(fmt_capacity(status.get('mem_total', 0)))
@@ -760,10 +760,6 @@ async def render_desktop_status_page():
                     with ui.column().classes('w-12 items-center justify-center shrink-0'):
                         refs['online_dot'] = ui.element('div').classes('w-2 h-2 rounded-full bg-gray-400 shadow-sm')
                         refs['status_icon'] = ui.icon('bolt').classes('hidden')
-
-                    with ui.column().classes('w-12 items-center justify-center shrink-0'):
-                        refs['os_icon'] = ui.icon('computer').classes('text-lg text-slate-400')
-                        refs['os_info'] = ui.label('Loading...').classes('hidden')
 
                     with ui.row().classes('flex-[2] min-w-[150px] shrink-0 items-center justify-start gap-2 truncate cursor-pointer').on('click', lambda _, s=s: open_pc_server_detail(s)):
                         flag = '🏳️'
