@@ -761,7 +761,7 @@ async def render_desktop_status_page():
                         refs['online_dot'] = ui.element('div').classes('w-2 h-2 rounded-full bg-gray-400 shadow-sm')
                         refs['status_icon'] = ui.icon('bolt').classes('hidden')
 
-                    with ui.row().classes('flex-[2] min-w-[150px] shrink-0 items-center justify-start gap-2 truncate cursor-pointer').on('click', lambda _, s=s: open_pc_server_detail(s)):
+                    with ui.row().classes('flex-[2] min-w-[150px] shrink-0 items-center justify-center gap-2 truncate cursor-pointer').on('click', lambda _, s=s: open_pc_server_detail(s)):
                         flag = '🏳️'
                         try:
                             flag = detect_country_group(s['name'], s).split(' ')[0]
