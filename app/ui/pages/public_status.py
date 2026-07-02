@@ -634,18 +634,18 @@ async def render_desktop_status_page():
                     pagination_ref = ui.row().classes('items-center')
 
             with ui.scroll_area().classes('w-full flex-grow p-4 md:p-6'):
-                list_header = ui.row().classes('w-full px-4 mb-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 flex-nowrap items-center hidden')
+                list_header = ui.row().classes('w-full px-4 mb-2 text-xs font-bold text-slate-500 dark:text-slate-400 flex-nowrap items-center hidden gap-2')
                 with list_header:
-                    ui.label('状态').classes('w-12 text-center shrink-0')
-                    ui.label('系统').classes('w-12 text-center shrink-0')
-                    ui.label('节点').classes('flex-grow min-w-[120px] max-w-[250px] shrink-0')
-                    ui.label('标签').classes('w-20 shrink-0 text-center')
-                    ui.label('运行时间').classes('w-28 shrink-0 text-center')
-                    ui.label('CPU').classes('w-28 shrink-0')
-                    ui.label('内存').classes('w-28 shrink-0')
-                    ui.label('硬盘').classes('w-28 shrink-0')
-                    ui.label('流量').classes('w-24 shrink-0 text-right')
-                    ui.label('速率').classes('w-24 shrink-0 text-right')
+                    ui.label('状态').classes('w-10 text-center shrink-0')
+                    ui.label('系统').classes('w-10 text-center shrink-0')
+                    ui.label('节点').classes('flex-[2] min-w-[120px] shrink-0')
+                    ui.label('标签').classes('w-16 shrink-0 text-center')
+                    ui.label('运行时间').classes('w-24 shrink-0 text-center')
+                    ui.label('CPU').classes('flex-1 min-w-[80px] shrink-0')
+                    ui.label('内存').classes('flex-[1.2] min-w-[100px] shrink-0')
+                    ui.label('硬盘').classes('flex-[1.2] min-w-[100px] shrink-0')
+                    ui.label('流量').classes('flex-1 min-w-[80px] shrink-0 text-right')
+                    ui.label('速率').classes('flex-1 min-w-[80px] shrink-0 text-right')
 
                 grid_container = ui.element('div').classes('w-full pb-20')
 
@@ -753,56 +753,56 @@ async def render_desktop_status_page():
 
         with grid_container:
             if view_mode == 'list':
-                with ui.card().classes('status-card w-full p-2 px-4 flex flex-row items-center relative overflow-hidden group hover:bg-white dark:hover:bg-[#070b14]/80 flex-nowrap').style('contain: content; border-radius: 6px;') as card:
+                with ui.card().classes('status-card w-full p-2 px-4 flex flex-row items-center relative overflow-hidden group hover:bg-white dark:hover:bg-[#070b14]/80 flex-nowrap gap-2').style('contain: content; border-radius: 6px;') as card:
                     refs['card'] = card
                     ui.element('div').classes('absolute inset-0 hidden dark:block bg-[linear-gradient(135deg,rgba(34,211,238,0.02),transparent_35%)] pointer-events-none')
 
-                    with ui.column().classes('w-12 items-center justify-center shrink-0'):
+                    with ui.column().classes('w-10 items-center justify-center shrink-0'):
                         refs['online_dot'] = ui.element('div').classes('w-2 h-2 rounded-full bg-gray-400 shadow-sm')
-                        refs['status_icon'] = ui.icon('bolt').classes('hidden') 
+                        refs['status_icon'] = ui.icon('bolt').classes('hidden')
 
-                    with ui.column().classes('w-12 items-center justify-center shrink-0'):
+                    with ui.column().classes('w-10 items-center justify-center shrink-0'):
                         refs['os_icon'] = ui.icon('computer').classes('text-lg text-slate-400')
                         refs['os_info'] = ui.label('Loading...').classes('hidden')
 
-                    with ui.row().classes('flex-grow min-w-[120px] max-w-[250px] items-center gap-2 truncate cursor-pointer shrink-0').on('click', lambda _, s=s: open_pc_server_detail(s)):
+                    with ui.row().classes('flex-[2] min-w-[120px] shrink-0 items-center gap-2 truncate cursor-pointer').on('click', lambda _, s=s: open_pc_server_detail(s)):
                         flag = '🏳️'
                         try:
                             flag = detect_country_group(s['name'], s).split(' ')[0]
                         except:
                             pass
                         ui.label(flag).classes('text-xl shrink-0')
-                        ui.label(s['name']).classes('text-[13px] font-black text-slate-800 dark:text-slate-100 truncate hover:text-cyan-500 transition')
+                        ui.label(s['name']).classes('text-[14px] font-black text-slate-800 dark:text-slate-100 truncate hover:text-cyan-500 transition')
 
-                    with ui.column().classes('w-20 shrink-0 text-center items-center justify-center'):
+                    with ui.column().classes('w-16 shrink-0 text-center items-center justify-center'):
                         tags_list = s.get('tags', [])
                         tags_str = tags_list[0] if tags_list else '--'
-                        ui.label(tags_str).classes('text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded truncate max-w-[70px]')
+                        ui.label(tags_str).classes('text-[11px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded truncate max-w-[55px]')
 
-                    with ui.column().classes('w-28 shrink-0 items-center justify-center'):
-                        refs['uptime'] = ui.html('--', sanitize=False).classes('text-[11px] font-mono text-slate-600 dark:text-gray-400')
+                    with ui.column().classes('w-24 shrink-0 items-center justify-center'):
+                        refs['uptime'] = ui.html('--', sanitize=False).classes('text-xs font-mono text-slate-600 dark:text-gray-400')
                         refs['summary_cores'] = ui.label('--').classes('hidden')
                         refs['summary_ram'] = ui.label('--').classes('hidden')
                         refs['summary_disk'] = ui.label('--').classes('hidden')
 
                     def list_stat_col(width_cls, color_cls, bg_cls):
                         with ui.column().classes(f'{width_cls} shrink-0 pr-4'):
-                            with ui.row().classes('w-full justify-between items-end mb-[2px]'):
-                                pct = ui.label('0%').classes('text-[11px] font-mono font-bold text-slate-700 dark:text-gray-300')
-                                sub = ui.label('').classes('text-[9px] text-slate-400') 
+                            with ui.row().classes('w-full justify-between items-end mb-[2px] flex-nowrap'):
+                                pct = ui.label('0%').classes('text-xs font-mono font-bold text-slate-700 dark:text-gray-300')
+                                sub = ui.label('').classes('text-[11px] text-slate-400 truncate')
                             with ui.element('div').classes(f'w-full h-1.5 {bg_cls} rounded-full overflow-hidden'):
                                 bar = ui.element('div').classes(f'h-full {color_cls} prog-bar').style('width: 0%')
                         return bar, pct, sub
-                    
-                    refs['cpu_bar'], refs['cpu_pct'], refs['cpu_sub'] = list_stat_col('w-28', 'bg-blue-500', 'bg-blue-100 dark:bg-gray-700/50')
-                    refs['mem_bar'], refs['mem_pct'], refs['mem_sub'] = list_stat_col('w-28', 'bg-green-500', 'bg-green-100 dark:bg-gray-700/50')
-                    refs['disk_bar'], refs['disk_pct'], refs['disk_sub'] = list_stat_col('w-28', 'bg-purple-500', 'bg-purple-100 dark:bg-gray-700/50')
-                    
-                    with ui.column().classes('w-24 shrink-0 items-end justify-center font-mono text-[10px] text-slate-600 dark:text-gray-400 whitespace-nowrap'):
+
+                    refs['cpu_bar'], refs['cpu_pct'], refs['cpu_sub'] = list_stat_col('flex-1 min-w-[80px]', 'bg-blue-500', 'bg-blue-100 dark:bg-gray-700/50')
+                    refs['mem_bar'], refs['mem_pct'], refs['mem_sub'] = list_stat_col('flex-[1.2] min-w-[100px]', 'bg-green-500', 'bg-green-100 dark:bg-gray-700/50')
+                    refs['disk_bar'], refs['disk_pct'], refs['disk_sub'] = list_stat_col('flex-[1.2] min-w-[100px]', 'bg-purple-500', 'bg-purple-100 dark:bg-gray-700/50')
+
+                    with ui.column().classes('flex-1 min-w-[80px] shrink-0 items-end justify-center font-mono text-xs text-slate-600 dark:text-gray-400 whitespace-nowrap'):
                         refs['traf_up'] = ui.label('↑ 0B')
                         refs['traf_down'] = ui.label('↓ 0B')
 
-                    with ui.column().classes('w-24 shrink-0 items-end justify-center font-mono text-[10px] whitespace-nowrap'):
+                    with ui.column().classes('flex-1 min-w-[80px] shrink-0 items-end justify-center font-mono text-xs whitespace-nowrap'):
                         refs['net_up'] = ui.label('↑ 0B/s').classes('text-orange-500 dark:text-orange-400 font-bold')
                         refs['net_down'] = ui.label('↓ 0B/s').classes('text-green-600 dark:text-green-400 font-bold')
             else:
