@@ -637,7 +637,7 @@ async def render_desktop_status_page():
                 list_header = ui.row().classes('w-full px-4 mb-2 text-xs font-bold text-slate-500 dark:text-slate-400 flex-nowrap items-center hidden gap-2')
                 with list_header:
                     ui.label('状态').classes('w-12 text-center shrink-0')
-                    ui.label('名称').classes('flex-[2] min-w-[150px] shrink-0 text-left')
+                    ui.label('名称').classes('flex-[2] min-w-[150px] shrink-0 text-center')
                     ui.label('标签').classes('flex-1 min-w-[70px] shrink-0 text-center')
                     ui.label('运行时间').classes('flex-[1.2] min-w-[90px] shrink-0 text-center')
                     ui.label('CPU').classes('flex-[1.2] min-w-[100px] shrink-0 text-center')
