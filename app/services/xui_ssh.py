@@ -60,12 +60,40 @@ except Exception as e:
     sys.exit(1)
 """
         b64_code = base64.b64encode(wrapper.encode('utf-8')).decode()
-        cmd = f"python3 -c \"import base64; exec(base64.b64decode('{b64_code}'))\""
+        
+        user = self.server_conf.get('ssh_user') or 'root'
+        pwd = self.server_conf.get('ssh_password') or ''
+        
+        if user == 'root':
+            cmd = f"python3 -c \"import base64; exec(base64.b64decode('{b64_code}'))\""
+        else:
+            if pwd:
+                pwd_escaped = pwd.replace("'", "'\\''")
+                cmd = f"echo '{pwd_escaped}' | sudo -S -p '' python3 -c \"import base64; exec(base64.b64decode('{b64_code}'))\""
+            else:
+                cmd = f"sudo -n python3 -c \"import base64; exec(base64.b64decode('{b64_code}'))\""
 
         success, output = await run.io_bound(lambda: _ssh_exec_wrapper(self.server_conf, cmd))
 
+        # 整理输出，去除 sudo 密码提示符
+        if output:
+            lines = []
+            for line in output.split('\n'):
+                if "[sudo] password for" in line:
+                    continue
+                lines.append(line)
+            output = '\n'.join(lines).strip()
+
         if not success:
-            raise Exception(f"SSH 连接失败: {output}")
+            # 去除重复的连接失败前缀，如果底层已经报错包含的话
+            err_msg = output.replace("❌ 连接失败: ", "")
+            if "sudo: a password is required" in err_msg or "Sorry, try again." in err_msg:
+                raise Exception("SSH用户需要sudo密码，或sudo密码错误")
+            raise Exception(f"SSH 连接失败: {err_msg}")
+            
+        if "sudo: a password is required" in output or "Sorry, try again." in output:
+            raise Exception("SSH用户需要sudo密码，或sudo密码错误")
+            
         if "Traceback" in output or "SyntaxError" in output or "ERROR:" in output:
             raise Exception(f"远程执行失败: {output}")
 

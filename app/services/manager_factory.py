@@ -5,25 +5,101 @@ from app.services.xui_ssh import SSHXUIManager
 managers = {}
 
 
+class HybridManager:
+    """
+    混合管理器：优先尝试 SSH（若可用且配置了），如果 SSH 失败或权限不足，自动降级回退到 API 模式。
+    """
+    def __init__(self, server_conf):
+        self.server_conf = server_conf
+        self.url = server_conf.get('url')
+        self._ssh_mgr = None
+        self._api_mgr = None
+
+    def _get_ssh_mgr(self):
+        if not self._ssh_mgr:
+            if self.server_conf.get('probe_installed') and self.server_conf.get('ssh_host'):
+                self._ssh_mgr = SSHXUIManager(self.server_conf)
+        return self._ssh_mgr
+
+    def _get_api_mgr(self):
+        if not self._api_mgr:
+            if self.url and self.server_conf.get('user') and self.server_conf.get('pass'):
+                self._api_mgr = XUIManager(
+                    self.url, 
+                    self.server_conf['user'], 
+                    self.server_conf['pass'], 
+                    self.server_conf.get('prefix')
+                )
+        return self._api_mgr
+
+    async def get_inbounds(self):
+        ssh_mgr = self._get_ssh_mgr()
+        api_mgr = self._get_api_mgr()
+        last_err = None
+        
+        if ssh_mgr:
+            try:
+                return await ssh_mgr.get_inbounds()
+            except Exception as e:
+                last_err = e
+        
+        if api_mgr:
+            return await api_mgr.get_inbounds()
+            
+        raise last_err or Exception("无法获取节点：请配置面板 API 账号密码，或确保 SSH 连接可用")
+
+    async def add_inbound(self, inbound_data):
+        ssh_mgr = self._get_ssh_mgr()
+        api_mgr = self._get_api_mgr()
+        last_err = None
+        
+        if ssh_mgr:
+            try:
+                return await ssh_mgr.add_inbound(inbound_data)
+            except Exception as e:
+                last_err = e
+        
+        if api_mgr:
+            return await api_mgr.add_inbound(inbound_data)
+            
+        raise last_err or Exception("无法添加节点：请配置面板 API 账号密码，或确保 SSH 连接可用")
+
+    async def update_inbound(self, inbound_id, inbound_data):
+        ssh_mgr = self._get_ssh_mgr()
+        api_mgr = self._get_api_mgr()
+        last_err = None
+        
+        if ssh_mgr:
+            try:
+                return await ssh_mgr.update_inbound(inbound_id, inbound_data)
+            except Exception as e:
+                last_err = e
+        
+        if api_mgr:
+            return await api_mgr.update_inbound(inbound_id, inbound_data)
+            
+        raise last_err or Exception("无法更新节点：请配置面板 API 账号密码，或确保 SSH 连接可用")
+
+    async def delete_inbound(self, inbound_id):
+        ssh_mgr = self._get_ssh_mgr()
+        api_mgr = self._get_api_mgr()
+        last_err = None
+        
+        if ssh_mgr:
+            try:
+                return await ssh_mgr.delete_inbound(inbound_id)
+            except Exception as e:
+                last_err = e
+        
+        if api_mgr:
+            return await api_mgr.delete_inbound(inbound_id)
+            
+        raise last_err or Exception("无法删除节点：请配置面板 API 账号密码，或确保 SSH 连接可用")
+
+
 def get_manager(server_conf):
-    # --- 优先级 1：SSH / Root 探针模式 (上帝模式) ---
-    # 只要检测到安装了探针且配置了 SSH Host，无论有没有 API 账号，都优先走 SSH 通道。
-    # 优点：操作数据库更稳，无需担心 API 端口被封或 API 特征检测。
-    if server_conf.get('probe_installed') and server_conf.get('ssh_host'):
-        url = server_conf.get('url')
-        # 使用特殊前缀作为 key 缓存 SSH 管理器实例
-        mgr_key = f"ssh_{url}"
-        if mgr_key not in managers:
-            managers[mgr_key] = SSHXUIManager(server_conf)
-        return managers[mgr_key]
-
-    # --- 优先级 2：标准 API 模式 ---
-    # 只有当 SSH 不可用（未配置探针/SSH）时，才尝试使用 API 账号登录。
-    url = server_conf.get('url')
-    if url and server_conf.get('user') and server_conf.get('pass'):
-        if url not in managers:
-            managers[url] = XUIManager(url, server_conf['user'], server_conf['pass'], server_conf.get('prefix'))
-        return managers[url]
-
-    # --- 兜底 ---
-    raise Exception("无法创建管理器：未配置 SSH 且缺少 X-UI 账号信息")
+    url = server_conf.get('url') or server_conf.get('ssh_host')
+    mgr_key = f"hybrid_{url}"
+    if mgr_key not in managers:
+        managers[mgr_key] = HybridManager(server_conf)
+    return managers[mgr_key]

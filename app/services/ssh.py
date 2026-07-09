@@ -89,6 +89,15 @@ def get_ssh_client(server_data):
 
     except Exception as e:
         detail = str(e).strip() or repr(e)
+        if "Bad authentication type" in detail and "publickey" in detail:
+            detail = "服务器仅支持密钥登录(publickey)，请在节点设置中改用密钥认证"
+        elif "Authentication failed" in detail:
+            detail = "认证失败：密码或密钥错误"
+        elif "timed out" in detail.lower() or "timeout" in detail.lower():
+            detail = "连接超时，请检查服务器IP、端口及防火墙设置"
+        elif "NoValidConnectionsError" in detail or "Connection refused" in detail:
+            detail = "连接被拒绝，请检查SSH端口是否正确"
+            
         return None, f"❌ 连接失败: {detail}"
 
 
