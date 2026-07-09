@@ -716,23 +716,11 @@ class InboundEditor:
             self.d['tag'] = self.d.get('tag', '')
 
             success, msg = False, ''
-            is_ssh_manager = hasattr(self.mgr, '_exec_remote_script')
-            api_payload = self.d.copy()
-            if not is_ssh_manager:
-                for k in ['settings', 'streamSettings', 'sniffing']:
-                    if isinstance(api_payload.get(k), dict):
-                        api_payload[k] = json.dumps(api_payload[k], ensure_ascii=False)
-
-            if is_ssh_manager:
-                if self.is_edit:
-                    success, msg = await self.mgr.update_inbound(self.d['id'], self.d)
-                else:
-                    success, msg = await self.mgr.add_inbound(self.d)
+            
+            if self.is_edit:
+                success, msg = await self.mgr.update_inbound(self.d['id'], self.d)
             else:
-                if self.is_edit:
-                    success, msg = await run.io_bound(self.mgr.update_inbound, api_payload['id'], api_payload)
-                else:
-                    success, msg = await run.io_bound(self.mgr.add_inbound, api_payload)
+                success, msg = await self.mgr.add_inbound(self.d)
 
             if success:
                 safe_notify(f'✅ {msg}', 'positive')
@@ -756,13 +744,7 @@ async def open_inbound_dialog(mgr, data, cb, is_3x_ui=False):
 
 async def delete_inbound(mgr, id, cb):
     try:
-        success, msg = False, ''
-        is_ssh_manager = hasattr(mgr, '_exec_remote_script')
-
-        if is_ssh_manager:
-            success, msg = await mgr.delete_inbound(id)
-        else:
-            success, msg = await run.io_bound(mgr.delete_inbound, id)
+        success, msg = await mgr.delete_inbound(id)
 
         if success:
             safe_notify(f'✅ {msg}', 'positive')

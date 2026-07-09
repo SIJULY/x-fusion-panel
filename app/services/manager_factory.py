@@ -33,6 +33,8 @@ class HybridManager:
         return self._api_mgr
 
     async def get_inbounds(self):
+        from app.utils.async_tools import run_in_bg_executor
+        
         ssh_mgr = self._get_ssh_mgr()
         api_mgr = self._get_api_mgr()
         last_err = None
@@ -44,11 +46,13 @@ class HybridManager:
                 last_err = e
         
         if api_mgr:
-            return await api_mgr.get_inbounds()
+            return await run_in_bg_executor(api_mgr.get_inbounds)
             
         raise last_err or Exception("无法获取节点：请配置面板 API 账号密码，或确保 SSH 连接可用")
 
     async def add_inbound(self, inbound_data):
+        from app.utils.async_tools import run_in_bg_executor
+        
         ssh_mgr = self._get_ssh_mgr()
         api_mgr = self._get_api_mgr()
         last_err = None
@@ -60,11 +64,13 @@ class HybridManager:
                 last_err = e
         
         if api_mgr:
-            return await api_mgr.add_inbound(inbound_data)
+            return await run_in_bg_executor(lambda: api_mgr.add_inbound(inbound_data))
             
         raise last_err or Exception("无法添加节点：请配置面板 API 账号密码，或确保 SSH 连接可用")
 
     async def update_inbound(self, inbound_id, inbound_data):
+        from app.utils.async_tools import run_in_bg_executor
+        
         ssh_mgr = self._get_ssh_mgr()
         api_mgr = self._get_api_mgr()
         last_err = None
@@ -76,11 +82,13 @@ class HybridManager:
                 last_err = e
         
         if api_mgr:
-            return await api_mgr.update_inbound(inbound_id, inbound_data)
+            return await run_in_bg_executor(lambda: api_mgr.update_inbound(inbound_id, inbound_data))
             
         raise last_err or Exception("无法更新节点：请配置面板 API 账号密码，或确保 SSH 连接可用")
 
     async def delete_inbound(self, inbound_id):
+        from app.utils.async_tools import run_in_bg_executor
+        
         ssh_mgr = self._get_ssh_mgr()
         api_mgr = self._get_api_mgr()
         last_err = None
@@ -92,7 +100,7 @@ class HybridManager:
                 last_err = e
         
         if api_mgr:
-            return await api_mgr.delete_inbound(inbound_id)
+            return await run_in_bg_executor(lambda: api_mgr.delete_inbound(inbound_id))
             
         raise last_err or Exception("无法删除节点：请配置面板 API 账号密码，或确保 SSH 连接可用")
 
