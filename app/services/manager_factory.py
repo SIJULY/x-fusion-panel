@@ -108,6 +108,21 @@ class HybridManager:
 def get_manager(server_conf):
     url = server_conf.get('url') or server_conf.get('ssh_host')
     mgr_key = f"hybrid_{url}"
-    if mgr_key not in managers:
+    
+    if mgr_key in managers:
+        mgr = managers[mgr_key]
+        mgr.server_conf = server_conf
+        mgr.url = url
+        
+        # Re-initialize inner managers to pick up new config
+        if mgr._ssh_mgr:
+            mgr._ssh_mgr.server_conf = server_conf
+        if mgr._api_mgr:
+            mgr._api_mgr.url = url
+            mgr._api_mgr.username = server_conf.get('user')
+            mgr._api_mgr.password = server_conf.get('pass')
+            mgr._api_mgr.prefix = server_conf.get('prefix')
+    else:
         managers[mgr_key] = HybridManager(server_conf)
+        
     return managers[mgr_key]
