@@ -317,10 +317,22 @@ async def probe_push_data(request: Request):
             except:
                 pass
 
+        if not target_server:
+            try:
+                client_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
+                for s in SERVERS_CACHE:
+                    cache_ip = s['url'].split('://')[-1].split(':')[0]
+                    if cache_ip == client_ip:
+                        target_server = s
+                        break
+            except:
+                pass
+
         if target_server:
             if not target_server.get('probe_installed'):
                 target_server['probe_installed'] = True
 
+            data['server_url'] = target_server['url']
             data['status'] = 'online'
             data['last_updated'] = time.time()
             PROBE_DATA_CACHE[target_server['url']] = data
