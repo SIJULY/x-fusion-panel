@@ -237,12 +237,14 @@ async def open_server_dialog(idx=None):
 
             new_name = name_input.value.strip()
             new_group = group_input.value
+            new_cf_domain = cf_primary_domain_input.value.strip()
 
             if not new_name:
                 new_name = await generate_smart_name(data)
 
             SERVERS_CACHE[idx]['name'] = new_name
             SERVERS_CACHE[idx]['group'] = new_group
+            SERVERS_CACHE[idx]['cf_primary_domain'] = new_cf_domain
 
             await save_servers()
             render_sidebar_content.refresh()
@@ -269,6 +271,7 @@ async def open_server_dialog(idx=None):
 
         with ui.column().classes(theme['body']):
             name_input = ui.input(value=data.get('name', ''), label='备注名称 (留空自动获取)').classes('w-full').props(theme['input'])
+            cf_primary_domain_input = ui.input(value=data.get('cf_primary_domain', ''), label='Cloudflare 主域名 (选填，自动同步节点/IP)').classes('w-full').props(theme['input'])
 
             with ui.row().classes('w-full items-center gap-2 no-wrap'):
                 from app.services.server_ops import get_all_groups
@@ -276,7 +279,7 @@ async def open_server_dialog(idx=None):
                 group_input = ui.select(options=get_all_groups(), value=data.get('group', '默认分组'), new_value_mode='add-unique', label='分组').classes('flex-grow').props(theme['select'])
 
                 if is_edit:
-                    ui.button(icon='save', on_click=save_basic_info_only).props('flat dense round').classes(theme['close_btn']).tooltip('仅保存名称和分组 (不重新部署)')
+                    ui.button(icon='save', on_click=save_basic_info_only).props('flat dense round').classes(theme['close_btn']).tooltip('仅保存信息 (不重新部署)')
 
         inputs = {}
         btn_keycap_blue = theme['btn_primary']
@@ -286,8 +289,10 @@ async def open_server_dialog(idx=None):
         async def save_panel_data(panel_type):
             final_name = name_input.value.strip()
             final_group = group_input.value
+            final_cf_domain = cf_primary_domain_input.value.strip()
             new_server_data = data.copy()
             new_server_data['group'] = final_group
+            new_server_data['cf_primary_domain'] = final_cf_domain
 
             if panel_type == 'ssh':
                 if not inputs.get('ssh_host'):

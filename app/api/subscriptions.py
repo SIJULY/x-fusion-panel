@@ -40,14 +40,18 @@ async def sub_handler(token: str):
     node_lookup = {}
 
     for srv in SERVERS_CACHE:
-        raw_url = srv['url']
-        try:
-            if '://' not in raw_url:
-                raw_url = f'http://{raw_url}'
-            parsed = urlparse(raw_url)
-            host = parsed.hostname or raw_url.split('://')[-1].split(':')[0]
-        except:
-            host = raw_url
+        cf_domain = srv.get('cf_primary_domain')
+        if cf_domain:
+            host = cf_domain.strip()
+        else:
+            raw_url = srv['url']
+            try:
+                if '://' not in raw_url:
+                    raw_url = f'http://{raw_url}'
+                parsed = urlparse(raw_url)
+                host = parsed.hostname or raw_url.split('://')[-1].split(':')[0]
+            except:
+                host = raw_url
 
         panel_nodes = NODES_DATA.get(srv['url'], []) or []
         for n in panel_nodes:
@@ -97,14 +101,18 @@ async def group_sub_handler(group_b64: str):
         if not all_nodes:
             continue
 
-        raw_url = srv['url']
-        try:
-            if '://' not in raw_url:
-                raw_url = f'http://{raw_url}'
-            parsed = urlparse(raw_url)
-            host = parsed.hostname or raw_url.split('://')[-1].split(':')[0]
-        except:
-            host = raw_url
+        cf_domain = srv.get('cf_primary_domain')
+        if cf_domain:
+            host = cf_domain.strip()
+        else:
+            raw_url = srv['url']
+            try:
+                if '://' not in raw_url:
+                    raw_url = f'http://{raw_url}'
+                parsed = urlparse(raw_url)
+                host = parsed.hostname or raw_url.split('://')[-1].split(':')[0]
+            except:
+                host = raw_url
 
         for n in all_nodes:
             if n.get('enable'):
@@ -140,14 +148,18 @@ async def short_group_handler(target: str, group_b64: str, request: Request):
                 custom_nodes = srv.get('custom_nodes', []) or []
                 all_nodes = panel_nodes + custom_nodes
 
-                raw_url = srv['url']
-                try:
-                    if '://' not in raw_url:
-                        raw_url = f'http://{raw_url}'
-                    parsed = urlparse(raw_url)
-                    host = parsed.hostname or raw_url.split('://')[-1].split(':')[0]
-                except:
-                    host = raw_url
+                cf_domain = srv.get('cf_primary_domain')
+                if cf_domain:
+                    host = cf_domain.strip()
+                else:
+                    raw_url = srv['url']
+                    try:
+                        if '://' not in raw_url:
+                            raw_url = f'http://{raw_url}'
+                        parsed = urlparse(raw_url)
+                        host = parsed.hostname or raw_url.split('://')[-1].split(':')[0]
+                    except:
+                        host = raw_url
 
                 node_lookup = {_node_key(srv['url'], item): (item, host) for item in all_nodes}
                 for n in all_nodes:
@@ -211,14 +223,18 @@ async def short_sub_handler(target: str, token: str, request: Request):
 
             node_lookup = {}
             for srv in SERVERS_CACHE:
-                raw_url = srv['url']
-                try:
-                    if '://' not in raw_url:
-                        raw_url = f'http://{raw_url}'
-                    parsed = urlparse(raw_url)
-                    host = parsed.hostname or raw_url.split('://')[-1].split(':')[0]
-                except:
-                    host = raw_url
+                cf_domain = srv.get('cf_primary_domain')
+                if cf_domain:
+                    host = cf_domain.strip()
+                else:
+                    raw_url = srv['url']
+                    try:
+                        if '://' not in raw_url:
+                            raw_url = f'http://{raw_url}'
+                        parsed = urlparse(raw_url)
+                        host = parsed.hostname or raw_url.split('://')[-1].split(':')[0]
+                    except:
+                        host = raw_url
 
                 all_nodes = (NODES_DATA.get(srv['url'], []) or []) + srv.get('custom_nodes', [])
                 for n in all_nodes:

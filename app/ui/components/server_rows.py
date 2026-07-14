@@ -150,14 +150,17 @@ def draw_row(srv, node, css_style, use_special_mode, is_first=True):
             async def copy_link(n=node, s=srv):
                 link = n.get('_raw_link') or n.get('link')
                 if not link:
-                    link = generate_node_link(n, s['url'])
+                    cf_domain = s.get('cf_primary_domain')
+                    host = cf_domain.strip() if cf_domain else s['url'].split('://')[-1].split(':')[0]
+                    link = generate_node_link(n, host)
                 await safe_copy_to_clipboard(link)
 
             copy_btn = ui.button(icon='content_copy', on_click=copy_link).props('flat dense size=sm round').classes('text-slate-500').style('color: var(--xf-text-muted);')
             _apply_tooltip(copy_btn, '复制链接', is_dark)
 
             async def copy_detail():
-                host = srv['url'].split('://')[-1].split(':')[0]
+                cf_domain = srv.get('cf_primary_domain')
+                host = cf_domain.strip() if cf_domain else srv['url'].split('://')[-1].split(':')[0]
                 text = generate_detail_config(node, host)
                 if text:
                     await safe_copy_to_clipboard(text)

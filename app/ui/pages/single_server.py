@@ -609,9 +609,18 @@ PY'''
                                 ok, msg = await cf_handler.create_a_record(name_val, zone_val, ip_val, proxied=False)
 
                             if ok:
+                                if not server_conf.get('cf_primary_domain'):
+                                    full_domain = f"{name_val}.{zone_val}" if name_val != '@' else zone_val
+                                    if full_domain.startswith('.'):
+                                        full_domain = full_domain[1:]
+                                    server_conf['cf_primary_domain'] = full_domain
+                                    from app.storage.repositories import save_servers
+                                    await save_servers()
+                                    
                                 safe_notify('Cloudflare A 记录已保存', 'positive')
                                 d.close()
                                 await load_cloudflare_records()
+                                render_node_list.refresh()
                             else:
                                 safe_notify(str(msg), 'negative')
 
@@ -1100,7 +1109,9 @@ PY'''
                                 with ui.row().classes(
                                         'gap-1 justify-center w-full no-wrap min-w-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10'):
                                     btn_props = 'flat dense size=sm round'
-                                    raw_link = n.get('_raw_link', '') or generate_node_link(n, server_conf['url'])
+                                    cf_domain = server_conf.get('cf_primary_domain')
+                                    node_host = cf_domain.strip() if cf_domain else server_conf['url'].split('://')[-1].split(':')[0]
+                                    raw_link = n.get('_raw_link', '') or generate_node_link(n, node_host)
                                     if raw_link:
                                         raw_btn = ui.button(icon='link',
                                                             on_click=lambda u=raw_link: safe_copy_to_clipboard(u)).props(
@@ -1109,7 +1120,8 @@ PY'''
                                         apply_tooltip(raw_btn, '复制原始链接')
 
                                     async def copy_detail_action(node_item=n):
-                                        host = \
+                                        cf_domain = server_conf.get('cf_primary_domain')
+                                        host = cf_domain.strip() if cf_domain else \
                                             server_conf.get('url', '').replace('http://', '').replace('https://', '').split(
                                                 ':')[0]
                                         text = generate_detail_config(node_for_detail(node_item), host)
@@ -1704,9 +1716,18 @@ PY'''
                                                         f'background: var(--xf-soft-bg); border-color: var(--xf-card-border); border-left-color: {row_accent}; box-shadow: {row_shadow};'):
                                                     ui.element('div').classes(row_overlay_cls).style(
                                                         f'background: linear-gradient(to right, color-mix(in srgb, {row_accent} 16%, transparent), transparent);')
-                                                    ui.label(rec.get('name', '--')).classes(
-                                                        'font-bold truncate flex-1 min-w-0 text-left pl-2 text-[13px] transition-colors relative z-10').style(
-                                                        'color: var(--xf-text-strong);')
+                                                    
+                                                    domain_name = rec.get('name', '--')
+                                                    is_primary = bool(domain_name and domain_name == server_conf.get('cf_primary_domain'))
+                                                    
+                                                    with ui.row().classes('items-center gap-2 flex-1 min-w-0 pl-2 relative z-10'):
+                                                        ui.label(domain_name).classes(
+                                                            'font-bold truncate text-left text-[13px] transition-colors').style(
+                                                            'color: var(--xf-text-strong);')
+                                                        if is_primary:
+                                                            ui.badge('主域名', color='amber').props('outline rounded-sm').classes(
+                                                                'text-[9px] font-bold tracking-wider px-1 py-0 shadow-[0_0_5px_rgba(245,158,11,0.3)]')
+                                                            
                                                     with ui.row().classes('items-center gap-1 shrink-0 relative z-10'):
                                                         ui.label('已代理' if rec.get('proxied') else '仅 DNS').classes(
                                                             'text-[10px] font-black px-2 py-1 rounded-sm border tracking-wider').style(
@@ -1717,6 +1738,22 @@ PY'''
                                                         action_wrap = ui.row().classes(
                                                             'gap-1 justify-center no-wrap min-w-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 relative z-10')
                                                         with action_wrap:
+                                                            if not is_primary:
+                                                                async def set_primary(domain):
+                                                                    server_conf['cf_primary_domain'] = domain
+                                                                    from app.storage.repositories import save_servers
+                                                                    await save_servers()
+                                                                    from app.ui.common.notifications import safe_notify
+                                                                    safe_notify(f"已设置 {domain} 为主域名", "positive")
+                                                                    render_cloudflare_dns_card.refresh()
+                                                                    render_node_list.refresh()
+
+                                                                primary_btn = ui.button(icon='star',
+                                                                                        on_click=lambda d=rec.get('name'): set_primary(d)).props(
+                                                                    'flat dense round size=sm')
+                                                                primary_btn.style('color: #f59e0b;')
+                                                                apply_tooltip(primary_btn, '设为主域名')
+                                                                
                                                             copy_btn = ui.button(icon='content_copy',
                                                                                  on_click=lambda domain=rec.get('name',
                                                                                                                 ''): safe_copy_to_clipboard(
