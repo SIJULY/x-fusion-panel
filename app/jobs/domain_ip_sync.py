@@ -3,7 +3,7 @@ import socket
 from urllib.parse import urlparse, urlunparse
 
 from app.core.logging import logger
-from app.core.state import SERVERS_CACHE
+from app.core.state import SERVERS_CACHE, PROBE_DATA_CACHE, NODES_DATA, PING_TREND_CACHE
 from app.storage.repositories import save_servers
 
 def _resolve_ip(domain):
@@ -82,6 +82,14 @@ async def job_sync_domain_ips():
                         
                     new_url = urlunparse(parsed._replace(netloc=netloc))
                     logger.info(f"🔄 [域名IP同步] {srv.get('name', 'Unknown')} URL 更新: {current_host} -> {new_ip}")
+                    
+                    if url_str in PROBE_DATA_CACHE:
+                        PROBE_DATA_CACHE[new_url] = PROBE_DATA_CACHE.pop(url_str)
+                    if url_str in NODES_DATA:
+                        NODES_DATA[new_url] = NODES_DATA.pop(url_str)
+                    if url_str in PING_TREND_CACHE:
+                        PING_TREND_CACHE[new_url] = PING_TREND_CACHE.pop(url_str)
+                        
                     srv['url'] = new_url
                     updated = True
             except Exception as e:
