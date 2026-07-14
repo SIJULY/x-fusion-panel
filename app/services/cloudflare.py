@@ -124,6 +124,31 @@ class CloudflareHandler:
 
         return await run.io_bound(_task)
 
+    async def get_a_record_ip_by_domain(self, domain):
+        if not self.token or not domain:
+            return False, "未配置 Token 或域名为空"
+        
+        def _task():
+            zone_id, err = self.get_zone_id(domain)
+            if not zone_id:
+                return False, f"找不到 Zone: {err}"
+            
+            search_url = f"{self.base_url}/zones/{zone_id}/dns_records?name={domain}&type=A"
+            try:
+                r = requests.get(search_url, headers=self._headers(), timeout=10)
+                data = r.json()
+                if not data.get('success'):
+                    return False, "查询记录失败"
+                
+                records = data.get('result', [])
+                if records:
+                    return True, records[0].get('content')
+                return False, "未找到 A 记录"
+            except Exception as e:
+                return False, str(e)
+
+        return await run.io_bound(_task)
+
     async def list_a_records_by_ip(self, ip):
         if not self.token:
             return False, "未配置 Cloudflare Token"

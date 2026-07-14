@@ -53,7 +53,15 @@ async def job_sync_domain_ips():
         if not domain:
             continue
 
-        new_ip = await asyncio.to_thread(_resolve_ip, domain)
+        new_ip = None
+        if cf.token:
+            ok, ip_or_err = await cf.get_a_record_ip_by_domain(domain)
+            if ok and ip_or_err:
+                new_ip = ip_or_err
+        
+        if not new_ip:
+            new_ip = await asyncio.to_thread(_resolve_ip, domain)
+            
         if not new_ip:
             continue
 

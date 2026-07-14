@@ -1753,6 +1753,21 @@ PY'''
                                                                     'flat dense round size=sm')
                                                                 primary_btn.style('color: #f59e0b;')
                                                                 apply_tooltip(primary_btn, '设为主域名')
+                                                            else:
+                                                                async def unset_primary(domain):
+                                                                    server_conf['cf_primary_domain'] = ""
+                                                                    from app.storage.repositories import save_servers
+                                                                    await save_servers()
+                                                                    from app.ui.common.notifications import safe_notify
+                                                                    safe_notify(f"已取消 {domain} 为主域名", "info")
+                                                                    render_cloudflare_dns_card.refresh()
+                                                                    render_node_list.refresh()
+                                                                    
+                                                                primary_btn = ui.button(icon='star',
+                                                                                        on_click=lambda d=rec.get('name'): unset_primary(d)).props(
+                                                                    'flat dense round size=sm')
+                                                                primary_btn.style('color: #f43f5e;')
+                                                                apply_tooltip(primary_btn, '取消主域名')
                                                                 
                                                             copy_btn = ui.button(icon='content_copy',
                                                                                  on_click=lambda domain=rec.get('name',
