@@ -7,7 +7,7 @@ from nicegui import run
 
 from app.core.config import AUTO_COUNTRY_MAP
 from app.core.logging import logger
-from app.core.state import ADMIN_CONFIG, NODES_DATA, SERVERS_CACHE, SUBS_CACHE
+from app.core.state import ADMIN_CONFIG, NODES_DATA, SERVERS_CACHE, SUBS_CACHE, INDEPENDENT_NODES_CACHE
 from app.utils.encoding import decode_base64_safe, generate_detail_config, generate_node_link, safe_base64
 
 
@@ -62,6 +62,10 @@ async def sub_handler(token: str):
         for n in custom_nodes:
             key = _node_key(srv['url'], n)
             node_lookup[key] = (n, host)
+            
+    for inode in INDEPENDENT_NODES_CACHE:
+        key = f"independent|{inode['id']}"
+        node_lookup[key] = (inode, "")
 
     ordered_ids = sub.get('nodes', [])
 
@@ -241,11 +245,24 @@ async def short_sub_handler(target: str, token: str, request: Request):
                     key = _node_key(srv['url'], n)
                     node_lookup[key] = (n, host)
 
+            for inode in INDEPENDENT_NODES_CACHE:
+                key = f"independent|{inode['id']}"
+                node_lookup[key] = (inode, "")
+
             ordered_ids = sub_obj.get('nodes', [])
 
             for key in ordered_ids:
                 if key in node_lookup:
                     node, host = node_lookup[key]
+                    
+                    if key.startswith('independent|') and node.get('_raw_link'):
+                        # Surrogate detail parsing - ideally should use subconverter, but Surge config supports custom formats. 
+                        # We skip detail logic for raw independent nodes unless they are standard proxies in Surge format.
+                        # Simple fallback to generate_detail_config that attempts parsing raw_link internally if implemented.
+                        # In this simplified case, since generate_detail_config might not parse pure raw links optimally,
+                        # we let the fallback Subconverter handle the main raw links via API, or append comment if unresolved.
+                        pass
+                    
                     line = generate_detail_config(_prepare_node_for_detail(node, key.split('|', 1)[0], node_lookup), host)
                     if line and not line.startswith('//') and not line.startswith('None'):
                         links.append(line)

@@ -2,8 +2,8 @@ import asyncio
 
 from nicegui import app, ui
 
-from app.core.state import ADMIN_CONFIG, CURRENT_VIEW_STATE, NODES_DATA, SERVERS_CACHE, SUBS_CACHE
-from app.storage.repositories import save_admin_config, save_subs
+from app.core.state import ADMIN_CONFIG, CURRENT_VIEW_STATE, NODES_DATA, SERVERS_CACHE, SUBS_CACHE, INDEPENDENT_NODES_CACHE
+from app.storage.repositories import save_admin_config, save_subs, save_independent_nodes
 from app.ui.common.notifications import safe_copy_to_clipboard, safe_notify, show_loading
 
 
@@ -151,3 +151,79 @@ async def load_subs_view():
 
                         clash_short = f"{origin}/get/sub/clash/{sub['token']}"
                         btn_copy('cloud_queue', 'green', '复制 Clash 订阅', lambda u=clash_short: safe_copy_to_clipboard(u))
+
+        ui.separator().classes('my-6 opacity-80').style('background: var(--xf-card-border);')
+
+        with ui.row().classes(page_header_cls).style(page_header_style):
+            with ui.row().classes('items-center gap-3'):
+                with ui.element('div').classes(page_icon_cls).style(page_icon_style):
+                    ui.element('div').classes('absolute inset-0').style('background: var(--xf-accent-soft);')
+                    ui.icon('hub').classes('text-[18px] drop-shadow-[0_0_5px_currentColor]')
+                ui.label('独立节点管理').classes(page_title_cls).style(page_title_style)
+            
+            def open_add_independent_node():
+                from app.ui.dialogs.sub_dialogs import open_independent_node_editor
+                open_independent_node_editor(None)
+
+            ui.button('添加独立节点', icon='add', on_click=open_add_independent_node).props('flat').classes('bg-blue-950/45 text-blue-300 border border-blue-500/45 hover:bg-blue-900/55 font-black rounded-sm px-4' if is_dark else 'bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200 font-black rounded-sm px-4')
+
+        if not INDEPENDENT_NODES_CACHE:
+            with ui.column().classes('w-full h-64 justify-center items-center border border-dashed rounded-sm').style('background: var(--xf-panel-bg); border-color: var(--xf-card-border); color: var(--xf-text-muted);'):
+                ui.icon('hub', size='4rem').style('color: var(--xf-accent); opacity: 0.8;')
+                ui.label('暂无独立节点').classes('text-sm font-bold').style('color: var(--xf-text-muted);')
+        
+        for idx, inode in enumerate(INDEPENDENT_NODES_CACHE):
+            with ui.card().classes(card_cls).style(card_style):
+                with ui.row().classes('justify-between w-full items-start'):
+                    with ui.column().classes('gap-1'):
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label(inode.get('remark', '未命名节点')).classes('font-black text-lg tracking-wide').style('color: var(--xf-text-strong);')
+                            ui.badge('独立', color='blue').props('outline size=xs').classes('text-blue-300 border-blue-500/45 rounded-sm' if is_dark else 'text-blue-700 border-blue-300 rounded-sm')
+                        
+                        link = inode.get('_raw_link', '')
+                        protocol = "unknown"
+                        if link:
+                            protocol = link.split('://')[0]
+                        ui.label(f"⚡ 协议: {protocol} | ID: {inode.get('id', 'N/A')}").classes('text-xs font-bold text-slate-500 font-mono')
+                    
+                    with ui.row().classes('gap-2'):
+                        def edit_inode(node=inode):
+                            from app.ui.dialogs.sub_dialogs import open_independent_node_editor
+                            open_independent_node_editor(node)
+                            
+                        ui.button('编辑', icon='edit', on_click=edit_inode) \
+                            .props('flat dense size=sm') \
+                            .classes('rounded-sm px-3 font-black border') \
+                            .style('background: var(--xf-soft-bg); color: var(--xf-accent); border-color: var(--xf-card-border);')
+                            
+                        async def dl_inode(i=idx):
+                            with ui.dialog() as d, ui.card().classes('w-[360px] p-0 gap-0 overflow-hidden rounded-sm bg-[#070b14] border border-rose-800/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if is_dark else 'w-[360px] p-0 gap-0 overflow-hidden rounded-sm bg-white border border-rose-300 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
+                                with ui.column().classes('w-full p-5 gap-3 bg-gradient-to-r from-[#19070d] to-[#0b0911] border-b border-rose-900/60' if is_dark else 'w-full p-5 gap-3 bg-gradient-to-r from-rose-50 to-orange-50 border-b border-rose-200'):
+                                    ui.label('确定删除此独立节点？').classes('font-black text-rose-300 text-lg tracking-wide' if is_dark else 'font-black text-rose-700 text-lg tracking-wide')
+                                with ui.row().classes('justify-end w-full mt-4 p-4 bg-[#030712] gap-2' if is_dark else 'justify-end w-full mt-4 p-4 bg-white gap-2'):
+                                    ui.button('取消', on_click=d.close).props('outline color=grey').classes('text-slate-300 border-slate-600 hover:bg-slate-800/40 text-xs font-bold tracking-wide rounded-sm' if is_dark else 'text-slate-600 border-slate-300 hover:bg-slate-100 text-xs font-bold tracking-wide rounded-sm')
+
+                                    async def confirm():
+                                        del INDEPENDENT_NODES_CACHE[i]
+                                        await save_independent_nodes()
+                                        await load_subs_view()
+                                        d.close()
+                                        safe_notify('已删除独立节点', 'positive')
+
+                                    ui.button('删除', on_click=confirm).props('flat').classes('bg-rose-950/45 text-rose-300 border border-rose-500/45 hover:bg-rose-900/55 font-black rounded-sm px-4' if is_dark else 'bg-rose-100 text-rose-700 border border-rose-300 hover:bg-rose-200 font-black rounded-sm px-4')
+                            d.open()
+                            
+                        ui.button(icon='delete', on_click=dl_inode).props('flat dense size=sm').classes('text-rose-400 hover:bg-rose-950/30 hover:text-rose-300')
+                
+                ui.separator().classes('my-3 opacity-80').style('background: var(--xf-card-border);')
+                
+                with ui.row().classes('w-full items-center gap-2 p-2.5 rounded-sm justify-between border').style('background: var(--xf-code-bg); border-color: var(--xf-card-border);'):
+                    with ui.row().classes('items-center gap-3 flex-grow overflow-hidden'):
+                        ui.icon('link').classes('text-sm').style('color: var(--xf-accent);')
+                        ui.label(inode.get('_raw_link', '')).classes('text-xs font-mono font-bold truncate select-all').style('color: var(--xf-text-strong);')
+                    
+                    with ui.row().classes('gap-1'):
+                        def btn_copy(icon, color, text, func):
+                            ui.button(icon=icon, on_click=func).props(f'flat dense round size=xs text-color={color}').tooltip(text).style('color: var(--xf-text-muted);')
+                            
+                        btn_copy('content_copy', 'grey-4', '复制节点链接', lambda u=inode.get('_raw_link', ''): safe_copy_to_clipboard(u))

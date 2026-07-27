@@ -29,6 +29,7 @@ SUBS_FILE = os.path.join(DATA_DIR, 'subscriptions.json')
 NODES_CACHE_FILE = os.path.join(DATA_DIR, 'nodes_cache.json')
 ADMIN_CONFIG_FILE = os.path.join(DATA_DIR, 'admin_config.json')
 GLOBAL_SSH_KEY_FILE = os.path.join(DATA_DIR, 'global_ssh_key')
+INDEPENDENT_NODES_FILE = os.path.join(DATA_DIR, 'independent_nodes.json')
 
 AUTO_REGISTER_SECRET = os.getenv('XUI_SECRET_KEY', 'sijuly_secret_key_default')
 ADMIN_USER = os.getenv('XUI_USERNAME', 'admin')

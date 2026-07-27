@@ -8,6 +8,7 @@ from app.core.config import (
     GLOBAL_SSH_KEY_FILE,
     NODES_CACHE_FILE,
     SUBS_FILE,
+    INDEPENDENT_NODES_FILE,
 )
 from app.core.logging import logger
 from app.storage.files import safe_save
@@ -37,6 +38,10 @@ async def save_admin_config():
 
 async def save_subs():
     await safe_save(SUBS_FILE, state.SUBS_CACHE)
+
+
+async def save_independent_nodes():
+    await safe_save(INDEPENDENT_NODES_FILE, state.INDEPENDENT_NODES_CACHE)
 
 
 async def save_nodes_cache():

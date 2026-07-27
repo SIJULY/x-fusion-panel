@@ -3,7 +3,7 @@ import os
 import uuid
 
 from app.core import state
-from app.core.config import ADMIN_CONFIG_FILE, CONFIG_FILE, DATA_DIR, NODES_CACHE_FILE, SUBS_FILE
+from app.core.config import ADMIN_CONFIG_FILE, CONFIG_FILE, DATA_DIR, NODES_CACHE_FILE, SUBS_FILE, INDEPENDENT_NODES_FILE
 from app.core.logging import logger
 
 
@@ -37,6 +37,17 @@ def init_data():
                 loaded_subs = json.load(f)
                 if isinstance(loaded_subs, list):
                     state.SUBS_CACHE.extend(loaded_subs)
+        except:
+            pass
+            
+    # 2.5 加载独立节点
+    state.INDEPENDENT_NODES_CACHE.clear()
+    if os.path.exists(INDEPENDENT_NODES_FILE):
+        try:
+            with open(INDEPENDENT_NODES_FILE, 'r', encoding='utf-8') as f:
+                loaded_ind_nodes = json.load(f)
+                if isinstance(loaded_ind_nodes, list):
+                    state.INDEPENDENT_NODES_CACHE.extend(loaded_ind_nodes)
         except:
             pass
 

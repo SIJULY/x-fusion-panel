@@ -3,9 +3,9 @@ import uuid
 
 from nicegui import app, ui
 
-from app.core.state import NODES_DATA, SERVERS_CACHE, SUBS_CACHE
+from app.core.state import NODES_DATA, SERVERS_CACHE, SUBS_CACHE, INDEPENDENT_NODES_CACHE
 from app.services.xui_fetch import fetch_inbounds_safe
-from app.storage.repositories import save_subs
+from app.storage.repositories import save_subs, save_independent_nodes
 from app.ui.common.notifications import safe_notify
 from app.ui.pages.subs_page import load_subs_view
 from app.utils.geo import detect_country_group
@@ -209,6 +209,65 @@ def open_sub_editor(d):
         dlg.open()
 
 
+class IndependentNodeEditor:
+    def __init__(self, data=None):
+        self.data = data
+        if data:
+            self.d = data.copy()
+        else:
+            self.d = {'id': f'indep_{uuid.uuid4().hex[:8]}', 'remark': '', '_raw_link': '', 'enable': True}
+
+        self.remark_input = None
+        self.link_input = None
+
+    def ui(self, dlg):
+        is_dark = bool(app.storage.user.get('is_dark', True))
+        with ui.card().classes('w-[90vw] max-w-lg p-0 overflow-hidden rounded-sm bg-[#070b14] border border-[#1e3a5f]/55 shadow-[0_18px_48px_rgba(0,0,0,0.78)]' if is_dark else 'w-[90vw] max-w-lg p-0 overflow-hidden rounded-sm bg-white border border-slate-300/90 shadow-[0_10px_28px_rgba(148,163,184,0.18)]'):
+            with ui.row().classes('w-full justify-between items-center p-4 border-b border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1526] to-[#050a14]' if is_dark else 'w-full justify-between items-center p-4 border-b border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff]'):
+                ui.label('独立节点编辑器').classes('text-xl font-black text-slate-100 tracking-wide' if is_dark else 'text-xl font-black text-slate-800 tracking-wide')
+                ui.button(icon='close', on_click=dlg.close).props('flat round dense').classes('text-slate-400 hover:text-cyan-300 hover:bg-cyan-950/30' if is_dark else 'text-slate-500 hover:text-sky-700 hover:bg-sky-100')
+
+            with ui.column().classes('w-full p-4 gap-4 bg-[#030712]' if is_dark else 'w-full p-4 gap-4 bg-[#f8fbff]'):
+                self.remark_input = ui.input('节点名称', value=self.d.get('remark', '')).classes('w-full').props('outlined dark color=cyan standout bg-color="[#050b14]"' if is_dark else 'outlined color=blue')
+                
+                self.link_input = ui.textarea('节点分享链接', value=self.d.get('_raw_link', '')).classes('w-full').props('outlined dark color=cyan standout bg-color="[#050b14]" rows=4' if is_dark else 'outlined color=blue rows=4')
+                ui.label('支持 vmess://, vless://, trojan://, ss://, hy2:// 等各种分享链接').classes('text-xs text-slate-500 mt-[-10px]')
+
+            with ui.row().classes('w-full p-4 border-t border-[#1e3a5f]/60 bg-gradient-to-r from-[#0a1526] to-[#050a14]' if is_dark else 'w-full p-4 border-t border-slate-300/90 bg-gradient-to-r from-[#f8fbff] to-[#eaf2ff]'):
+                async def save():
+                    remark = self.remark_input.value.strip()
+                    link = self.link_input.value.strip()
+                    
+                    if not remark:
+                        return safe_notify("节点名称不能为空", "negative")
+                    if not link:
+                        return safe_notify("节点链接不能为空", "negative")
+                        
+                    self.d['remark'] = remark
+                    self.d['_raw_link'] = link
+                    
+                    if self.data:
+                        try:
+                            idx = INDEPENDENT_NODES_CACHE.index(self.data)
+                            INDEPENDENT_NODES_CACHE[idx] = self.d
+                        except ValueError:
+                            INDEPENDENT_NODES_CACHE.append(self.d)
+                    else:
+                        INDEPENDENT_NODES_CACHE.append(self.d)
+
+                    await save_independent_nodes()
+                    await load_subs_view()
+                    dlg.close()
+                    ui.notify('独立节点保存成功', color='positive')
+
+                ui.button('保存', icon='save', on_click=save).props('flat').classes('w-full h-12 bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 font-black rounded-sm' if is_dark else 'w-full h-12 bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 font-black rounded-sm')
+
+def open_independent_node_editor(data=None):
+    with ui.dialog() as dlg:
+        IndependentNodeEditor(data).ui(dlg)
+        dlg.open()
+
+
 class AdvancedSubEditor:
     def __init__(self, sub_data=None):
         import copy
@@ -344,6 +403,11 @@ class AdvancedSubEditor:
                 key = f"{srv['url']}|{n['id']}"
                 n['_server_name'] = srv['name']
                 self.all_nodes_map[key] = n
+                
+        for inode in INDEPENDENT_NODES_CACHE:
+            key = f"independent|{inode['id']}"
+            inode['_server_name'] = '独立节点'
+            self.all_nodes_map[key] = inode
 
     async def _render_node_tree(self):
         self.list_container.clear()
@@ -366,7 +430,13 @@ class AdvancedSubEditor:
 
             if g_name not in grouped:
                 grouped[g_name] = []
-            grouped[g_name].append({'server': srv, 'nodes': nodes})
+            grouped[g_name].append({'server': srv, 'nodes': nodes, 'type': 'server'})
+
+        if INDEPENDENT_NODES_CACHE:
+            g_name = '独立节点'
+            if g_name not in grouped:
+                grouped[g_name] = []
+            grouped[g_name].append({'server': {'name': '独立节点库', 'url': 'independent'}, 'nodes': INDEPENDENT_NODES_CACHE, 'type': 'independent'})
 
         sorted_groups = sorted(grouped.keys())
         with self.list_container:
