@@ -71,21 +71,22 @@ def ensure_traffic_limit_cycle(server_conf: dict, probe_data: dict | None = None
     changed = False
 
     if str(server_conf.get('traffic_limit_cycle_month') or '') != current_key:
-        baseline = get_traffic_total_bytes(probe_data or {}) if probe_data else 0
-        was_triggered = bool(server_conf.get('traffic_limit_triggered'))
-        previous_blocked_ports = list(server_conf.get('traffic_limit_blocked_ports') or [])
+        if probe_data:
+            baseline = get_traffic_total_bytes(probe_data)
+            was_triggered = bool(server_conf.get('traffic_limit_triggered'))
+            previous_blocked_ports = list(server_conf.get('traffic_limit_blocked_ports') or [])
 
-        server_conf['traffic_limit_cycle_month'] = current_key
-        server_conf['traffic_limit_cycle_start_bytes'] = baseline
-        server_conf['traffic_limit_triggered'] = False
-        server_conf['traffic_limit_triggered_at'] = None
-        server_conf['traffic_limit_last_total_bytes'] = 0
-        server_conf['traffic_limit_blocked_ports'] = []
-        server_conf['traffic_limit_last_result'] = ''
-        server_conf['traffic_limit_notified'] = False
-        server_conf['traffic_limit_pending_unblock'] = was_triggered
-        server_conf['traffic_limit_pending_unblock_ports'] = previous_blocked_ports if was_triggered else []
-        changed = True
+            server_conf['traffic_limit_cycle_month'] = current_key
+            server_conf['traffic_limit_cycle_start_bytes'] = baseline
+            server_conf['traffic_limit_triggered'] = False
+            server_conf['traffic_limit_triggered_at'] = None
+            server_conf['traffic_limit_last_total_bytes'] = 0
+            server_conf['traffic_limit_blocked_ports'] = []
+            server_conf['traffic_limit_last_result'] = ''
+            server_conf['traffic_limit_notified'] = False
+            server_conf['traffic_limit_pending_unblock'] = was_triggered
+            server_conf['traffic_limit_pending_unblock_ports'] = previous_blocked_ports if was_triggered else []
+            changed = True
 
     if probe_data:
         total_bytes = get_traffic_total_bytes(probe_data)
@@ -228,7 +229,7 @@ async def _send_limit_notification(server_conf: dict, total_bytes: int, limit_by
         "🚨 *VPS 流量超限保护已触发*\n"
         f"- 节点: `{server_name}`\n"
         f"- 地址: `{server_url}`\n"
-        f"- 当前累计流量: `{total_gb:.2f} GB`\n"
+        f"- 本周期已用: `{total_gb:.2f} GB`\n"
         f"- 阈值: `{limit_gb:.2f} GB`\n"
         f"- 已封禁端口: `{ports_text}`\n"
         f"- 执行结果: `{action_result}`"

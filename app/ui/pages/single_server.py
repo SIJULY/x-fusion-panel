@@ -843,10 +843,8 @@ PY'''
                                         server_conf['traffic_limit_last_result'] = ''
                                         server_conf['traffic_limit_notified'] = False
                                 elif not old_enabled:
-                                    if not str(server_conf.get('traffic_limit_cycle_month') or '').strip():
-                                        server_conf['traffic_limit_cycle_month'] = get_current_cycle_key()
-                                    if server_conf.get('traffic_limit_cycle_start_bytes') is None:
-                                        server_conf['traffic_limit_cycle_start_bytes'] = 0
+                                    if not str(server_conf.get('traffic_limit_cycle_month') or '').strip() or server_conf.get('traffic_limit_cycle_start_bytes') == 0:
+                                        server_conf['traffic_limit_cycle_month'] = ''
                                     server_conf['traffic_limit_triggered'] = False
                                     server_conf['traffic_limit_triggered_at'] = None
                                     server_conf['traffic_limit_last_total_bytes'] = 0
