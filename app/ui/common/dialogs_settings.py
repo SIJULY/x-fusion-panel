@@ -1,5 +1,6 @@
 import csv
 import io
+import socket
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -39,11 +40,20 @@ def _extract_server_ip(server_conf):
     if url:
         try:
             parsed = urlparse(url if '://' in url else f'http://{url}')
-            if parsed.hostname:
-                return parsed.hostname
+            host = parsed.hostname
+            if host:
+                return socket.gethostbyname(host)
         except Exception:
             pass
-    return str(server_conf.get('ssh_host', '') or '').strip()
+
+    ssh_host = str(server_conf.get('ssh_host', '') or '').strip()
+    if ssh_host:
+        try:
+            return socket.gethostbyname(ssh_host)
+        except Exception:
+            return ssh_host
+
+    return ''
 
 
 def open_cloudflare_settings_dialog():
@@ -122,20 +132,25 @@ def open_cloudflare_settings_dialog():
                         if ip and domain:
                             domains_by_ip.setdefault(ip, []).append(domain)
 
-                    output = io.StringIO()
-                    writer = csv.writer(output)
-                    writer.writerow(['服务器名称', '服务器IP', '服务器IP对应的域名解析'])
+                    def build_csv():
+                        output = io.StringIO()
+                        writer = csv.writer(output)
+                        writer.writerow(['服务器名称', '服务器IP', '服务器IP对应的域名解析'])
 
-                    for server in SERVERS_CACHE:
-                        if not isinstance(server, dict):
-                            continue
-                        server_name = str(server.get('name', '') or '').strip()
-                        server_ip = _extract_server_ip(server)
-                        domains = domains_by_ip.get(server_ip, [])
-                        writer.writerow([server_name, server_ip, '\n'.join(domains)])
+                        for server in SERVERS_CACHE:
+                            if not isinstance(server, dict):
+                                continue
+                            server_name = str(server.get('name', '') or '').strip()
+                            server_ip = _extract_server_ip(server)
+                            domains = domains_by_ip.get(server_ip, [])
+                            writer.writerow([server_name, server_ip, '\n'.join(domains)])
+
+                        return output.getvalue()
+
+                    csv_content = await run.io_bound(build_csv)
 
                     filename = f"cloudflare_server_dns_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                    ui.download(output.getvalue().encode('utf-8-sig'), filename)
+                    ui.download(csv_content.encode('utf-8-sig'), filename)
                     safe_notify(f'已导出 {len(SERVERS_CACHE)} 台服务器数据', 'positive')
                 except Exception as e:
                     safe_notify(f'导出失败: {e}', 'negative')
