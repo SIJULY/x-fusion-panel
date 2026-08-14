@@ -212,6 +212,65 @@ class CloudflareHandler:
 
         return await run.io_bound(_task)
 
+    async def list_all_a_records(self):
+        if not self.token:
+            return False, "未配置 Cloudflare Token"
+
+        def _task():
+            ok, zones = self.list_zones()
+            if not ok:
+                if not self.root_domain:
+                    return False, zones
+                zone_id, err = self.get_zone_id()
+                if not zone_id:
+                    return False, err
+                zones = [{'id': zone_id, 'name': self.root_domain}]
+
+            records = []
+            try:
+                for zone in zones:
+                    zone_id = zone.get('id', '')
+                    zone_name = zone.get('name', '')
+                    if not zone_id:
+                        continue
+
+                    page = 1
+                    per_page = 100
+                    while True:
+                        search_url = (
+                            f"{self.base_url}/zones/{zone_id}/dns_records"
+                            f"?type=A&page={page}&per_page={per_page}"
+                        )
+                        r = requests.get(search_url, headers=self._headers(), timeout=10)
+                        data = r.json()
+                        if not data.get('success'):
+                            return False, f"查询记录失败: {data}"
+
+                        for rec in data.get('result', []) or []:
+                            records.append({
+                                'id': rec.get('id', ''),
+                                'zone_id': zone_id,
+                                'zone_name': zone_name,
+                                'name': rec.get('name', ''),
+                                'type': rec.get('type', 'A'),
+                                'content': rec.get('content', ''),
+                                'proxied': bool(rec.get('proxied', False)),
+                                'ttl': rec.get('ttl', 1),
+                            })
+
+                        result_info = data.get('result_info', {}) or {}
+                        total_pages = int(result_info.get('total_pages') or 1)
+                        if page >= total_pages:
+                            break
+                        page += 1
+
+                records.sort(key=lambda x: (x.get('content', ''), x.get('zone_name', ''), x.get('name', '')))
+                return True, records
+            except Exception as e:
+                return False, str(e)
+
+        return await run.io_bound(_task)
+
     async def create_a_record(self, record_name, zone_name, ip, proxied=False):
         if not self.token:
             return False, "未配置 Cloudflare Token"

@@ -1,3 +1,8 @@
+import csv
+import io
+from datetime import datetime
+from urllib.parse import urlparse
+
 from nicegui import app, run, ui
 
 
@@ -23,10 +28,22 @@ def _settings_theme():
         'save_full': 'w-full bg-cyan-950/45 text-cyan-300 border border-cyan-500/45 hover:bg-cyan-900/55 shadow-[0_0_12px_rgba(34,211,238,0.22)] h-12 font-black rounded-sm' if is_dark else 'w-full bg-sky-100 text-sky-700 border border-sky-300 hover:bg-sky-200 shadow-[0_6px_16px_rgba(56,189,248,0.16)] h-12 font-black rounded-sm',
     }
 
-from app.core.state import ADMIN_CONFIG
+from app.core.state import ADMIN_CONFIG, SERVERS_CACHE
 from app.services.cloudflare import CloudflareHandler
 from app.storage.repositories import save_admin_config
 from app.ui.common.notifications import safe_notify
+
+
+def _extract_server_ip(server_conf):
+    url = str(server_conf.get('url', '') or '').strip()
+    if url:
+        try:
+            parsed = urlparse(url if '://' in url else f'http://{url}')
+            if parsed.hostname:
+                return parsed.hostname
+        except Exception:
+            pass
+    return str(server_conf.get('ssh_host', '') or '').strip()
 
 
 def open_cloudflare_settings_dialog():
@@ -82,6 +99,49 @@ def open_cloudflare_settings_dialog():
                     if show_notify:
                         safe_notify(str(result), 'warning')
 
+            async def export_cloudflare_data():
+                token_val = cf_token.value.strip()
+                if not token_val:
+                    safe_notify('请先输入 Cloudflare API Token', 'warning')
+                    return
+
+                export_btn.props('loading')
+                try:
+                    handler = CloudflareHandler()
+                    handler.token = token_val
+                    handler.root_domain = str(cf_domain_root.value or ADMIN_CONFIG.get('cf_root_domain', '')).strip()
+                    ok, result = await handler.list_all_a_records()
+                    if not ok:
+                        safe_notify(str(result), 'warning')
+                        return
+
+                    domains_by_ip = {}
+                    for rec in result or []:
+                        ip = str(rec.get('content', '') or '').strip()
+                        domain = str(rec.get('name', '') or '').strip()
+                        if ip and domain:
+                            domains_by_ip.setdefault(ip, []).append(domain)
+
+                    output = io.StringIO()
+                    writer = csv.writer(output)
+                    writer.writerow(['服务器名称', '服务器IP', '服务器IP对应的域名解析'])
+
+                    for server in SERVERS_CACHE:
+                        if not isinstance(server, dict):
+                            continue
+                        server_name = str(server.get('name', '') or '').strip()
+                        server_ip = _extract_server_ip(server)
+                        domains = domains_by_ip.get(server_ip, [])
+                        writer.writerow([server_name, server_ip, '\n'.join(domains)])
+
+                    filename = f"cloudflare_server_dns_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                    ui.download(output.getvalue().encode('utf-8-sig'), filename)
+                    safe_notify(f'已导出 {len(SERVERS_CACHE)} 台服务器数据', 'positive')
+                except Exception as e:
+                    safe_notify(f'导出失败: {e}', 'negative')
+                finally:
+                    export_btn.props(remove='loading')
+
 
         async def save_cf():
             ADMIN_CONFIG['cf_api_token'] = cf_token.value.strip()
@@ -91,6 +151,7 @@ def open_cloudflare_settings_dialog():
             d.close()
 
         with ui.row().classes(theme['footer']):
+            export_btn = ui.button('导出数据', icon='download', on_click=export_cloudflare_data).props('outline color=cyan').classes(theme['cancel'])
             ui.button('取消', on_click=d.close).props('outline color=grey').classes(theme['cancel'])
             ui.button('保存配置', on_click=save_cf).props('flat').classes(theme['save'])
 
