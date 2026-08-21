@@ -493,7 +493,7 @@ PY'''
                             })
                             return
 
-                        zone_success, zone_result = await run.io_bound(cf_handler.list_zones)
+                        zone_success, zone_result = await cf_handler.list_zones()
                         zones = []
                         if zone_success:
                             zones = [item.get('name', '') for item in (zone_result or []) if item.get('name')]
@@ -553,7 +553,7 @@ PY'''
                     from nicegui import app
                     dialog_is_dark = bool(app.storage.user.get('is_dark', True))
                     cf_handler = CloudflareHandler()
-                    ok, result = await run.io_bound(cf_handler.list_zones)
+                    ok, result = await cf_handler.list_zones()
                     zones = [item.get('name', '') for item in (result or []) if item.get('name')] if ok else []
                     if not zones:
                         zones = cloudflare_dns_state.get('zones', []) or (

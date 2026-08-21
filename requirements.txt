@@ -1,5 +1,5 @@
 nicegui>=1.4.26
-requests
+httpx>=0.27.0
 urllib3
 fastapi
 uvicorn
@@ -9,3 +9,4 @@ pillow
 paramiko
 apscheduler
 
+httpx==0.27.0

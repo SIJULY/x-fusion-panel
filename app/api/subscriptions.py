@@ -1,6 +1,6 @@
 from urllib.parse import urlparse
 
-import requests
+import httpx
 from fastapi import Request
 from fastapi.responses import Response
 from nicegui import run
@@ -200,17 +200,16 @@ async def short_group_handler(target: str, group_b64: str, request: Request):
 
         converter_api = "http://subconverter:25500/sub"
 
-        def _fetch_sync():
-            try:
-                return requests.get(converter_api, params=params, timeout=10)
-            except:
-                return None
-
-        response = await run.io_bound(_fetch_sync)
-        if response and response.status_code == 200:
-            return Response(content=response.content, media_type="text/plain; charset=utf-8")
-        else:
-            return Response(f"SubConverter Error (Code: {getattr(response, 'status_code', 'Unk')})", status_code=502)
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(converter_api, params=params)
+            
+            if response.status_code == 200:
+                return Response(content=response.content, media_type="text/plain; charset=utf-8")
+            else:
+                return Response(f"SubConverter Error (Code: {response.status_code})", status_code=502)
+        except Exception as e:
+            return Response(f"SubConverter Error: {str(e)}", status_code=502)
 
     except Exception as e:
         return Response(f"Error: {str(e)}", status_code=500)
@@ -318,17 +317,16 @@ async def short_sub_handler(target: str, token: str, request: Request):
 
         converter_api = "http://subconverter:25500/sub"
 
-        def _fetch_sync():
-            try:
-                return requests.get(converter_api, params=params, timeout=10)
-            except:
-                return None
-
-        response = await run.io_bound(_fetch_sync)
-        if response and response.status_code == 200:
-            return Response(content=response.content, media_type="text/plain; charset=utf-8")
-        else:
-            return Response(f"SubConverter Error (Code: {getattr(response, 'status_code', 'Unk')})", status_code=502)
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(converter_api, params=params)
+            
+            if response.status_code == 200:
+                return Response(content=response.content, media_type="text/plain; charset=utf-8")
+            else:
+                return Response(f"SubConverter Error (Code: {response.status_code})", status_code=502)
+        except Exception as e:
+            return Response(f"SubConverter Error: {str(e)}", status_code=502)
 
     except Exception as e:
         return Response(f"Error: {str(e)}", status_code=500)

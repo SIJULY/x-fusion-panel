@@ -88,7 +88,7 @@ def open_cloudflare_settings_dialog():
 
                 handler = CloudflareHandler()
                 handler.token = token_val
-                ok, result = await run.io_bound(handler.list_zones)
+                ok, result = await handler.list_zones()
                 if ok:
                     zones = [item.get('name', '') for item in (result or []) if item.get('name')]
                     cf_domain_root.options = zones

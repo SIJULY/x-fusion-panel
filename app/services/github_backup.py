@@ -6,7 +6,7 @@ import time
 from typing import Any, Dict
 from urllib.parse import urlencode
 
-import requests
+import httpx
 from nicegui import run
 
 from app.core.state import ADMIN_CONFIG, NODES_DATA, SERVERS_CACHE, SUBS_CACHE
@@ -140,22 +140,20 @@ async def fetch_github_user(access_token: str | None = None) -> Dict[str, Any]:
     if not token:
         raise GitHubBackupError('未连接 GitHub 账号')
 
-    def _fetch() -> Dict[str, Any]:
-        resp = requests.get(
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
             f'{_GITHUB_API}/user',
             headers={
                 'Accept': 'application/vnd.github+json',
                 'Authorization': f'Bearer {token}',
                 'X-GitHub-Api-Version': '2022-11-28',
             },
-            timeout=20,
+            timeout=20.0,
         )
         data = resp.json()
         if resp.status_code >= 400 or data.get('message') == 'Bad credentials':
             raise GitHubBackupError(data.get('message') or 'GitHub 用户信息获取失败')
         return data
-
-    return await run.io_bound(_fetch)
 
 
 async def save_github_auth(access_token: str) -> Dict[str, Any]:
@@ -188,8 +186,8 @@ async def complete_github_oauth(code: str, state: str, app_origin: str) -> Dict[
     client_secret = get_github_client_secret()
     callback_url = build_github_callback_url(app_origin)
 
-    def _exchange() -> Dict[str, Any]:
-        resp = requests.post(
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
             _GITHUB_DEVICE_TOKEN_URL,
             headers={'Accept': 'application/json'},
             data={
@@ -199,15 +197,13 @@ async def complete_github_oauth(code: str, state: str, app_origin: str) -> Dict[
                 'redirect_uri': callback_url,
                 'state': state,
             },
-            timeout=20,
+            timeout=20.0,
         )
         data = resp.json()
         if resp.status_code >= 400 or data.get('error'):
             raise GitHubBackupError(data.get('error_description') or data.get('error') or 'GitHub OAuth 换取 token 失败')
-        return data
 
-    token_data = await run.io_bound(_exchange)
-    profile = await save_github_auth(token_data.get('access_token', ''))
+    profile = await save_github_auth(data.get('access_token', ''))
     clear_github_oauth_state()
     await save_admin_config()
     return profile
@@ -221,9 +217,9 @@ def _api_headers(token: str) -> Dict[str, str]:
     }
 
 
-def _ensure_repo_exists_sync(token: str, owner: str, repo: str) -> None:
+async def _ensure_repo_exists_async(client: httpx.AsyncClient, token: str, owner: str, repo: str) -> None:
     repo_url = f'{_GITHUB_API}/repos/{owner}/{repo}'
-    repo_resp = requests.get(repo_url, headers=_api_headers(token), timeout=20)
+    repo_resp = await client.get(repo_url, headers=_api_headers(token), timeout=20.0)
     if repo_resp.status_code == 200:
         repo_data = repo_resp.json()
         if not repo_data.get('private', False):
@@ -237,7 +233,7 @@ def _ensure_repo_exists_sync(token: str, owner: str, repo: str) -> None:
             detail = repo_resp.text
         raise GitHubBackupError(detail or '检测 GitHub 备份仓库失败')
 
-    create_resp = requests.post(
+    create_resp = await client.post(
         f'{_GITHUB_API}/user/repos',
         headers=_api_headers(token),
         json={
@@ -246,15 +242,15 @@ def _ensure_repo_exists_sync(token: str, owner: str, repo: str) -> None:
             'private': True,
             'auto_init': True,
         },
-        timeout=25,
+        timeout=25.0,
     )
     create_data = create_resp.json()
     if create_resp.status_code >= 400:
         raise GitHubBackupError(create_data.get('message') or '创建私有备份仓库失败')
 
 
-def _get_content_sha_sync(token: str, owner: str, repo: str, path: str) -> str | None:
-    resp = requests.get(f'{_GITHUB_API}/repos/{owner}/{repo}/contents/{path}', headers=_api_headers(token), timeout=20)
+async def _get_content_sha_async(client: httpx.AsyncClient, token: str, owner: str, repo: str, path: str) -> str | None:
+    resp = await client.get(f'{_GITHUB_API}/repos/{owner}/{repo}/contents/{path}', headers=_api_headers(token), timeout=20.0)
     if resp.status_code == 200:
         return resp.json().get('sha')
     if resp.status_code == 404:
@@ -266,20 +262,20 @@ def _get_content_sha_sync(token: str, owner: str, repo: str, path: str) -> str |
     raise GitHubBackupError(detail or '获取 GitHub 文件信息失败')
 
 
-def _put_content_sync(token: str, owner: str, repo: str, path: str, content_bytes: bytes, message: str) -> Dict[str, Any]:
+async def _put_content_async(client: httpx.AsyncClient, token: str, owner: str, repo: str, path: str, content_bytes: bytes, message: str) -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         'message': message,
         'content': base64.b64encode(content_bytes).decode('utf-8'),
     }
-    sha = _get_content_sha_sync(token, owner, repo, path)
+    sha = await _get_content_sha_async(client, token, owner, repo, path)
     if sha:
         payload['sha'] = sha
 
-    resp = requests.put(
+    resp = await client.put(
         f'{_GITHUB_API}/repos/{owner}/{repo}/contents/{path}',
         headers=_api_headers(token),
         json=payload,
-        timeout=30,
+        timeout=30.0,
     )
     data = resp.json()
     if resp.status_code >= 400:
@@ -302,10 +298,10 @@ async def upload_backup_to_github(backup_payload: Dict[str, Any] | None = None) 
     payload = backup_payload or build_full_backup_payload()
     content_bytes = json.dumps(payload, indent=2, ensure_ascii=False).encode('utf-8')
 
-    def _upload() -> Dict[str, Any]:
-        _ensure_repo_exists_sync(token, owner, repo)
-        _put_content_sync(token, owner, repo, latest_path, content_bytes, 'chore: update latest X-Fusion backup')
-        history_result = _put_content_sync(token, owner, repo, history_path, content_bytes, f'chore: create X-Fusion backup {timestamp_str}')
+    async with httpx.AsyncClient() as client:
+        await _ensure_repo_exists_async(client, token, owner, repo)
+        await _put_content_async(client, token, owner, repo, latest_path, content_bytes, 'chore: update latest X-Fusion backup')
+        history_result = await _put_content_async(client, token, owner, repo, history_path, content_bytes, f'chore: create X-Fusion backup {timestamp_str}')
         return {
             'owner': owner,
             'repo': repo,
@@ -313,8 +309,6 @@ async def upload_backup_to_github(backup_payload: Dict[str, Any] | None = None) 
             'history_path': history_path,
             'html_url': (((history_result.get('content') or {}).get('html_url')) or ''),
         }
-
-    return await run.io_bound(_upload)
 
 
 async def download_latest_backup_from_github() -> Dict[str, Any]:
@@ -327,8 +321,8 @@ async def download_latest_backup_from_github() -> Dict[str, Any]:
     repo = get_github_backup_repo()
     path = get_github_backup_path()
 
-    def _download() -> Dict[str, Any]:
-        resp = requests.get(f'{_GITHUB_API}/repos/{owner}/{repo}/contents/{path}', headers=_api_headers(token), timeout=25)
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f'{_GITHUB_API}/repos/{owner}/{repo}/contents/{path}', headers=_api_headers(token), timeout=25.0)
         data = resp.json()
         if resp.status_code >= 400:
             raise GitHubBackupError(data.get('message') or '下载 GitHub 备份失败')
@@ -337,5 +331,3 @@ async def download_latest_backup_from_github() -> Dict[str, Any]:
             raise GitHubBackupError('GitHub 备份文件内容为空')
         decoded = base64.b64decode(raw_content).decode('utf-8')
         return json.loads(decoded)
-
-    return await run.io_bound(_download)

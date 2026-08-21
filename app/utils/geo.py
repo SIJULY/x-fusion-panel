@@ -1,4 +1,4 @@
-import requests
+import httpx
 from nicegui import run
 
 from app.core.config import AUTO_COUNTRY_MAP, LOCATION_COORDS, MATCH_MAP
@@ -60,9 +60,9 @@ def fetch_geo_from_ip(host):
         if clean_host in IP_GEO_CACHE:
             return IP_GEO_CACHE[clean_host]
 
-        with requests.Session() as s:
+        with httpx.Client(timeout=3.0) as client:
             url = f"http://ip-api.com/json/{clean_host}?lang=zh-CN&fields=status,lat,lon,country,regionName,city"
-            r = s.get(url, timeout=3)
+            r = client.get(url)
             if r.status_code == 200:
                 data = r.json()
                 if data.get('status') == 'success':

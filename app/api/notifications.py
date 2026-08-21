@@ -1,4 +1,4 @@
-import requests
+import httpx
 from nicegui import run
 
 from app.core.logging import logger
@@ -20,10 +20,8 @@ async def send_telegram_message(text):
         "parse_mode": "Markdown"
     }
 
-    def _do_req():
-        try:
-            requests.post(url, json=payload, timeout=5)
-        except Exception as e:
-            logger.error(f"❌ TG 发送失败: {e}")
-
-    await run.io_bound(_do_req)
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(url, json=payload)
+    except Exception as e:
+        logger.error(f"❌ TG 发送失败: {e}")
