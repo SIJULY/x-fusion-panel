@@ -55,8 +55,56 @@ async def save_global_key(content):
 
 
 async def save_servers():
-    await async_set_db_value("servers", state.SERVERS_CACHE)
-    state.GLOBAL_UI_VERSION = time.time()
+    try:
+        async with aiosqlite.connect(DB_FILE) as db:
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS servers (
+                    url TEXT PRIMARY KEY,
+                    config TEXT
+                )
+            ''')
+            current_urls = []
+            for s in state.SERVERS_CACHE:
+                if 'url' in s:
+                    current_urls.append(s['url'])
+                    val_str = json.dumps(s, ensure_ascii=False)
+                    await db.execute(
+                        "INSERT INTO servers (url, config) VALUES (?, ?) ON CONFLICT(url) DO UPDATE SET config=?",
+                        (s['url'], val_str, val_str)
+                    )
+            
+            # Delete servers that are no longer in memory
+            if current_urls:
+                placeholders = ','.join(['?'] * len(current_urls))
+                await db.execute(f"DELETE FROM servers WHERE url NOT IN ({placeholders})", current_urls)
+            else:
+                await db.execute("DELETE FROM servers")
+                
+            await db.commit()
+        state.GLOBAL_UI_VERSION = time.time()
+    except Exception as e:
+        logger.error(f"❌ 批量保存 servers 到关系型表失败: {e}")
+
+async def save_single_server(server_data):
+    """单独保存某一台服务器的更新，极大降低批量序列化开销"""
+    if 'url' not in server_data:
+        return
+    try:
+        async with aiosqlite.connect(DB_FILE) as db:
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS servers (
+                    url TEXT PRIMARY KEY,
+                    config TEXT
+                )
+            ''')
+            val_str = json.dumps(server_data, ensure_ascii=False)
+            await db.execute(
+                "INSERT INTO servers (url, config) VALUES (?, ?) ON CONFLICT(url) DO UPDATE SET config=?",
+                (server_data['url'], val_str, val_str)
+            )
+            await db.commit()
+    except Exception as e:
+        logger.error(f"❌ 保存单个服务器 {server_data.get('url')} 到关系型表失败: {e}")
 
 
 async def save_admin_config():

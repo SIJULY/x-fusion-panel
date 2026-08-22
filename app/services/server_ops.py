@@ -16,7 +16,7 @@ from app.core.state import (
 from app.services.manager_factory import get_manager
 from app.services.probe import install_probe_on_server
 from app.services.xui_fetch import fetch_inbounds_safe
-from app.storage.repositories import save_admin_config, save_nodes_cache, save_servers
+from app.storage.repositories import save_admin_config, save_nodes_cache, save_servers, save_single_server
 from app.utils.async_tools import run_in_bg_executor
 from app.utils.geo import detect_country_group, fetch_geo_from_ip, get_flag_for_country
 
@@ -266,7 +266,8 @@ async def save_server_config(server_data, is_add=True, idx=None):
             safe_notify("目标不存在", "negative")
             return False
 
-    await save_servers()
+    # 仅修改单行数据时调用单行写入方法，极大提升页面响应速度
+    await save_single_server(server_data)
 
     new_group = server_data.get('group', '默认分组')
     if new_group in ['默认分组', '自动注册', '未分组', '自动导入']:

@@ -18,7 +18,7 @@ from app.core.state import (
 from app.services.probe import install_probe_on_server
 from app.services.server_ops import fast_resolve_single_server, generate_smart_name
 from app.services.ssh import _ssh_exec_wrapper
-from app.storage.repositories import save_servers
+from app.storage.repositories import save_servers, save_single_server
 from app.ui.common.notifications import safe_notify
 from app.ui.components.dashboard import refresh_dashboard_ui
 from app.ui.components.sidebar import render_sidebar_content, render_single_sidebar_row
@@ -112,8 +112,8 @@ async def save_server_config(server_data, is_add=True, idx=None):
             safe_notify("目标不存在", "negative")
             return False
 
-    await save_servers()
-    logger.info(f"[SaveServerDialog] save_servers done | servers_after={len(SERVERS_CACHE)} rows_refs={len(SIDEBAR_UI_REFS.get('rows', {}))} group_refs={len(SIDEBAR_UI_REFS.get('groups', {}))}")
+    await save_single_server(server_data)
+    logger.info(f"[SaveServerDialog] save_single_server done | servers_after={len(SERVERS_CACHE)} rows_refs={len(SIDEBAR_UI_REFS.get('rows', {}))} group_refs={len(SIDEBAR_UI_REFS.get('groups', {}))}")
 
     new_group = server_data.get('group', '默认分组')
     if new_group in ['默认分组', '自动注册', '未分组', '自动导入']:
@@ -246,7 +246,7 @@ async def open_server_dialog(idx=None):
             SERVERS_CACHE[idx]['group'] = new_group
             SERVERS_CACHE[idx]['cf_primary_domain'] = new_cf_domain
 
-            await save_servers()
+            await save_single_server(SERVERS_CACHE[idx])
             render_sidebar_content.refresh()
 
             current_scope = CURRENT_VIEW_STATE.get('scope')

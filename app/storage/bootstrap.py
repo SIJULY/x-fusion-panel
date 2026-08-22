@@ -18,6 +18,13 @@ def init_db():
             value TEXT
         )
     ''')
+    # 创建关系型拆分表 - Servers表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS servers (
+            url TEXT PRIMARY KEY,
+            config TEXT
+        )
+    ''')
     conn.commit()
     return conn
 
@@ -51,21 +58,51 @@ def init_data():
 
     # 1. 加载服务器
     state.SERVERS_CACHE.clear()
-    servers_data = get_db_value(conn, "servers")
-    if servers_data is not None:
-        state.SERVERS_CACHE.extend([s for s in servers_data if isinstance(s, dict)])
-        logger.info(f"✅ 从 SQLite 加载服务器: {len(state.SERVERS_CACHE)} 台")
-    elif os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                raw_data = json.load(f)
-                state.SERVERS_CACHE.extend([s for s in raw_data if isinstance(s, dict)])
-            set_db_value(conn, "servers", state.SERVERS_CACHE)
-            logger.info(f"✅ 成功迁移服务器到 SQLite: {len(state.SERVERS_CACHE)} 台")
-        except Exception as e:
-            logger.error(f"❌ 读取 servers.json 失败: {e}")
+    
+    # 尝试从新的 servers 表加载数据
+    cursor = conn.cursor()
+    cursor.execute("SELECT config FROM servers")
+    rows = cursor.fetchall()
+    
+    if rows:
+        for row in rows:
+            try:
+                state.SERVERS_CACHE.append(json.loads(row[0]))
+            except:
+                pass
+        logger.info(f"✅ 从 SQLite(关系表) 加载服务器: {len(state.SERVERS_CACHE)} 台")
     else:
-        logger.warning(f"⚠️ 未找到服务器配置数据")
+        # 如果新表为空，检查是否有旧的 KV 数据或旧的 JSON 文件进行平滑迁移
+        servers_data = get_db_value(conn, "servers")
+        if servers_data is not None:
+            state.SERVERS_CACHE.extend([s for s in servers_data if isinstance(s, dict)])
+            # 迁移到新表
+            for s in state.SERVERS_CACHE:
+                if 'url' in s:
+                    cursor.execute(
+                        "INSERT INTO servers (url, config) VALUES (?, ?) ON CONFLICT(url) DO UPDATE SET config=?",
+                        (s['url'], json.dumps(s, ensure_ascii=False), json.dumps(s, ensure_ascii=False))
+                    )
+            conn.commit()
+            logger.info(f"✅ 成功将 {len(state.SERVERS_CACHE)} 台服务器从 KV 迁移至关系型表")
+        elif os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    raw_data = json.load(f)
+                    state.SERVERS_CACHE.extend([s for s in raw_data if isinstance(s, dict)])
+                # 迁移到新表
+                for s in state.SERVERS_CACHE:
+                    if 'url' in s:
+                        cursor.execute(
+                            "INSERT INTO servers (url, config) VALUES (?, ?) ON CONFLICT(url) DO UPDATE SET config=?",
+                            (s['url'], json.dumps(s, ensure_ascii=False), json.dumps(s, ensure_ascii=False))
+                        )
+                conn.commit()
+                logger.info(f"✅ 成功将服务器从 JSON 迁移到 SQLite 关系型表: {len(state.SERVERS_CACHE)} 台")
+            except Exception as e:
+                logger.error(f"❌ 读取 servers.json 失败: {e}")
+        else:
+            logger.warning(f"⚠️ 未找到服务器配置数据")
 
     # 2. 加载订阅
     state.SUBS_CACHE.clear()
