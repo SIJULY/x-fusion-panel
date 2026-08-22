@@ -71,7 +71,7 @@ async def generate_smart_name(server_conf):
     """尝试获取面板节点名，获取不到则用 GeoIP+序号"""
     try:
         mgr = get_manager(server_conf)
-        inbounds = await run_in_bg_executor(mgr.get_inbounds)
+        inbounds = await mgr.get_inbounds()
         if inbounds and len(inbounds) > 0:
             for node in inbounds:
                 if node.get('remark'):

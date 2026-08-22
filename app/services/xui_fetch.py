@@ -80,10 +80,7 @@ async def fetch_inbounds_safe(server_conf, force_refresh=False, sync_name=False)
             # 增加超时判断。
             # API 管理器是同步方法，需要丢到线程池；SSH/Root 管理器是 async 方法，必须直接 await。
             # 否则会把 coroutine 对象写入 NODES_DATA，导致单机详情页新增节点后无法静默刷新出真实列表。
-            if inspect.iscoroutinefunction(mgr.get_inbounds):
-                inbounds = await asyncio.wait_for(mgr.get_inbounds(), timeout=15)
-            else:
-                inbounds = await asyncio.wait_for(run_in_bg_executor(mgr.get_inbounds), timeout=15)
+            inbounds = await asyncio.wait_for(mgr.get_inbounds(), timeout=15)
 
             if inbounds is not None:
                 inbounds = merge_local_node_fields(url, inbounds)

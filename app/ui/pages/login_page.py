@@ -6,7 +6,7 @@ import uuid
 import pyotp
 import qrcode
 from fastapi import Request
-from nicegui import app, ui
+from nicegui import app, ui, run
 
 from app.core.config import ADMIN_PASS, ADMIN_USER
 from app.core.state import ADMIN_CONFIG, SERVERS_CACHE
@@ -412,7 +412,7 @@ def login_page(request: Request):
                         ADMIN_CONFIG['mfa_secret'] = secret
                         await save_admin_config()
                         ui.notify('绑定成功', type='positive')
-                        finish()
+                        await finish()
                     else:
                         ui.notify('验证码错误', type='negative')
 
@@ -431,10 +431,10 @@ def login_page(request: Request):
 
                 code = ui.input(placeholder='------').props(otp_input_props).classes('w-full')
 
-                def verify():
+                async def verify():
                     totp = pyotp.TOTP(secret)
                     if totp.verify(code.value):
-                        finish()
+                        await finish()
                     else:
                         ui.notify('无效的验证码', type='negative', position='top')
                         code.value = ''
@@ -444,7 +444,7 @@ def login_page(request: Request):
                 ui.button('返回', on_click=render_step1).props('outline color=grey').classes(back_btn_cls)
             ui.timer(0.1, lambda: ui.run_javascript('document.querySelector(".q-field__native").focus()'), once=True)
 
-    def finish():
+    async def finish():
         app.storage.user['authenticated'] = True
         app.storage.user['is_dark'] = False
 
@@ -457,7 +457,7 @@ def login_page(request: Request):
             client_device_id = request.cookies.get('fp_device_id', 'Unknown_Device')
             app.storage.user['last_known_ip'] = client_ip
             app.storage.user['device_id'] = client_device_id
-            geo = fetch_geo_from_ip(client_ip)
+            geo = await run.io_bound(fetch_geo_from_ip, client_ip)
             if geo and len(geo) >= 4:
                 app.storage.user['login_region'] = f"{geo[2]}-{geo[3]}"
             else:
