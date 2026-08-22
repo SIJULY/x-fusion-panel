@@ -4,7 +4,7 @@ import socket
 from nicegui import app, run, ui
 
 from app.core.state import SERVERS_CACHE
-from app.services.ssh import get_ssh_client_sync
+from app.services.ssh import _ssh_exec_wrapper
 from app.ui.common.notifications import safe_notify
 
 
@@ -160,46 +160,17 @@ class BatchSSH:
 
                 log_safe(f"⏳ [{name}] Connecting...")
                 try:
-                    def ssh_exec():
-                        client, msg = get_ssh_client_sync(server)
-                        if not client:
-                            return False, msg
-                        try:
-                            stdin, stdout, stderr = client.exec_command(cmd, timeout=60, get_pty=True)
-                            out = stdout.read().decode('utf-8', errors='ignore').strip()
-                            err = stderr.read().decode('utf-8', errors='ignore').strip()
-                            try:
-                                exit_status = stdout.channel.recv_exit_status()
-                            except:
-                                exit_status = 0
-                            client.close()
-                            return True, (out, err, exit_status)
-                        except socket.timeout:
-                            try:
-                                client.close()
-                            except:
-                                pass
-                            return False, '执行超时：命令可能在等待交互输入（如 sudo -i / su - / vim），请改用非交互命令或去 WebSSH 执行'
-                        except Exception as e:
-                            try:
-                                client.close()
-                            except:
-                                pass
-                            return False, (str(e) or repr(e) or '未知 SSH 执行错误')
-
-                    success, result = await run.io_bound(ssh_exec)
+                    success, output = await _ssh_exec_wrapper(server, cmd, timeout=60)
                     if success:
-                        out, err, exit_status = result
-                        if out:
-                            log_safe(f"✅ [{name}] OUT:\n{out}")
-                        if err:
-                            log_safe(f"⚠️ [{name}] ERR:\n{err}")
-                        if not out and not err:
+                        if output:
+                            log_safe(f"✅ [{name}] OUT:\n{output}")
+                        else:
                             log_safe(f"✅ [{name}] Done (No Output)")
-                        if exit_status not in (0, None):
-                            log_safe(f"⚠️ [{name}] Exit Status: {exit_status}")
                     else:
-                        log_safe(f"❌ [{name}] Failed: {result}")
+                        if 'timeout' in str(output).lower() or '超时' in str(output):
+                            log_safe(f"❌ [{name}] Failed: 执行超时：命令可能在等待交互输入（如 sudo -i / su - / vim），请改用非交互命令或去 WebSSH 执行")
+                        else:
+                            log_safe(f"❌ [{name}] Failed: {output}")
                 except Exception as e:
                     log_safe(f"❌ [{name}] Error: {e}")
                 log_safe("-" * 30)

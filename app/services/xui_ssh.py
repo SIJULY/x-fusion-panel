@@ -73,7 +73,7 @@ except Exception as e:
             else:
                 cmd = f"sudo -n python3 -c \"import base64; exec(base64.b64decode('{b64_code}'))\""
 
-        success, output = await run.io_bound(lambda: _ssh_exec_wrapper(self.server_conf, cmd))
+        success, output = await _ssh_exec_wrapper(self.server_conf, cmd)
 
         # 整理输出，去除 sudo 密码提示符
         if output:

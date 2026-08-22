@@ -84,7 +84,7 @@ def clear_github_oauth_state() -> None:
     ADMIN_CONFIG.pop('github_oauth_state_created_at', None)
 
 
-def build_full_backup_payload() -> Dict[str, Any]:
+async def build_full_backup_payload() -> Dict[str, Any]:
     admin_snapshot = json.loads(json.dumps(ADMIN_CONFIG, ensure_ascii=False))
     for key in _GITHUB_SENSITIVE_KEYS:
         admin_snapshot.pop(key, None)
@@ -95,7 +95,7 @@ def build_full_backup_payload() -> Dict[str, Any]:
         'servers': json.loads(json.dumps(SERVERS_CACHE, ensure_ascii=False)),
         'subscriptions': json.loads(json.dumps(SUBS_CACHE, ensure_ascii=False)),
         'admin_config': admin_snapshot,
-        'global_ssh_key': load_global_key(),
+        'global_ssh_key': await load_global_key(),
         'cache': json.loads(json.dumps(NODES_DATA, ensure_ascii=False)),
     }
 
@@ -295,7 +295,7 @@ async def upload_backup_to_github(backup_payload: Dict[str, Any] | None = None) 
     latest_path = get_github_backup_path()
     timestamp_str = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     history_path = f'{backup_dir}/x_fusion_backup_{timestamp_str}.json' if backup_dir else f'x_fusion_backup_{timestamp_str}.json'
-    payload = backup_payload or build_full_backup_payload()
+    payload = backup_payload or await build_full_backup_payload()
     content_bytes = json.dumps(payload, indent=2, ensure_ascii=False).encode('utf-8')
 
     async with httpx.AsyncClient() as client:

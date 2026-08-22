@@ -6,7 +6,7 @@ from fastapi.responses import RedirectResponse
 from nicegui import app, ui
 
 from app.core.state import ADMIN_CONFIG, PROBE_DATA_CACHE, SERVERS_CACHE
-from app.services.ssh import WebSSH, get_ssh_client_sync
+from app.services.ssh import WebSSH, get_ssh_client
 from app.storage.repositories import save_admin_config
 from app.ui.pages.login_page import check_auth
 
@@ -205,7 +205,7 @@ def mobile_page(request: Request):
         async def test_connect():
             test_btn.disable(); test_btn.props('loading')
             try:
-                client, msg = await asyncio.to_thread(get_ssh_client_sync, server)
+                client, msg = await get_ssh_client(server)
                 if client:
                     client.close(); ui.notify(msg, type='positive', position='top')
                 else:

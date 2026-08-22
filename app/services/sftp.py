@@ -2,7 +2,7 @@ import os
 import posixpath
 import stat
 
-from app.services.ssh import get_ssh_client_sync
+from app.services.ssh import get_ssh_client
 
 
 TEXT_FILE_EXTENSIONS = {
@@ -44,37 +44,39 @@ def is_probably_text_file(path: str) -> bool:
     return ext in TEXT_FILE_EXTENSIONS
 
 
-def _open_sftp(server_conf):
-    client, msg = get_ssh_client_sync(server_conf)
+async def _open_sftp(server_conf):
+    client, msg = await get_ssh_client(server_conf)
     if not client:
         raise RuntimeError(msg)
-    return client, client.open_sftp()
+    return client, await client.start_sftp_client()
 
 
-def list_remote_dir(server_conf, path='/'):
+async def list_remote_dir(server_conf, path='/'):
     client = None
     sftp = None
     try:
-        client, sftp = _open_sftp(server_conf)
+        client, sftp = await _open_sftp(server_conf)
         path = normalize_remote_path(path)
         entries = []
-        for attr in sftp.listdir_attr(path):
+        for attr in await sftp.readdir(path):
+            if attr.filename in ('.', '..'):
+                continue
             full_path = join_remote_path(path, attr.filename)
-            is_dir = stat.S_ISDIR(attr.st_mode)
+            is_dir = stat.S_ISDIR(attr.attrs.permissions) if attr.attrs.permissions else False
             entries.append({
                 'name': attr.filename,
                 'path': full_path,
                 'is_dir': is_dir,
-                'size': int(getattr(attr, 'st_size', 0) or 0),
-                'mtime': int(getattr(attr, 'st_mtime', 0) or 0),
-                'mode': stat.filemode(attr.st_mode),
+                'size': int(attr.attrs.size or 0),
+                'mtime': int(attr.attrs.mtime or 0),
+                'mode': stat.filemode(attr.attrs.permissions) if attr.attrs.permissions else '----------',
             })
         entries.sort(key=lambda x: (not x['is_dir'], x['name'].lower()))
         return entries
     finally:
         try:
             if sftp:
-                sftp.close()
+                sftp.exit()
         except:
             pass
         try:
@@ -84,28 +86,30 @@ def list_remote_dir(server_conf, path='/'):
             pass
 
 
-def read_remote_file(server_conf, path: str, max_size=1024 * 1024):
+async def read_remote_file(server_conf, path: str, max_size=1024 * 1024):
     client = None
     sftp = None
     try:
-        client, sftp = _open_sftp(server_conf)
+        client, sftp = await _open_sftp(server_conf)
         path = normalize_remote_path(path)
-        st = sftp.stat(path)
-        if stat.S_ISDIR(st.st_mode):
+        st = await sftp.stat(path)
+        if st.permissions and stat.S_ISDIR(st.permissions):
             raise IsADirectoryError(path)
-        if st.st_size > max_size:
+        if st.size and st.size > max_size:
             raise ValueError(f'文件过大，超过 {max_size // 1024} KB 限制')
-        with sftp.open(path, 'rb') as f:
-            raw = f.read()
+        
+        async with sftp.open(path, 'rb') as f:
+            raw = await f.read()
+            
         try:
             content = raw.decode('utf-8')
         except UnicodeDecodeError:
             raise ValueError('文件不是 UTF-8 文本，暂不支持在线编辑')
-        return {'path': path, 'size': int(st.st_size), 'content': content}
+        return {'path': path, 'size': int(st.size or 0), 'content': content}
     finally:
         try:
             if sftp:
-                sftp.close()
+                sftp.exit()
         except:
             pass
         try:
@@ -115,19 +119,19 @@ def read_remote_file(server_conf, path: str, max_size=1024 * 1024):
             pass
 
 
-def write_remote_file(server_conf, path: str, content: str):
+async def write_remote_file(server_conf, path: str, content: str):
     client = None
     sftp = None
     try:
-        client, sftp = _open_sftp(server_conf)
+        client, sftp = await _open_sftp(server_conf)
         path = normalize_remote_path(path)
-        with sftp.open(path, 'wb') as f:
-            f.write((content or '').encode('utf-8'))
+        async with sftp.open(path, 'wb') as f:
+            await f.write((content or '').encode('utf-8'))
         return True
     finally:
         try:
             if sftp:
-                sftp.close()
+                sftp.exit()
         except:
             pass
         try:
@@ -137,18 +141,18 @@ def write_remote_file(server_conf, path: str, content: str):
             pass
 
 
-def upload_remote_file(server_conf, local_path: str, remote_path: str):
+async def upload_remote_file(server_conf, local_path: str, remote_path: str):
     client = None
     sftp = None
     try:
-        client, sftp = _open_sftp(server_conf)
+        client, sftp = await _open_sftp(server_conf)
         remote_path = normalize_remote_path(remote_path)
-        sftp.put(local_path, remote_path)
+        await sftp.put(local_path, remote_path)
         return True
     finally:
         try:
             if sftp:
-                sftp.close()
+                sftp.exit()
         except:
             pass
         try:
@@ -158,19 +162,19 @@ def upload_remote_file(server_conf, local_path: str, remote_path: str):
             pass
 
 
-def download_remote_file(server_conf, remote_path: str):
+async def download_remote_file(server_conf, remote_path: str):
     client = None
     sftp = None
     try:
-        client, sftp = _open_sftp(server_conf)
+        client, sftp = await _open_sftp(server_conf)
         remote_path = normalize_remote_path(remote_path)
-        with sftp.open(remote_path, 'rb') as f:
-            data = f.read()
+        async with sftp.open(remote_path, 'rb') as f:
+            data = await f.read()
         return data
     finally:
         try:
             if sftp:
-                sftp.close()
+                sftp.exit()
         except:
             pass
         try:
@@ -180,17 +184,17 @@ def download_remote_file(server_conf, remote_path: str):
             pass
 
 
-def make_remote_dir(server_conf, path: str):
+async def make_remote_dir(server_conf, path: str):
     client = None
     sftp = None
     try:
-        client, sftp = _open_sftp(server_conf)
-        sftp.mkdir(normalize_remote_path(path))
+        client, sftp = await _open_sftp(server_conf)
+        await sftp.mkdir(normalize_remote_path(path))
         return True
     finally:
         try:
             if sftp:
-                sftp.close()
+                sftp.exit()
         except:
             pass
         try:
@@ -200,18 +204,18 @@ def make_remote_dir(server_conf, path: str):
             pass
 
 
-def create_empty_remote_file(server_conf, path: str):
+async def create_empty_remote_file(server_conf, path: str):
     client = None
     sftp = None
     try:
-        client, sftp = _open_sftp(server_conf)
-        with sftp.open(normalize_remote_path(path), 'wb') as f:
-            f.write(b'')
+        client, sftp = await _open_sftp(server_conf)
+        async with sftp.open(normalize_remote_path(path), 'wb') as f:
+            await f.write(b'')
         return True
     finally:
         try:
             if sftp:
-                sftp.close()
+                sftp.exit()
         except:
             pass
         try:
@@ -221,17 +225,17 @@ def create_empty_remote_file(server_conf, path: str):
             pass
 
 
-def rename_remote_path(server_conf, old_path: str, new_path: str):
+async def rename_remote_path(server_conf, old_path: str, new_path: str):
     client = None
     sftp = None
     try:
-        client, sftp = _open_sftp(server_conf)
-        sftp.rename(normalize_remote_path(old_path), normalize_remote_path(new_path))
+        client, sftp = await _open_sftp(server_conf)
+        await sftp.rename(normalize_remote_path(old_path), normalize_remote_path(new_path))
         return True
     finally:
         try:
             if sftp:
-                sftp.close()
+                sftp.exit()
         except:
             pass
         try:
@@ -241,28 +245,30 @@ def rename_remote_path(server_conf, old_path: str, new_path: str):
             pass
 
 
-def delete_remote_path(server_conf, path: str):
+async def delete_remote_path(server_conf, path: str):
     client = None
     sftp = None
 
-    def _delete_recursive(target_path: str):
-        st = sftp.stat(target_path)
-        if stat.S_ISDIR(st.st_mode):
-            for attr in sftp.listdir_attr(target_path):
+    async def _delete_recursive(target_path: str):
+        st = await sftp.stat(target_path)
+        if st.permissions and stat.S_ISDIR(st.permissions):
+            for attr in await sftp.readdir(target_path):
+                if attr.filename in ('.', '..'):
+                    continue
                 child = join_remote_path(target_path, attr.filename)
-                _delete_recursive(child)
-            sftp.rmdir(target_path)
+                await _delete_recursive(child)
+            await sftp.rmdir(target_path)
         else:
-            sftp.remove(target_path)
+            await sftp.remove(target_path)
 
     try:
-        client, sftp = _open_sftp(server_conf)
-        _delete_recursive(normalize_remote_path(path))
+        client, sftp = await _open_sftp(server_conf)
+        await _delete_recursive(normalize_remote_path(path))
         return True
     finally:
         try:
             if sftp:
-                sftp.close()
+                sftp.exit()
         except:
             pass
         try:

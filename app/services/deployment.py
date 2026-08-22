@@ -158,7 +158,7 @@ async def open_deploy_xhttp_dialog(server_conf, callback):
                     log_area.push(f"🚀 [SSH] 开始执行安装脚本...")
 
                     deploy_cmd = _build_privileged_script_command(server_conf, XHTTP_INSTALL_SCRIPT_TEMPLATE, target_domain)
-                    success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, deploy_cmd))
+                    success, output = await _ssh_exec_wrapper(server_conf, deploy_cmd)
                     _push_deploy_output(log_area, output)
 
                     if success:
@@ -207,7 +207,7 @@ async def open_deploy_xhttp_dialog(server_conf, callback):
                 check_output = ""
 
                 try:
-                    success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, check_cmd))
+                    success, output = await _ssh_exec_wrapper(server_conf, check_cmd)
                     if success and output.strip():
                         is_occupied = True
                         check_output = output.strip()
@@ -303,7 +303,7 @@ async def open_deploy_hysteria_dialog(server_conf, callback):
                     deploy_cmd = _build_privileged_script_command(server_conf, script_content)
 
                     log_area.push(f"🚀 [SSH] 连接到 {real_ip} 开始安装...")
-                    success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, deploy_cmd))
+                    success, output = await _ssh_exec_wrapper(server_conf, deploy_cmd)
                     _push_deploy_output(log_area, output)
 
                     if success:
@@ -405,7 +405,7 @@ async def open_deploy_snell_dialog(server_conf, callback):
                     deploy_cmd = _build_privileged_script_command(server_conf, script_content)
 
                     log_area.push(f"🚀 [SSH] 开始在 {target_host} 安装 Snell v5 ...")
-                    success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, deploy_cmd))
+                    success, output = await _ssh_exec_wrapper(server_conf, deploy_cmd)
                     _push_deploy_output(log_area, output)
 
                     if success:

@@ -41,7 +41,7 @@ from app.storage.repositories import (
 from app.ui.common.notifications import safe_copy_to_clipboard, safe_notify
 
 
-def open_global_settings_dialog():
+async def open_global_settings_dialog():
     theme = _data_theme()
     with ui.dialog() as d, ui.card().classes(theme['card']):
         with ui.row().classes(theme['header']):
@@ -51,10 +51,10 @@ def open_global_settings_dialog():
         with ui.column().classes(theme['body']):
             ui.label('全局 SSH 私钥').classes(theme['accent'])
             ui.label('当服务器未单独配置密钥时，默认使用此密钥连接。').classes(theme['sub'])
-            key_input = ui.textarea(placeholder='-----BEGIN OPENSSH PRIVATE KEY-----', value=load_global_key()).classes('w-full font-mono text-xs').props(theme['textarea'])
+            key_input = ui.textarea(placeholder='-----BEGIN OPENSSH PRIVATE KEY-----', value=await load_global_key()).classes('w-full font-mono text-xs').props(theme['textarea'])
 
         async def save_all():
-            save_global_key(key_input.value)
+            await save_global_key(key_input.value)
             safe_notify('✅ 全局密钥已保存', 'positive')
             d.close()
 
@@ -81,7 +81,7 @@ async def open_data_mgmt_dialog():
                 full_backup = {
                     "version": "3.0", "timestamp": __import__('time').time(),
                     "servers": SERVERS_CACHE, "subscriptions": SUBS_CACHE,
-                    "admin_config": ADMIN_CONFIG, "global_ssh_key": load_global_key(), "cache": NODES_DATA
+                    "admin_config": ADMIN_CONFIG, "global_ssh_key": await load_global_key(), "cache": NODES_DATA
                 }
                 json_str = json.dumps(full_backup, indent=2, ensure_ascii=False)
 
@@ -128,7 +128,7 @@ async def open_data_mgmt_dialog():
                                         added += 1
 
                                 if restore_key_chk.value and data.get('global_ssh_key'):
-                                    save_global_key(data['global_ssh_key'])
+                                    await save_global_key(data['global_ssh_key'])
                                 if restore_sub_chk.value and isinstance(data, dict):
                                     if isinstance(data.get('subscriptions'), list):
                                         SUBS_CACHE.clear()

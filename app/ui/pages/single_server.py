@@ -7,7 +7,7 @@ from app.core.logging import logger
 from app.core.state import ADMIN_CONFIG, NODES_DATA, PROBE_DATA_CACHE, SERVERS_CACHE
 from app.services.cloudflare import CloudflareHandler
 from app.services.manager_factory import get_manager
-from app.services.ssh import _ssh_exec_wrapper, get_ssh_client_sync
+from app.services.ssh import _ssh_exec_wrapper, get_ssh_client
 from app.services.traffic_guard import (
     ensure_traffic_limit_cycle,
     get_current_cycle_key,
@@ -231,11 +231,8 @@ async def render_single_server_view(server_conf, force_refresh=False):
 
                 ssh_fallback_data = {}
 
-                def _fetch_runtime_via_ssh():
+                async def _fetch_runtime_via_ssh():
                     if not server_conf.get('ssh_host'):
-                        return None
-                    client, msg = get_ssh_client_sync(server_conf)
-                    if not client:
                         return None
                     try:
                         remote_script = r'''python3 - <<'PY'
@@ -291,23 +288,17 @@ except Exception as e:
     info = {'error': str(e)}
 print(json.dumps(info, ensure_ascii=False))
 PY'''
-                        stdin, stdout, stderr = client.exec_command(remote_script, timeout=15)
-                        raw = stdout.read().decode('utf-8', errors='ignore').strip()
-                        if raw:
+                        success, raw = await _ssh_exec_wrapper(server_conf, remote_script, timeout=15)
+                        if success and raw:
                             parsed = json.loads(raw.splitlines()[-1])
                             if isinstance(parsed, dict) and not parsed.get('error'):
                                 return parsed
                     except Exception as e:
                         logger.warning(f'初始获取静态信息失败: {e}')
-                    finally:
-                        try:
-                            client.close()
-                        except:
-                            pass
                     return None
 
                 async def run_ssh_fallback():
-                    remote_data = await run.io_bound(_fetch_runtime_via_ssh)
+                    remote_data = await _fetch_runtime_via_ssh()
                     if isinstance(remote_data, dict):
                         ssh_fallback_data.update(remote_data)
 

@@ -236,7 +236,7 @@ async def render_single_ssh_view(server_conf):
         tree_state['loading'].add(path)
         render_tree.refresh()
         try:
-            entries = await run.io_bound(list_remote_dir, server_conf, path)
+            entries = await list_remote_dir(server_conf, path)
             tree_state['cache'][path] = [e for e in entries if e.get('is_dir')]
         except Exception:
             tree_state['cache'][path] = []
@@ -253,7 +253,7 @@ async def render_single_ssh_view(server_conf):
         file_state['loading'] = True
         render_file_list.refresh()
         try:
-            file_state['entries'] = await run.io_bound(list_remote_dir, server_conf, file_state['current_path'])
+            file_state['entries'] = await list_remote_dir(server_conf, file_state['current_path'])
             await ensure_tree_children(file_state['current_path'], force=True)
             if path_input:
                 path_input.value = file_state['current_path']
@@ -346,7 +346,7 @@ async def render_single_ssh_view(server_conf):
 
         s_notify = ui.notification('正在保存...', timeout=0, spinner=True)
         try:
-            await run.io_bound(write_remote_file, server_conf, path, f_data['content'])
+            await write_remote_file(server_conf, path, f_data['content'])
             f_data['saved_content'] = f_data['content']
             s_notify.dismiss()
             safe_notify(f'✅ {f_data["name"]} 已保存', 'positive')
@@ -375,7 +375,7 @@ async def render_single_ssh_view(server_conf):
             loading_notify = ui.notification(f'正在读取 {entry.get("name", basename(remote_path))}...', timeout=0,
                                              spinner=True)
             try:
-                result = await run.io_bound(read_remote_file, server_conf, remote_path)
+                result = await read_remote_file(server_conf, remote_path)
                 content = result.get('content', '')
             except Exception as e:
                 loading_notify.dismiss()
@@ -572,7 +572,7 @@ async def render_single_ssh_view(server_conf):
     async def download_entry(entry):
         remote_path = entry.get('path', '')
         try:
-            data = await run.io_bound(download_remote_file, server_conf, remote_path)
+            data = await download_remote_file(server_conf, remote_path)
             ui.download(data, entry.get('name') or os.path.basename(remote_path) or 'download.bin')
             safe_notify('开始下载文件', 'positive')
         except Exception as e:
@@ -601,7 +601,7 @@ async def render_single_ssh_view(server_conf):
 
             async def do_delete():
                 try:
-                    await run.io_bound(delete_remote_path, server_conf, target_path)
+                    await delete_remote_path(server_conf, target_path)
                     safe_notify(f'{target_type}已删除', 'positive')
                     d.close()
                     parent = get_parent_remote_path(target_path)
@@ -642,10 +642,10 @@ async def render_single_ssh_view(server_conf):
                 target_path = join_remote_path(file_state['current_path'], name)
                 try:
                     if kind == 'dir':
-                        await run.io_bound(make_remote_dir, server_conf, target_path)
+                        await make_remote_dir(server_conf, target_path)
                         await ensure_tree_children(file_state['current_path'], force=True)
                     else:
-                        await run.io_bound(create_empty_remote_file, server_conf, target_path)
+                        await create_empty_remote_file(server_conf, target_path)
                     safe_notify(f'{label}创建成功', 'positive')
                     d.close()
                     await refresh_remote_dir(file_state['current_path'])
@@ -683,7 +683,7 @@ async def render_single_ssh_view(server_conf):
                     return
                 new_path = join_remote_path(get_parent_remote_path(old_path), new_name)
                 try:
-                    await run.io_bound(rename_remote_path, server_conf, old_path, new_path)
+                    await rename_remote_path(server_conf, old_path, new_path)
                     safe_notify(f'重命名成功: {new_name}', 'positive')
                     d.close()
                     await refresh_remote_dir(file_state['current_path'])
@@ -767,7 +767,7 @@ async def render_single_ssh_view(server_conf):
                     s_notify = ui.notification(f'正在修改权限为 {new_mode}...', timeout=0, spinner=True)
                     try:
                         cmd = f"chmod {new_mode} '{target_path}'"
-                        success, output = await run.io_bound(lambda: _ssh_exec_wrapper(server_conf, cmd))
+                        success, output = await _ssh_exec_wrapper(server_conf, cmd)
                         s_notify.dismiss()
                         if success:
                             safe_notify(f'权限已更新: {new_mode}', 'positive')
@@ -795,7 +795,7 @@ async def render_single_ssh_view(server_conf):
                 tmp.write(e.content.read())
                 tmp_path = tmp.name
 
-            await run.io_bound(upload_remote_file, server_conf, tmp_path, remote_path)
+            await upload_remote_file(server_conf, tmp_path, remote_path)
 
             os.remove(tmp_path)
             safe_notify(f'✅ {e.name} 上传成功', 'positive')

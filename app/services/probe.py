@@ -20,7 +20,7 @@ from app.core.state import (
     PROCESS_POOL,
     SERVERS_CACHE,
 )
-from app.services.ssh import get_ssh_client_sync
+from app.services.ssh import get_ssh_client, _ssh_exec_wrapper
 from app.services.xui_fetch import merge_local_node_fields
 from app.services.traffic_guard import check_and_handle_traffic_limit
 from app.storage.repositories import save_servers
@@ -153,52 +153,19 @@ async def install_probe_on_server(server_conf):
 
     install_command = _build_install_command(real_script)
 
-    def _exec_with_timeout(client, command: str, timeout_seconds: int, get_pty: bool = False):
-        """执行 SSH 命令并强制限制总耗时，避免 sudo/apt/systemctl 卡住导致页面一直 loading。"""
-        stdin, stdout, stderr = client.exec_command(command, timeout=10, get_pty=get_pty)
-        channel = stdout.channel
-        deadline = time.time() + timeout_seconds
-
-        while not channel.exit_status_ready():
-            if time.time() > deadline:
-                try:
-                    channel.close()
-                except Exception:
-                    pass
-                return 124, '', f'命令执行超时 ({timeout_seconds}s)，可能卡在 sudo 密码、软件源安装或 systemd 启动'
-            time.sleep(0.2)
-
-        exit_status = channel.recv_exit_status()
-        stdout_text = stdout.read().decode(errors='ignore').strip()
-        stderr_text = stderr.read().decode(errors='ignore').strip()
-        return exit_status, stdout_text, stderr_text
-
-    def _do_install():
-        client = None
-        try:
-            client, msg = get_ssh_client_sync(server_conf)
-            if not client:
-                return False, f"SSH连接失败: {msg}"
-            needs_pty = (server_conf.get('ssh_user') or 'root').strip() != 'root'
-            exit_status, install_out, install_err = _exec_with_timeout(client, install_command, 120, get_pty=needs_pty)
-            if exit_status == 0:
-                verify_cmd = _sudo_wrap_command("test -f /root/x_fusion_agent.py && test -f /etc/systemd/system/x-fusion-agent.service && systemctl is-active --quiet x-fusion-agent")
-                verify_status, verify_out, verify_err = _exec_with_timeout(client, verify_cmd, 30, get_pty=needs_pty)
-                if verify_status == 0:
-                    return True, "Agent 安装成功并启动"
-                verify_error = verify_err or verify_out
-                return False, f"安装后校验失败 (Exit {verify_status}){': ' + verify_error if verify_error else ''}"
-            error_detail = install_err or install_out
-            if exit_status == 124:
-                return False, error_detail
-            return False, f"安装脚本错误 (Exit {exit_status}){': ' + error_detail if error_detail else ''}"
-        except Exception as e:
-            return False, f"异常: {str(e)}"
-        finally:
-            if client:
-                client.close()
-
-    success, msg = await run.io_bound(_do_install)
+    try:
+        success, output = await _ssh_exec_wrapper(server_conf, install_command, timeout=120)
+        if success:
+            verify_cmd = _sudo_wrap_command("test -f /root/x_fusion_agent.py && test -f /etc/systemd/system/x-fusion-agent.service && systemctl is-active --quiet x-fusion-agent")
+            verify_success, verify_output = await _ssh_exec_wrapper(server_conf, verify_cmd, timeout=30)
+            if verify_success:
+                success, msg = True, "Agent 安装成功并启动"
+            else:
+                success, msg = False, f"安装后校验失败: {verify_output}"
+        else:
+            success, msg = False, f"安装脚本错误: {output}"
+    except Exception as e:
+        success, msg = False, f"异常: {str(e)}"
     if success:
         server_conf['probe_installed'] = True
         await save_servers()
@@ -501,7 +468,7 @@ async def smart_detect_ssh_user_task(server_conf):
     for user in candidates:
         server_conf['ssh_user'] = user
 
-        client, msg = await run.io_bound(get_ssh_client_sync, server_conf)
+        client, msg = await get_ssh_client(server_conf)
 
         if client:
             client.close()

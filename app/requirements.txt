@@ -6,6 +6,8 @@ uvicorn
 pyotp
 qrcode
 pillow
-paramiko
+asyncssh
 apscheduler
+aiofiles
 
+aiosqlite==0.20.0

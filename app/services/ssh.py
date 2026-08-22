@@ -1,24 +1,18 @@
 import asyncio
 import base64
-import io
 import socket
 import uuid
 
-import paramiko
-from nicegui import app, run, ui
+import asyncssh
+from nicegui import app, ui
 
 from app.storage.repositories import load_global_key
 
 ssh_instances = {}
 
 
-def get_ssh_client(server_data):
-    """建立 SSH 连接"""
-    import paramiko
-
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
+async def get_ssh_client(server_data):
+    """建立 SSH 连接 (AsyncSSH)"""
     raw_url = server_data.get('url', '')
     host = ''
     if raw_url:
@@ -35,74 +29,62 @@ def get_ssh_client(server_data):
 
     port = int(server_data.get('ssh_port') or 22)
     user = server_data.get('ssh_user') or 'root'
-
     auth_type = server_data.get('ssh_auth_type', '全局密钥').strip()
 
     print(f"🔌 [SSH Debug] 连接目标: {host}, 用户: {user}, 认证方式: [{auth_type}]", flush=True)
+
+    options = {
+        'host': host,
+        'port': port,
+        'username': user,
+        'known_hosts': None,
+        'client_keys': [],
+    }
 
     try:
         if auth_type == '独立密码':
             pwd = server_data.get('ssh_password', '')
             if not pwd:
                 raise Exception("选择了独立密码，但密码为空")
-
-            client.connect(host, port, username=user, password=pwd, timeout=5,
-                           look_for_keys=False, allow_agent=False)
+            options['password'] = pwd
 
         elif auth_type == '独立密钥':
             key_content = server_data.get('ssh_key', '')
             if not key_content:
                 raise Exception("选择了独立密钥，但密钥为空")
-
-            key_file = io.StringIO(key_content)
             try:
-                pkey = paramiko.RSAKey.from_private_key(key_file)
-            except:
-                key_file.seek(0)
-                try:
-                    pkey = paramiko.Ed25519Key.from_private_key(key_file)
-                except:
-                    raise Exception("无法识别的私钥格式")
-
-            client.connect(host, port, username=user, pkey=pkey, timeout=5,
-                           look_for_keys=False, allow_agent=False)
+                options['client_keys'] = [asyncssh.import_private_key(key_content)]
+            except Exception as e:
+                raise Exception(f"无法识别的私钥格式: {e}")
 
         else:
-            g_key = load_global_key()
+            g_key = await load_global_key()
             if not g_key:
                 raise Exception("全局密钥未配置")
-
-            key_file = io.StringIO(g_key)
             try:
-                pkey = paramiko.RSAKey.from_private_key(key_file)
-            except:
-                key_file.seek(0)
-                try:
-                    pkey = paramiko.Ed25519Key.from_private_key(key_file)
-                except:
-                    raise Exception("全局密钥格式无法识别")
+                options['client_keys'] = [asyncssh.import_private_key(g_key)]
+            except Exception as e:
+                raise Exception(f"全局密钥格式无法识别: {e}")
 
-            client.connect(host, port, username=user, pkey=pkey, timeout=5,
-                           look_for_keys=False, allow_agent=False)
+        conn = await asyncio.wait_for(asyncssh.connect(**options), timeout=5.0)
+        return conn, f"✅ 已连接 {user}@{host}"
 
-        return client, f"✅ 已连接 {user}@{host}"
-
+    except asyncio.TimeoutError:
+        return None, "❌ 连接失败: 连接超时，请检查服务器IP、端口及防火墙设置"
+    except asyncssh.PermissionDenied:
+        return None, "❌ 连接失败: 认证失败：密码或密钥错误"
+    except asyncssh.KeyImportError as e:
+        return None, f"❌ 连接失败: 密钥导入失败 ({e})"
     except Exception as e:
         detail = str(e).strip() or repr(e)
-        if "Bad authentication type" in detail and "publickey" in detail:
-            detail = "服务器仅支持密钥登录(publickey)，请在节点设置中改用密钥认证"
-        elif "Authentication failed" in detail:
-            detail = "认证失败：密码或密钥错误"
-        elif "timed out" in detail.lower() or "timeout" in detail.lower():
-            detail = "连接超时，请检查服务器IP、端口及防火墙设置"
-        elif "NoValidConnectionsError" in detail or "Connection refused" in detail:
+        if "Connection refused" in detail:
             detail = "连接被拒绝，请检查SSH端口是否正确"
-            
         return None, f"❌ 连接失败: {detail}"
 
 
-def get_ssh_client_sync(server_data):
-    return get_ssh_client(server_data)
+# 兼容之前的名字，防止其他地方报错，现在直接返回 await get_ssh_client
+async def get_ssh_client_sync(server_data):
+    return await get_ssh_client(server_data)
 
 
 class WebSSH:
@@ -111,7 +93,7 @@ class WebSSH:
         self.server_data = server_data
         self.initial_command = (initial_command or '').strip()
         self.client = None
-        self.channel = None
+        self.process = None
         self.active = False
         self.term_id = f'term_{uuid.uuid4().hex}'
         self._last_cols = None
@@ -151,9 +133,9 @@ class WebSSH:
         self._last_cols = cols
         self._last_rows = rows
 
-        if self.channel and self.active:
+        if self.process and self.active:
             try:
-                self.channel.resize_pty(width=cols, height=rows)
+                self.process.change_terminal_size(cols, rows)
             except Exception:
                 pass
 
@@ -163,9 +145,9 @@ class WebSSH:
         cols, rows = self._pending_resize
         self._last_cols = cols
         self._last_rows = rows
-        if self.channel:
+        if self.process:
             try:
-                self.channel.resize_pty(width=cols, height=rows)
+                self.process.change_terminal_size(cols, rows)
             except Exception:
                 pass
 
@@ -180,7 +162,6 @@ class WebSSH:
             try:
                 is_dark = bool(app.storage.user.get('is_dark', True))
                 
-                # 修复点：不再使用偏暗蓝的 #eef4ff，改为浅色模式下完美融入白色卡片的纯白 #ffffff
                 term_bg = '#000000' if is_dark else '#ffffff'
                 term_fg = '#ffffff' if is_dark else '#0f172a'
                 term_cursor = '#22d3ee' if is_dark else '#2563eb'
@@ -213,8 +194,6 @@ class WebSSH:
                     el.style.minHeight = '0';
                     el.style.display = 'block';
                     el.style.position = 'relative';
-
-                    // 修复点 1：增加左侧内边距，让命令行往右移动 1-2 个字符的距离
                     el.style.paddingLeft = '14px';
                     el.style.boxSizing = 'border-box'; 
 
@@ -226,7 +205,7 @@ class WebSSH:
                         selectionBackground: 'rgba(34, 211, 238, 0.28)'
                     }};
                     var lightTheme = {{
-                        background: '#ffffff', // 修正为纯白
+                        background: '#ffffff',
                         foreground: '#0f172a',
                         cursor: '#2563eb',
                         cursorAccent: '#ffffff',
@@ -281,9 +260,6 @@ class WebSSH:
                         paintElement(xtermRoot);
                         paintElement(viewport);
                         paintElement(screen);
-
-                        // 修复点 2：在深浅色切换时，动态设置最左侧的边框线
-                        var borderColor = isDark ? '#334155' : '#cbd5e1';
 
                         try {{
                             var canvases = el.querySelectorAll('canvas');
@@ -374,20 +350,17 @@ class WebSSH:
                 term_container.on('term_input', handle_input)
                 term_container.on('term_resize', self._handle_resize_event)
 
-                self.client, msg = await run.io_bound(get_ssh_client_sync, self.server_data)
+                self.client, msg = await get_ssh_client(self.server_data)
 
                 if not self.client:
                     self._print_error(msg)
                     return
 
-                def pre_login_tasks():
+                async def pre_login_tasks():
                     last_login_msg = ""
                     try:
-                        self.client.exec_command("touch ~/.hushlogin")
-
-                        stdin, stdout, stderr = self.client.exec_command("last -n 2 -a | head -n 2 | tail -n 1")
-                        raw_log = stdout.read().decode().strip()
-
+                        res = await asyncio.wait_for(self.client.run("touch ~/.hushlogin && last -n 2 -a | head -n 2 | tail -n 1"), timeout=5.0)
+                        raw_log = res.stdout.strip()
                         if raw_log and "wtmp" not in raw_log:
                             parts = raw_log.split()
                             if len(parts) >= 7:
@@ -398,7 +371,7 @@ class WebSSH:
                         pass
                     return last_login_msg
 
-                login_info = await run.io_bound(pre_login_tasks)
+                login_info = await pre_login_tasks()
 
                 if login_info:
                     formatted_msg = f"\x1b[32m{login_info}\x1b[0m\r\n"
@@ -407,14 +380,15 @@ class WebSSH:
 
                 initial_cols = self._pending_resize[0] if self._pending_resize else 100
                 initial_rows = self._pending_resize[1] if self._pending_resize else 30
-                self.channel = self.client.invoke_shell(term='xterm', width=initial_cols, height=initial_rows)
-                self.channel.settimeout(0.0)
+                
+                self.process = await self.client.create_process(term_type='xterm', term_size=(initial_cols, initial_rows))
+                
                 self.active = True
                 self._apply_pending_resize_now()
 
                 if self.initial_command:
                     try:
-                        self.channel.send(self.initial_command + '\n')
+                        self.process.stdin.write(self.initial_command + '\n')
                     except:
                         pass
 
@@ -433,52 +407,64 @@ class WebSSH:
             ui.notify(msg, type='negative')
 
     def _write_to_ssh(self, data):
-        if self.channel and self.active:
+        if self.process and self.active:
             try:
-                self.channel.send(data)
+                self.process.stdin.write(data)
             except:
                 pass
 
     async def _read_loop(self):
-        while self.active:
+        while self.active and self.process:
             try:
-                if self.channel.recv_ready():
-                    data = self.channel.recv(4096)
-                    if not data:
-                        break
+                # asyncssh stdout.read is async
+                data = await self.process.stdout.read(4096)
+                if not data:
+                    break
 
-                    b64_data = base64.b64encode(data).decode('utf-8')
+                # Encode string to bytes if returned as string
+                if isinstance(data, str):
+                    data = data.encode('utf-8', errors='ignore')
 
-                    js_cmd = f"""
-                    if(window.{self.term_id}) {{
-                        try {{
-                            var binaryStr = atob("{b64_data}");
-                            var bytes = new Uint8Array(binaryStr.length);
-                            for (var i = 0; i < binaryStr.length; i++) {{
-                                bytes[i] = binaryStr.charCodeAt(i);
-                            }}
-                            var decodedStr = new TextDecoder("utf-8").decode(bytes);
+                b64_data = base64.b64encode(data).decode('utf-8')
 
-                            window.{self.term_id}.write(decodedStr);
-                            if (typeof window.{self.term_id}.scrollToBottom === 'function') {{
-                                window.{self.term_id}.scrollToBottom();
-                            }}
-                        }} catch(e) {{
-                            console.error("Term Decode Error", e);
+                js_cmd = f"""
+                if(window.{self.term_id}) {{
+                    try {{
+                        var binaryStr = atob("{b64_data}");
+                        var bytes = new Uint8Array(binaryStr.length);
+                        for (var i = 0; i < binaryStr.length; i++) {{
+                            bytes[i] = binaryStr.charCodeAt(i);
                         }}
-                    }}
-                    """
-                    with self.container.client:
-                        ui.run_javascript(js_cmd)
+                        var decodedStr = new TextDecoder("utf-8").decode(bytes);
 
-                await asyncio.sleep(0.01)
-            except Exception:
+                        window.{self.term_id}.write(decodedStr);
+                        if (typeof window.{self.term_id}.scrollToBottom === 'function') {{
+                            window.{self.term_id}.scrollToBottom();
+                        }}
+                    }} catch(e) {{
+                        console.error("Term Decode Error", e);
+                    }}
+                }}
+                """
+                with self.container.client:
+                    ui.run_javascript(js_cmd)
+
+            except asyncssh.BreakReceived:
+                break
+            except Exception as e:
                 await asyncio.sleep(0.1)
+                
+        self.close()
 
     def close(self):
         self.active = False
         if self._resize_debounce_task and not self._resize_debounce_task.done():
             self._resize_debounce_task.cancel()
+        if self.process:
+            try:
+                self.process.close()
+            except:
+                pass
         if self.client:
             try:
                 self.client.close()
@@ -497,44 +483,59 @@ class WebSSH:
             pass
 
 
-def _ssh_exec_wrapper(server_conf, cmd):
-    client, msg = get_ssh_client_sync(server_conf)
+async def _ssh_exec_wrapper(server_conf, cmd, timeout=120):
+    client, msg = await get_ssh_client(server_conf)
     if not client:
         return False, msg
     try:
-        stdin, stdout, stderr = client.exec_command(cmd, timeout=120)
-        out = stdout.read().decode().strip()
-        err = stderr.read().decode().strip()
-        client.close()
-        return True, out + "\n" + err
+        res = await asyncio.wait_for(client.run(cmd, check=False), timeout=timeout)
+        out = res.stdout.strip() if isinstance(res.stdout, str) else (res.stdout.decode().strip() if res.stdout else "")
+        err = res.stderr.strip() if isinstance(res.stderr, str) else (res.stderr.decode().strip() if res.stderr else "")
+        return True, out + ("\n" + err if err else "")
+    except asyncio.TimeoutError:
+        return False, "命令执行超时"
     except Exception as e:
         return False, str(e).strip() or repr(e)
+    finally:
+        client.close()
+        await client.wait_closed()
 
 
-def _exec(server_data, cmd, log_area):
-    client, msg = get_ssh_client(server_data)
+async def _exec(server_data, cmd, log_area):
+    client, msg = await get_ssh_client(server_data)
     if not client:
         log_area.push(msg)
         return
     try:
-        stdin, stdout, stderr = client.exec_command(cmd, timeout=10, get_pty=True)
+        process = await client.create_process(command=cmd, term_type='xterm')
+        
+        async def read_output():
+            while True:
+                data = await process.stdout.read(4096)
+                if not data:
+                    break
+                if isinstance(data, bytes):
+                    data = data.decode('utf-8', errors='ignore')
+                log_area.push(data.strip())
+                
+        async def read_error():
+            while True:
+                data = await process.stderr.read(4096)
+                if not data:
+                    break
+                if isinstance(data, bytes):
+                    data = data.decode('utf-8', errors='ignore')
+                log_area.push(f"ERR: {data.strip()}")
 
-        out = stdout.read().decode('utf-8', errors='ignore').strip()
-        err = stderr.read().decode('utf-8', errors='ignore').strip()
+        await asyncio.gather(read_output(), read_error())
+        
+        if process.exit_status is not None:
+             log_area.push(f"✅ 退出码: {process.exit_status}")
 
-        if out:
-            log_area.push(out)
-        if err:
-            log_area.push(f"ERR: {err}")
-
-        if not out and not err:
-            log_area.push("✅ 命令已执行 (无返回内容)")
-
-    except paramiko.SSHException as e:
-        log_area.push(f"SSH Error: {str(e)}")
-    except socket.timeout:
+    except asyncio.TimeoutError:
         log_area.push("❌ 执行超时: 命令执行时间过长或正在等待交互 (如 sudo/vim)")
     except Exception as e:
         log_area.push(f"系统错误: {repr(e)}")
     finally:
         client.close()
+        await client.wait_closed()

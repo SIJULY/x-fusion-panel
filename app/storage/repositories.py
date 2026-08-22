@@ -1,5 +1,8 @@
 import os
 import time
+import json
+import asyncio
+import aiosqlite
 
 from app.core import state
 from app.core.config import (
@@ -9,44 +12,69 @@ from app.core.config import (
     NODES_CACHE_FILE,
     SUBS_FILE,
     INDEPENDENT_NODES_FILE,
+    DATA_DIR
 )
 from app.core.logging import logger
-from app.storage.files import safe_save
 
+DB_FILE = os.path.join(DATA_DIR, "xfusion.db")
 
-def load_global_key():
-    if os.path.exists(GLOBAL_SSH_KEY_FILE):
-        with open(GLOBAL_SSH_KEY_FILE, 'r') as f:
-            return f.read()
+async def get_db_connection():
+    return await aiosqlite.connect(DB_FILE)
+
+async def async_set_db_value(key, value):
+    try:
+        async with aiosqlite.connect(DB_FILE) as db:
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS kv_store (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            ''')
+            val_str = json.dumps(value, ensure_ascii=False)
+            await db.execute(
+                "INSERT INTO kv_store (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?",
+                (key, val_str, val_str)
+            )
+            await db.commit()
+    except Exception as e:
+        logger.error(f"❌ 异步保存 {key} 到 SQLite 失败: {e}")
+
+async def load_global_key():
+    import aiofiles
+    import aiofiles.os
+    if await aiofiles.os.path.exists(GLOBAL_SSH_KEY_FILE):
+        async with aiofiles.open(GLOBAL_SSH_KEY_FILE, 'r') as f:
+            return await f.read()
     return ""
 
 
-def save_global_key(content):
-    with open(GLOBAL_SSH_KEY_FILE, 'w') as f:
-        f.write(content)
+async def save_global_key(content):
+    import aiofiles
+    async with aiofiles.open(GLOBAL_SSH_KEY_FILE, 'w') as f:
+        await f.write(content)
 
 
 async def save_servers():
-    await safe_save(CONFIG_FILE, state.SERVERS_CACHE)
+    await async_set_db_value("servers", state.SERVERS_CACHE)
     state.GLOBAL_UI_VERSION = time.time()
 
 
 async def save_admin_config():
-    await safe_save(ADMIN_CONFIG_FILE, state.ADMIN_CONFIG)
+    await async_set_db_value("admin_config", state.ADMIN_CONFIG)
     state.GLOBAL_UI_VERSION = time.time()
 
 
 async def save_subs():
-    await safe_save(SUBS_FILE, state.SUBS_CACHE)
+    await async_set_db_value("subs", state.SUBS_CACHE)
 
 
 async def save_independent_nodes():
-    await safe_save(INDEPENDENT_NODES_FILE, state.INDEPENDENT_NODES_CACHE)
+    await async_set_db_value("independent_nodes", state.INDEPENDENT_NODES_CACHE)
 
 
 async def save_nodes_cache():
     try:
         data_snapshot = state.NODES_DATA.copy()
-        await safe_save(NODES_CACHE_FILE, data_snapshot)
+        await async_set_db_value("nodes_cache", data_snapshot)
     except Exception as e:
         logger.error(f"❌ 保存缓存失败: {e}")
