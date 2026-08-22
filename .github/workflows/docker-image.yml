@@ -9,7 +9,7 @@ on:
       - 'app/**'
       - 'static/**'
       - 'install.sh'
-      - 'requirements.txt'
+      - 'app/requirements.txt'
       - '.github/workflows/docker-image.yml'
   workflow_dispatch:
 

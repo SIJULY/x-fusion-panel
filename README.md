@@ -388,7 +388,7 @@ project/
 ├─ Dockerfile
 ├─ docker-compose.yml
 ├─ install.sh
-└─ requirements.txt
+└─ app/requirements.txt
 ```
 ---
 
