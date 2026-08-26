@@ -446,7 +446,6 @@ async def open_server_dialog(idx=None):
                     inputs['ssh_pwd'] = ui.input(label='SSH 密码', password=True, value=data.get('ssh_password', '')).classes('w-full').props(theme['input'])
                     inputs['ssh_pwd'].bind_visibility_from(inputs['auth_type'], 'value', value='独立密码')
                     
-                    # 修复点：移除了 props 里的 bg-color="[#050b14]"
                     inputs['ssh_key'] = ui.textarea(label='SSH 私钥', value=data.get('ssh_key', '')).classes('w-full').props('outlined dense rows=3 input-class=font-mono text-xs dark color=cyan standout' if theme['is_dark'] else 'outlined dense rows=3 input-class=font-mono text-xs color=blue')
                     inputs['ssh_key'].bind_visibility_from(inputs['auth_type'], 'value', value='独立密钥')
 
@@ -471,7 +470,6 @@ async def open_server_dialog(idx=None):
                     inputs['xui_user'] = ui.input(value=data.get('user', ''), label='账号').classes('flex-1').props(theme['input'])
                     inputs['xui_pass'] = ui.input(value=data.get('pass', ''), label='密码', password=True).classes('flex-1').props(theme['input'])
 
-                # --- 修复手动探测按钮 ---
                 with ui.row().classes('w-full gap-2 items-center no-wrap'):
                     inputs['xui_prefix'] = ui.input(value=data.get('prefix', ''), label='面板根路径 (选填)').classes('flex-1 min-w-0').props(theme['input'])
 
@@ -510,7 +508,10 @@ for p in ['/etc/x-ui/x-ui.db', '/usr/local/x-ui/bin/x-ui.db', '/usr/local/x-ui/x
 print(xui_path)
 PY'''
                         s_notify = ui.notification('正在通过 SSH 探测路径...', timeout=0, spinner=True)
-                        success, output = await run.io_bound(lambda: _ssh_exec_wrapper(temp_conf, detect_script))
+                        
+                        # [修复] 直接 await 异步函数，移除 run.io_bound
+                        success, output = await _ssh_exec_wrapper(temp_conf, detect_script)
+                        
                         s_notify.dismiss()
                         
                         if success:
@@ -604,7 +605,10 @@ PY'''
                                     loading_notify = ui.notification('正在尝试连接并卸载探针...', timeout=None, spinner=True)
                                     try:
                                         uninstall_cmd = "systemctl stop x-fusion-agent && systemctl disable x-fusion-agent && rm -f /etc/systemd/system/x-fusion-agent.service && systemctl daemon-reload && rm -f /root/x_fusion_agent.py"
-                                        success, output = await run.io_bound(lambda: _ssh_exec_wrapper(target_srv, uninstall_cmd))
+                                        
+                                        # [修复] 直接 await 异步函数，移除 run.io_bound
+                                        success, output = await _ssh_exec_wrapper(target_srv, uninstall_cmd)
+                                        
                                         if success:
                                             ui.notify('✅ 远程探针已卸载清理', type='positive')
                                         else:
