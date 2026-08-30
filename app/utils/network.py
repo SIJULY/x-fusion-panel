@@ -1,10 +1,68 @@
 import asyncio
+import ipaddress
 import socket
 import time
+from urllib.parse import urlsplit
 
 from nicegui import run
 
 from app.core import state
+
+
+def is_ip_literal(host):
+    """判断给定主机是否已经是 IP 字面量 (IPv4 / IPv6)，而不是域名。"""
+    h = str(host or '').strip().strip('[]')
+    if not h:
+        return False
+    try:
+        ipaddress.ip_address(h)
+        return True
+    except ValueError:
+        return False
+
+
+def extract_host(value):
+    """从 url / host:port / 裸主机 中提取纯主机名 (兼容 IPv6 方括号写法)。"""
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+    if '://' not in raw:
+        raw = f'//{raw}'
+    try:
+        return urlsplit(raw).hostname or ''
+    except Exception:
+        return ''
+
+
+async def resolve_domain_ip(host, timeout=4.0, use_cache=True):
+    """
+    域名 -> IPv4 地址（不阻塞事件循环）。
+    - 传入的已经是 IP 时原样返回
+    - 解析成功写入 DNS_CACHE (供 UI 的非阻塞显示复用)
+    - 解析失败返回 None，且不写入缓存，便于下次重试
+    """
+    h = str(host or '').strip().strip('[]')
+    if not h:
+        return None
+    if is_ip_literal(h):
+        return h
+
+    if use_cache:
+        cached = state.DNS_CACHE.get(h)
+        if cached and cached != 'failed':
+            return cached
+
+    try:
+        loop = asyncio.get_running_loop()
+        infos = await asyncio.wait_for(
+            loop.getaddrinfo(h, None, family=socket.AF_INET, type=socket.SOCK_STREAM),
+            timeout,
+        )
+        ip = infos[0][4][0]
+        state.DNS_CACHE[h] = ip
+        return ip
+    except Exception:
+        return None
 
 
 def sync_ping_worker(host, port):

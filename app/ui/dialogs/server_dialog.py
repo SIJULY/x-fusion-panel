@@ -16,13 +16,19 @@ from app.core.state import (
     SIDEBAR_UI_REFS,
 )
 from app.services.probe import install_probe_on_server
-from app.services.server_ops import fast_resolve_single_server, generate_smart_name
+from app.services.server_ops import (
+    fast_resolve_single_server,
+    generate_smart_name,
+    normalize_server_host_fields,
+    resolve_host_to_ip,
+)
 from app.services.ssh import _ssh_exec_wrapper
 from app.storage.repositories import save_servers, save_single_server
 from app.ui.common.notifications import safe_notify
 from app.ui.components.dashboard import refresh_dashboard_ui
 from app.ui.components.sidebar import render_sidebar_content, render_single_sidebar_row
 from app.utils.geo import detect_country_group
+from app.utils.network import extract_host, is_ip_literal
 
 
 COLS_NO_PING = 'grid-template-columns: 2fr 2fr 1.5fr 1fr 0.8fr 0.8fr 0.5fr 1.5fr; align-items: center;'
@@ -197,7 +203,23 @@ async def save_server_config(server_data, is_add=True, idx=None):
 async def open_server_dialog(idx=None):
     is_edit = idx is not None
     original_data = SERVERS_CACHE[idx] if is_edit else {}
+
+    if is_edit:
+        try:
+            if await normalize_server_host_fields(original_data):
+                await save_single_server(original_data)
+        except Exception as e:
+            logger.warning(f"[ServerDialog] 主机字段归位失败: {e}")
+
     data = original_data.copy()
+
+    # `ssh_host` 为空时输入框会回退显示面板 URL 的主机，这里预解析成 IP，
+    # 免得又在「SSH 主机 IP」里显示出一个域名。
+    ssh_host_display_fallback = ''
+    if is_edit and not str(data.get('ssh_host') or '').strip():
+        fallback_host = extract_host(data.get('url'))
+        if fallback_host:
+            ssh_host_display_fallback = await resolve_host_to_ip(fallback_host) or fallback_host
 
     if is_edit:
         has_xui_conf = bool(data.get('url') and data.get('user') and data.get('pass'))
@@ -302,6 +324,25 @@ async def open_server_dialog(idx=None):
                     safe_notify("SSH 主机 IP 不能为空", "negative")
                     return
 
+                # 这一栏只存 IP：填进来的是域名就搬到「Cloudflare 主域名」，再解析成 IP 存回
+                if not is_ip_literal(s_host):
+                    typed_domain = extract_host(s_host) or s_host
+                    moved_to_cf = False
+                    if not final_cf_domain:
+                        final_cf_domain = typed_domain
+                        new_server_data['cf_primary_domain'] = typed_domain
+                        cf_primary_domain_input.set_value(typed_domain)
+                        moved_to_cf = True
+
+                    resolved_ip = await resolve_host_to_ip(typed_domain, use_cache=False)
+                    if resolved_ip:
+                        s_host = resolved_ip
+                        inputs['ssh_host'].set_value(resolved_ip)
+                        prefix = f"已把域名 {typed_domain} 归入主域名栏，" if moved_to_cf else ""
+                        safe_notify(f"{prefix}SSH 主机已解析为 {resolved_ip}", "positive")
+                    else:
+                        safe_notify(f"⚠️ 域名 {typed_domain} 解析失败，SSH 主机暂按原值保存", "warning")
+
                 new_server_data.update({
                     'ssh_host': s_host,
                     'ssh_port': str(inputs['ssh_port'].value).strip(),
@@ -367,11 +408,14 @@ async def open_server_dialog(idx=None):
 
                 if probe_val:
                     if not new_server_data.get('ssh_host'):
-                        try:
-                            clean_host = urlparse(final_base_url).hostname or final_base_url.split('://')[-1].split(':')[0]
-                            new_server_data['ssh_host'] = clean_host
-                        except:
-                            new_server_data['ssh_host'] = final_base_url.split('://')[-1].split(':')[0]
+                        clean_host = extract_host(final_base_url)
+                        if clean_host and not is_ip_literal(clean_host):
+                            if not final_cf_domain:
+                                final_cf_domain = clean_host
+                                new_server_data['cf_primary_domain'] = clean_host
+                                cf_primary_domain_input.set_value(clean_host)
+                            clean_host = await resolve_host_to_ip(clean_host, use_cache=False) or clean_host
+                        new_server_data['ssh_host'] = clean_host
                     if not new_server_data.get('ssh_port'):
                         new_server_data['ssh_port'] = '22'
                     if not new_server_data.get('ssh_user'):
@@ -423,12 +467,9 @@ async def open_server_dialog(idx=None):
                     ui.label('SSH 功能未启用').classes('text-slate-400 font-bold mb-2')
                     ui.button('启用 SSH 配置', icon='add', on_click=lambda: _activate_panel('ssh')).props('flat').classes('bg-cyan-950/40 text-cyan-300 border border-cyan-500/45 rounded-sm px-4 py-2')
             else:
-                init_host = data.get('ssh_host')
+                init_host = str(data.get('ssh_host') or '').strip()
                 if not init_host and is_edit:
-                    if '://' in data.get('url', ''):
-                        init_host = data.get('url', '').split('://')[-1].split(':')[0]
-                    else:
-                        init_host = data.get('url', '').split(':')[0]
+                    init_host = ssh_host_display_fallback
 
                 inputs['ssh_host'] = ui.input(label='SSH 主机 IP', value=init_host).classes('w-full').props(theme['input'])
 

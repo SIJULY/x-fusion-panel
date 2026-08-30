@@ -30,7 +30,7 @@ def _data_theme():
 
 from app.core.state import ADMIN_CONFIG, NODES_DATA, SERVERS_CACHE, SUBS_CACHE
 from app.services.probe import install_probe_on_server
-from app.services.server_ops import fast_resolve_single_server
+from app.services.server_ops import fast_resolve_single_server, normalize_all_server_host_fields
 from app.storage.repositories import (
     load_global_key,
     save_admin_config,
@@ -65,6 +65,25 @@ async def open_global_settings_dialog():
 
 async def open_data_mgmt_dialog():
     theme = _data_theme()
+
+    # 导出前先把主机字段归位，保证备份里的 ssh_host 是 IP、域名落在 cf_primary_domain
+    prep = ui.notification('正在校正服务器域名 / IP 字段...', timeout=None, spinner=True)
+    try:
+        fixed = await normalize_all_server_host_fields(budget=8.0)
+        if fixed:
+            await save_servers()
+            safe_notify(f"已把 {fixed} 台服务器的域名/IP 字段归位", 'positive')
+            from app.ui.components.sidebar import render_sidebar_content
+
+            render_sidebar_content.refresh()
+    except Exception as e:
+        safe_notify(f"主机字段归位失败: {e}", 'warning')
+    finally:
+        try:
+            prep.dismiss()
+        except Exception:
+            pass
+
     header_text_cls = 'text-slate-300' if theme['is_dark'] else 'text-slate-700'
     with ui.dialog() as d, ui.card().classes(theme['big_card']):
         with ui.row().classes(theme['header']):
@@ -115,17 +134,24 @@ async def open_data_mgmt_dialog():
 
                                 added = 0
                                 updated = 0
+                                touched = []
                                 existing_map = {s['url']: i for i, s in enumerate(SERVERS_CACHE)}
                                 for item in new_servers:
                                     url = item.get('url')
                                     if url in existing_map:
                                         if overwrite_chk.value:
                                             SERVERS_CACHE[existing_map[url]] = item
+                                            touched.append(item)
                                             updated += 1
                                     else:
                                         SERVERS_CACHE.append(item)
                                         existing_map[url] = len(SERVERS_CACHE) - 1
+                                        touched.append(item)
                                         added += 1
+
+                                # 老备份里 ssh_host 可能存的是域名，恢复时一并归位
+                                if touched:
+                                    await normalize_all_server_host_fields(servers=touched)
 
                                 if restore_key_chk.value and data.get('global_ssh_key'):
                                     await save_global_key(data['global_ssh_key'])

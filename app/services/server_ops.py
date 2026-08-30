@@ -19,6 +19,170 @@ from app.services.xui_fetch import fetch_inbounds_safe
 from app.storage.repositories import save_admin_config, save_nodes_cache, save_servers, save_single_server
 from app.utils.async_tools import run_in_bg_executor
 from app.utils.geo import detect_country_group, fetch_geo_from_ip, get_flag_for_country
+from app.utils.network import extract_host, is_ip_literal, resolve_domain_ip
+
+
+def make_cf_origin_ip_lookup():
+    """
+    返回一个带记忆的「域名 -> 源站 IP」查询函数；未配置 Cloudflare Token 时返回 None。
+
+    域名被 CF 橙云代理时，普通 DNS 解析出来的是 CF 边缘 IP 而不是机器本身，
+    所以优先读 CF 上 A 记录里的 content（源站 IP）。
+    CloudflareHandler 每次查询完会关掉内部 httpx client，用锁串行化避免并发打架。
+    """
+    try:
+        from app.services.cloudflare import CloudflareHandler
+
+        cf = CloudflareHandler()
+        if not cf.token:
+            return None
+    except Exception as e:
+        logger.warning(f"⚠️ [主机归位] Cloudflare 初始化失败，改用普通 DNS: {e}")
+        return None
+
+    cache = {}
+    lock = asyncio.Lock()
+
+    async def _lookup(domain):
+        key = str(domain or '').strip().lower()
+        if not key:
+            return None
+        if key in cache:
+            return cache[key]
+        async with lock:
+            if key in cache:
+                return cache[key]
+            ip = None
+            try:
+                ok, val = await cf.get_a_record_ip_by_domain(key)
+                if ok and val and is_ip_literal(val):
+                    ip = val
+            except Exception as e:
+                logger.warning(f"⚠️ [主机归位] CF 查询 {key} 失败: {e}")
+            cache[key] = ip
+            return ip
+
+    return _lookup
+
+
+def backfill_primary_domain(srv):
+    """
+    主机字段归位第一步（纯同步）：服务器身上出现过域名（url 主机优先，其次 ssh_host），
+    而 `cf_primary_domain` 为空时，把该域名回填到 `cf_primary_domain`。
+
+    url 主机优先是为了跟订阅链接现有的回退顺序保持一致 —— 回填后订阅出站主机不变。
+    返回是否改动了 srv。
+    """
+    if not isinstance(srv, dict):
+        return False
+    if str(srv.get('cf_primary_domain') or '').strip():
+        return False
+
+    ssh_host = str(srv.get('ssh_host') or '').strip()
+    url_host = extract_host(srv.get('url'))
+    domain = next((h for h in (url_host, ssh_host) if h and not is_ip_literal(h)), '')
+    if not domain:
+        return False
+
+    srv['cf_primary_domain'] = domain
+    logger.info(f"🔀 [主机归位] {srv.get('name', 'Unknown')} 主域名回填: {domain}")
+    return True
+
+
+async def resolve_host_to_ip(host, use_cache=True, use_cf=True):
+    """单个主机 -> IP：优先 CF 上的源站 IP，拿不到再退回普通 DNS。已是 IP 则原样返回。"""
+    h = str(host or '').strip().strip('[]')
+    if not h:
+        return None
+    if is_ip_literal(h):
+        return h
+    if use_cf:
+        lookup = make_cf_origin_ip_lookup()
+        if lookup:
+            ip = await lookup(h)
+            if ip:
+                return ip
+    return await resolve_domain_ip(h, use_cache=use_cache)
+
+
+async def resolve_ssh_host_to_ip(srv, use_cache=True, cf_lookup=None, use_cf=True):
+    """
+    主机字段归位第二步：`ssh_host` 里存的是域名时，解析成 IP 后写回 `ssh_host`。
+    `ssh_host` 本来就为空则不动它，避免给纯 X-UI 服务器凭空造出一份 SSH 配置。
+    优先取 CF 上的源站 IP，拿不到再退回普通 DNS。返回是否改动了 srv。
+    """
+    if not isinstance(srv, dict):
+        return False
+
+    ssh_host = str(srv.get('ssh_host') or '').strip()
+    if not ssh_host or is_ip_literal(ssh_host):
+        return False
+
+    if cf_lookup:
+        ip = await cf_lookup(ssh_host) or await resolve_domain_ip(ssh_host, use_cache=use_cache)
+    else:
+        ip = await resolve_host_to_ip(ssh_host, use_cache=use_cache, use_cf=use_cf)
+
+    if not ip:
+        logger.warning(f"⚠️ [主机归位] {srv.get('name', 'Unknown')} 域名 {ssh_host} 解析失败，SSH 主机保持原样")
+        return False
+    if ip == ssh_host:
+        return False
+
+    logger.info(f"🔀 [主机归位] {srv.get('name', 'Unknown')} SSH 主机 {ssh_host} -> {ip}")
+    srv['ssh_host'] = ip
+    return True
+
+
+async def normalize_server_host_fields(srv, use_cache=True, cf_lookup=None, use_cf=True):
+    """主机字段归位：`ssh_host` 只存 IP，域名只存在 `cf_primary_domain`。返回是否改动了 srv。"""
+    if not isinstance(srv, dict):
+        return False
+    changed = backfill_primary_domain(srv)
+    resolved = await resolve_ssh_host_to_ip(srv, use_cache=use_cache, cf_lookup=cf_lookup, use_cf=use_cf)
+    return resolved or changed
+
+
+async def normalize_all_server_host_fields(servers=None, use_cache=True, concurrency=16, budget=20.0):
+    """
+    批量执行主机字段归位。DNS 解析并发跑并带总时长预算，超时只是提前收工
+    （已改好的服务器会被计入，调用方照样会落库），不会卡住调用方。
+    返回被改动的服务器数量。
+    """
+    targets = [s for s in (SERVERS_CACHE if servers is None else servers) if isinstance(s, dict)]
+    if not targets:
+        return 0
+
+    sem = asyncio.Semaphore(concurrency)
+    changed = set()
+    cf_lookup = make_cf_origin_ip_lookup() if any(
+        str(s.get('ssh_host') or '').strip() and not is_ip_literal(str(s.get('ssh_host') or '').strip())
+        for s in targets
+    ) else None
+
+    async def _one(srv):
+        async with sem:
+            try:
+                # 同步那步先记账，这样即使后面解析被预算掐断，改动也不会漏计
+                if backfill_primary_domain(srv):
+                    changed.add(id(srv))
+                if await resolve_ssh_host_to_ip(srv, use_cache=use_cache, cf_lookup=cf_lookup):
+                    changed.add(id(srv))
+            except Exception as e:
+                logger.warning(f"⚠️ [主机归位] {srv.get('name', 'Unknown')} 处理失败: {e}")
+
+    task = asyncio.gather(*[_one(s) for s in targets])
+    try:
+        if budget:
+            await asyncio.wait_for(task, budget)
+        else:
+            await task
+    except asyncio.TimeoutError:
+        logger.warning(f"⏳ [主机归位] 超过 {budget}s 预算，本轮提前结束 (已修正 {len(changed)} 台)")
+    except Exception as e:
+        logger.error(f"❌ [主机归位] 批量处理异常: {e}")
+
+    return len(changed)
 
 
 async def force_geoip_naming_task(server_conf, max_retries=10):
