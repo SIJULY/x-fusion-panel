@@ -344,19 +344,41 @@ def generate_detail_config(node, server_host):
             elif raw_link.startswith('hy2://'):
                 from urllib.parse import parse_qs, urlparse
 
-                parsed = urlparse(raw_link)
-                password = parsed.username
-                h_host = parsed.hostname or address
+                # Handle port parsing issues with urlparse when port is a range like "20000-50000"
+                # urlparse will raise ValueError if port is not an integer.
+                # So we extract the port part manually if it contains '-'
+                try:
+                    parsed = urlparse(raw_link)
+                    password = parsed.username
+                    h_host = parsed.hostname or address
+                    h_port = parsed.port or port
+                except ValueError:
+                    # Fallback for ranges
+                    # e.g., hy2://password@host:20000-50000?sni=xxx
+                    import re
+                    match = re.match(r'hy2://([^@]+)@([^:]+):([0-9\-]+)(?:\?(.*))?', raw_link)
+                    if match:
+                        password = match.group(1)
+                        h_host = match.group(2)
+                        h_port = match.group(3)
+                        query_str = match.group(4) or ''
+                        class DummyParsed:
+                            query = query_str
+                        parsed = DummyParsed()
+                    else:
+                        raise
 
                 if str(port) and '-' in str(port):
                     h_port = port
-                else:
-                    h_port = parsed.port or port
 
                 params = parse_qs(parsed.query)
                 sni = params.get('sni', [''])[0] or params.get('peer', [''])[0]
 
                 line = f"{remark} = hysteria2, {h_host}, {h_port}, password={password}"
+                if str(port) and '-' in str(port) and str(port) == str(h_port):
+                     first_port = str(h_port).split('-')[0]
+                     line = f"{remark} = hysteria2, {h_host}, {first_port}, password={password}, port-hopping={h_port}"
+
                 if sni:
                     line += f", sni={sni}"
                 line += ", skip-cert-verify=true, download-bandwidth=1000, udp-relay=true"
